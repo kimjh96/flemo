@@ -13,7 +13,7 @@ function CompositionDetailScreen() {
     <Screen
       hideStatusBar
       hideSystemNavigationBar
-      backgroundColor="var(--color-bg)"
+      backgroundColor="var(--bg)"
       sharedTopBar={
         <CompositionHeader
           eyebrow={`Message ${id}`}
@@ -43,10 +43,12 @@ function CompositionDetailScreen() {
       <div data-testid="composition-detail" className="p-3">
         <CompositionStoryCard paired={id === "42"} variant="detail" />
         <div className="px-2 py-5 text-[13px] leading-6 text-slate-600 dark:text-slate-300">
-          <p>The screen, shared header, title, action, and Morph settle on one root clock.</p>
+          <p>
+            The screen, the header title, the back button and the card all move on the same timing.
+          </p>
           <p className="mt-3 rounded-2xl bg-slate-100 p-3 text-[11px] dark:bg-slate-900">
-            Drag slowly from the left edge. No Part hooks are installed; the title and back action
-            follow through the default rider.
+            Drag slowly from the left edge. The title and the back button follow the swipe with no
+            extra code.
           </p>
         </div>
       </div>

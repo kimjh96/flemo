@@ -1,5 +1,6 @@
 export {
   default,
+  useDict,
   useShellDict,
   useShellLang,
   useShellLocaleGetter,

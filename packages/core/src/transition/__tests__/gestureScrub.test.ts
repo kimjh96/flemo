@@ -70,7 +70,7 @@ describe("holdScrubAt", () => {
 });
 
 describe("scrubTo", () => {
-  it("moves to a fraction of the travel, past the flight's own start offset", () => {
+  it("moves to a fraction of the travel, past the transition's own start offset", () => {
     const animation = fakeAnimation();
 
     scrubTo(asAnimations([animation]), clock, 0.5);
@@ -91,7 +91,7 @@ describe("scrubTo", () => {
     expect(over.currentTime).toBeCloseTo(599.9, 5);
   });
 
-  // A DRAG THAT REACHES THE END IS NOT A FLIGHT THAT FINISHED.
+  // A DRAG THAT REACHES THE END IS NOT A TRANSITION THAT FINISHED.
   //
   // `animationend` is dispatched on the phase change rather than on the
   // playback, so an animation seeked to `delay + duration` fires it while
@@ -126,7 +126,7 @@ describe("scrubTo", () => {
 // into one frame. Writing `startTime` is the same resume with no frame in
 // between to disagree about.
 describe("settleScrubbed", () => {
-  it("places a committed flight at the time the finger left it", () => {
+  it("places a committed transition at the time the finger left it", () => {
     const animation = fakeAnimation({ currentTime: 200 });
 
     settleScrubbed(asAnimations([animation]), clock, true, 0.4);
@@ -139,7 +139,7 @@ describe("settleScrubbed", () => {
     expect((1_000 - (animation.startTime ?? 0)) * animation.playbackRate).toBeCloseTo(200, 5);
   });
 
-  it("runs a cancelled flight backwards from where it was held", () => {
+  it("runs a cancelled transition backwards from where it was held", () => {
     const animation = fakeAnimation({ currentTime: 200 });
     const onReverseFinish = vi.fn();
 
@@ -161,7 +161,7 @@ describe("settleScrubbed", () => {
     expect(addEventListener).toHaveBeenCalledWith("finish", onReverseFinish, { once: true });
   });
 
-  it("takes the rate from the whole flight's clock, not each passenger's", () => {
+  it("takes the rate from the whole transition's clock, not each passenger's", () => {
     // A cut that finished long before the release rides the same clock as the
     // travel it belongs to, so both land together.
     const travel = fakeAnimation({ currentTime: 200 });
@@ -221,7 +221,7 @@ describe("a timeline that answers in CSSNumericValue", () => {
     expect((1_000 - (animation.startTime ?? 0)) * animation.playbackRate).toBeCloseTo(200, 5);
   });
 
-  it("treats a value it cannot read as the start of the flight", () => {
+  it("treats a value it cannot read as the start of the transition", () => {
     // A sum or a product has no single number to read, and a release that
     // cannot place the animation must not place it at NaN.
     const animation = fakeAnimation({ currentTime: numeric("nope") });
@@ -334,8 +334,8 @@ const fakeSource = (input: {
     }
   }) as unknown as Animation;
 
-/** A flight's shape: a flat lead-in, then the travel. */
-const flightFrames = (easing = CUPERTINO) => [
+/** A transition's shape: a flat lead-in, then the travel. */
+const transitionFrames = (easing = CUPERTINO) => [
   { computedOffset: 0, easing, transform: "none" },
   { computedOffset: 0.3, easing, transform: "none" },
   { computedOffset: 1, easing, transform: "translateX(100px)" }
@@ -344,7 +344,7 @@ const flightFrames = (easing = CUPERTINO) => [
 describe("stageReturnLeg", () => {
   it("walks the declared path the other way, without the lead-in nobody waits through", () => {
     const { element, legs } = stageTarget();
-    const leg = stageReturnLeg(fakeSource({ element, frames: flightFrames(), duration: 700 }));
+    const leg = stageReturnLeg(fakeSource({ element, frames: transitionFrames(), duration: 700 }));
 
     expect(leg).not.toBeNull();
     // The head is 30% of 700ms, so what is left to walk home is 490ms.
@@ -444,7 +444,7 @@ describe("returnLegSeek", () => {
     // device reported; the leg instead starts where 9% is LEFT.
     const source = fakeSource({
       element,
-      frames: flightFrames(),
+      frames: transitionFrames(),
       duration: 700,
       currentTime: 210 + 30
     });
@@ -463,7 +463,7 @@ describe("returnLegSeek", () => {
     const { element } = stageTarget();
     const source = fakeSource({
       element,
-      frames: flightFrames("linear"),
+      frames: transitionFrames("linear"),
       duration: 700,
       currentTime: 210 + 0.09 * 490
     });
@@ -474,9 +474,14 @@ describe("returnLegSeek", () => {
     expect(seek.remaining / leg.duration).toBeCloseTo(0.09, 5);
   });
 
-  it("has nothing to fly for a drag that never left the start", () => {
+  it("has nothing to move for a drag that never left the start", () => {
     const { element } = stageTarget();
-    const source = fakeSource({ element, frames: flightFrames(), duration: 700, currentTime: 0 });
+    const source = fakeSource({
+      element,
+      frames: transitionFrames(),
+      duration: 700,
+      currentTime: 0
+    });
     const leg = stageReturnLeg(source)!;
 
     expect(returnLegSeek(leg, source)).toBeNull();
@@ -486,7 +491,7 @@ describe("returnLegSeek", () => {
 describe("placeLeg", () => {
   it("covers what is left of the leg in the seconds the release settled on", () => {
     const { element, legs } = stageTarget();
-    stageReturnLeg(fakeSource({ element, frames: flightFrames(), duration: 700 }));
+    stageReturnLeg(fakeSource({ element, frames: transitionFrames(), duration: 700 }));
     const leg = legs[0]!;
 
     placeLeg(leg as unknown as Animation, 100, 300, 0.15);
@@ -500,7 +505,7 @@ describe("placeLeg", () => {
 
   it("plays a leg with no resolved timeline to solve against", () => {
     const { element, legs } = stageTarget();
-    stageReturnLeg(fakeSource({ element, frames: flightFrames(), duration: 700 }));
+    stageReturnLeg(fakeSource({ element, frames: transitionFrames(), duration: 700 }));
     const leg = legs[0]!;
     leg.timeline = null;
 
@@ -511,7 +516,7 @@ describe("placeLeg", () => {
 });
 
 describe("stageReturnLeg declines", () => {
-  const frames = flightFrames();
+  const frames = transitionFrames();
 
   it("what it cannot read a path off", () => {
     const { element } = stageTarget();
@@ -575,12 +580,12 @@ describe("stageReturnLeg declines", () => {
 
   it("a curve with no speed to read", () => {
     const { element } = stageTarget();
-    const spring = flightFrames("spring(1 100 10 0)");
+    const spring = transitionFrames("spring(1 100 10 0)");
 
     expect(stageReturnLeg(fakeSource({ element, frames: spring }))).toBeNull();
-    expect(stageReturnLeg(fakeSource({ element, frames: flightFrames("") }))).toBeNull();
+    expect(stageReturnLeg(fakeSource({ element, frames: transitionFrames("") }))).toBeNull();
     expect(
-      stageReturnLeg(fakeSource({ element, frames: flightFrames("cubic-bezier(1, 2)") }))
+      stageReturnLeg(fakeSource({ element, frames: transitionFrames("cubic-bezier(1, 2)") }))
     ).toBeNull();
   });
 
@@ -597,7 +602,7 @@ describe("stageReturnLeg takes", () => {
     const { element, legs } = stageTarget();
 
     const leg = stageReturnLeg(
-      fakeSource({ element, frames: flightFrames("ease-in"), delay: null, easing: null })
+      fakeSource({ element, frames: transitionFrames("ease-in"), delay: null, easing: null })
     );
 
     expect(leg!.source.delay).toBe(0);
@@ -608,7 +613,7 @@ describe("stageReturnLeg takes", () => {
   it("a leg that reports no keyframes back, on the keys it was given", () => {
     const { element } = stageTarget({ blindEffect: true });
 
-    expect(stageReturnLeg(fakeSource({ element, frames: flightFrames() }))).not.toBeNull();
+    expect(stageReturnLeg(fakeSource({ element, frames: transitionFrames() }))).not.toBeNull();
   });
 
   it("a declared path, with CSS property names as a keyframe wants them", () => {
@@ -631,14 +636,14 @@ describe("stageReturnLeg takes", () => {
 describe("returnLegSeek", () => {
   it("reads a source the host has not given a time yet as its own start", () => {
     const { element } = stageTarget();
-    const source = fakeSource({ element, frames: flightFrames(), currentTime: null });
+    const source = fakeSource({ element, frames: transitionFrames(), currentTime: null });
 
     expect(returnLegSeek(stageReturnLeg(source)!, source)).toBeNull();
   });
 
-  it("has the whole way home to fly for a drag held at the far end", () => {
+  it("has the whole way home to move for a drag held at the far end", () => {
     const { element } = stageTarget();
-    const source = fakeSource({ element, frames: flightFrames(), currentTime: 900 });
+    const source = fakeSource({ element, frames: transitionFrames(), currentTime: 900 });
     const leg = stageReturnLeg(source)!;
 
     expect(returnLegSeek(leg, source)!.remaining).toBeCloseTo(leg.duration, 5);

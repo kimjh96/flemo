@@ -68,8 +68,8 @@ export const detectBlinkEngine = (): boolean => {
 //
 // No UA-CH is a strong proxy for pre-2021 Chromium, and these devices are
 // confidently slow —
-// they take the governed head kit (a compiled flight's opening held in a flat
-// head) from flight ONE rather than swallowing the curve's start on a
+// they take the governed head kit (a compiled transition's opening held in a flat
+// head) from transition ONE rather than swallowing the curve's start on a
 // 120-260ms mount commit. A modern device (UA-CH brands present) is excluded.
 // iOS carries no "Android" token, so this never touches WebKit.
 //

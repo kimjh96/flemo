@@ -10,27 +10,27 @@ import {
 interface CreateRawDecoratorProps {
   /** Public name registered on a Router and selected by a screen transition. */
   name: DecoratorName;
-  /** From-pose for a decorator entering on a newly mounted screen. */
+  /** Starting style for a decorator entering on a newly mounted screen. */
   initial: InitialTarget;
-  /** Resting pose for both sides while the Router is idle. */
+  /** Resting style for both sides while the Router is idle. */
   idle: DecoratorVariantValue;
-  /** Target for the decorator on `PUSHING-true`, the arriving active screen. */
+  /** Target for the decorator on `PUSHING-true`, the new active screen. */
   pushOnEnter: DecoratorVariantValue;
   /** Target for the decorator on `PUSHING-false`, the screen moving behind. */
   pushOnExit: DecoratorVariantValue;
-  /** Target for the decorator on `REPLACING-true`, the arriving replacement. */
+  /** Target for the decorator on `REPLACING-true`, the new screen that replaces the current one. */
   replaceOnEnter: DecoratorVariantValue;
   /** Target for the decorator on `REPLACING-false`, the replaced screen. */
   replaceOnExit: DecoratorVariantValue;
-  /** Target for the decorator on `POPPING-true`, the top screen being dismissed. */
+  /** Target for the decorator on `POPPING-true`, the closing top screen. */
   popOnEnter: DecoratorVariantValue;
   /** Target for the decorator on `POPPING-false`, the returning screen. */
   popOnExit: DecoratorVariantValue;
-  /** Settled pose for the decorator on `COMPLETED-true`, the active top screen. */
+  /** Style after the transition ends for the decorator on `COMPLETED-true`, the active top screen. */
   completedOnEnter: DecoratorVariantValue;
-  /** Settled pose for the decorator on `COMPLETED-false`, the covered screen. */
+  /** Style after the transition ends for the decorator on `COMPLETED-false`, the covered screen. */
   completedOnExit: DecoratorVariantValue;
-  /** Decorator behavior; omitted clocks inherit from the naming transition. */
+  /** Decorator behavior; omitted timing comes from the screen transition that sets this decorator. */
   options?: DecoratorOptions;
 }
 

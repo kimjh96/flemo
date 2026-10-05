@@ -1,7 +1,7 @@
 {
   "name": "@flemo/devtools",
-  "version": "0.9.0",
-  "description": "Zero-config flight recorder, on-device readout and visual panel for flemo screen transitions: captures per-flight driver routing, frame pacing, long tasks, shared-element pairing, landing residues and judging preconditions into one JSON report readable by humans and coding agents.",
+  "version": "0.10.0",
+  "description": "Zero-config transition recorder, on-device readout and visual panel for flemo screen transitions: records how each transition was driven, frame pacing, long tasks, shared-element pairing, what is left behind after a transition ends, and judging preconditions, in one JSON report readable by people and coding agents.",
   "main": "./dist/index.mjs",
   "module": "./dist/index.mjs",
   "types": "./dist/index.d.ts",
@@ -14,7 +14,7 @@
     "flemo",
     "devtools",
     "diagnostics",
-    "flight-recorder",
+    "transition-recorder",
     "transition",
     "performance"
   ],
@@ -51,15 +51,15 @@
     "@testing-library/react": "^16.3.3",
     "@types/node": "^24.13.1",
     "@types/react": "^19.3.0",
-    "@vitest/coverage-v8": "^5.0.2",
+    "@vitest/coverage-v8": "^5.0.3",
     "eslint": "^9.39.5",
     "jsdom": "^30.1.1",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
     "typescript": "^6.0.3",
-    "vite": "^8.3.1",
-    "vite-plugin-dts": "^5.1.1",
-    "vitest": "^5.0.2"
+    "vite": "^8.3.2",
+    "vite-plugin-dts": "^5.1.2",
+    "vitest": "^5.0.3"
   },
   "publishConfig": {
     "access": "public"

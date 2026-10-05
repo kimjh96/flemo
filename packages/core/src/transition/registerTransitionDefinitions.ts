@@ -67,12 +67,12 @@ export default function registerTransitionDefinitions(
     retain(partTransitionRefs, partTransition.name);
   }
   // Morph transitions compile to no CSS at registration — their keyframes need
-  // two rects that only a flight produces — so this is a pure name lookup for
+  // two rects that only a transition produces — so this is a pure name lookup for
   // the morph runtime. It still reference-counts like the rest: several Routers
   // may register the same name, and the last one out is the one that removes it.
   for (const morphTransition of morphTransitions) {
     // The one authored value whose consequence is invisible until a pop: see
-    // warnDepartureNotHidden. Checked here rather than per flight because the
+    // warnDepartureNotHidden. Checked here rather than per transition because the
     // answer cannot change once the definition is registered.
     const departure = morphTransition.variants["PUSHING-false"]?.value?.opacity;
     if (departure !== 0) warnDepartureNotHidden(morphTransition.name, departure);

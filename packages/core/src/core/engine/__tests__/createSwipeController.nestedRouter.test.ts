@@ -112,7 +112,7 @@ describe("swipe-back on a screen that hosts a nested Router", () => {
       name: "swipe-nested",
       initial: { x: "100%" },
       // A REAL variant table, not `{}`. The controller folds this transition's
-      // clock into its decorator's (resolveDecoratorClock) before promoting a
+      // clock into its decorator's (resolveDecoratorTiming) before promoting a
       // layer for the drag, so an empty stub is a shape the runtime cannot be
       // handed — the cast used to hide that.
       variants: fullVariants({ x: 0 }, { duration: 0.3 }),

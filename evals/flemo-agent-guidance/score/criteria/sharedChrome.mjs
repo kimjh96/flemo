@@ -15,7 +15,7 @@ import {
   pop,
   releaseSwipe,
   role,
-  sampleFlight,
+  sampleTransition,
   settled,
   swipe,
   swipeTo,
@@ -63,7 +63,7 @@ const spread = (samples, index) => {
   return values.length === 0 ? null : Math.max(...values) - Math.min(...values);
 };
 
-// A field handed over if its ink moved across the flight: something faded out,
+// A field handed over if its ink moved across the transition: something faded out,
 // or in, or both. A field that sat at one value did not participate.
 const handedOver = (samples, field) => {
   const inks = samples.flatMap((sample) => (sample.value?.[field] ?? []).map((entry) => entry.ink));
@@ -92,7 +92,7 @@ export const run = async ({ page, map }) => {
   const judge = async (label, samples) => {
     report[label] = { frames: samples.length };
     // The shell is one element for the whole app, so its box is the same on
-    // every frame of every flight. A pixel of tolerance covers subpixel layout.
+    // every frame of every transition. A pixel of tolerance covers subpixel layout.
     for (const [index, axis] of ["x", "y", "width", "height"].entries()) {
       const moved = spread(samples, index);
       report[label][axis] = moved;
@@ -109,17 +109,17 @@ export const run = async ({ page, map }) => {
 
   await judge(
     "push",
-    await sampleFlight(page, probe, {
+    await sampleTransition(page, probe, {
       trigger: async () => (await target(page, map, "shared-object")).click()
     })
   );
-  await judge("pop", await sampleFlight(page, probe, { trigger: () => pop(page, map) }));
+  await judge("pop", await sampleTransition(page, probe, { trigger: () => pop(page, map) }));
 
-  // A cancelled drag is a flight that goes out and comes home, so the shell is
+  // A cancelled drag is a transition that goes out and comes home, so the shell is
   // held to the same rule while the finger is down and after it lifts.
   await (await target(page, map, "shared-object")).click();
   await settled(page);
-  const cancel = await sampleFlight(page, probe, {
+  const cancel = await sampleTransition(page, probe, {
     trigger: async () => {
       const box = await swipeTo(page, map, 0.35);
       await releaseSwipe(page, map, { home: true, box });
@@ -135,7 +135,7 @@ export const run = async ({ page, map }) => {
   const stillOnDetail = await page.locator(resolve(map, "app-detail").selector).first().isVisible();
   if (!stillOnDetail) failures.push("swipe cancel: the cancelled gesture left the screen anyway");
 
-  const commit = await sampleFlight(page, probe, {
+  const commit = await sampleTransition(page, probe, {
     trigger: () => swipe(page, map, { fraction: 0.85, release: "commit" })
   });
   await judge("swipe commit", commit);

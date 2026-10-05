@@ -243,7 +243,7 @@ describe("useNavigate: which Router transitions", () => {
   it("a current-Router move transitions only inside the Slot", async () => {
     await run(() => captured.regionNav.push("/region/people"));
 
-    // The region ran a flight; the outer Router never left IDLE, so its screen
+    // The region ran a transition; the outer Router never left IDLE, so its screen
     // (and the region header above the Slot) never transitioned.
     expect(status(captured.region)).toBe("COMPLETED");
     expect(status(captured.app)).toBe("IDLE");

@@ -1,13 +1,13 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { attachFlightRecorder } from "../recorder";
+import { attachTransitionRecorder } from "../recorder";
 
-import type { FlightRecorderHandle } from "../types";
+import type { TransitionRecorderHandle } from "../types";
 
 // Branch coverage for the recorder's guarded/optional paths: SSR, the
 // longtask observer, participant counting, compiled/mixed classification,
 // the stuck watchdog, the off-viewport landing parse, logging, provisional
-// flights, and global-slot edge cases.
+// transitions, and global-slot edge cases.
 
 const frame = () =>
   new Promise<void>((resolve) => {
@@ -20,10 +20,10 @@ const frames = async (count: number) => {
 
 const settle = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
 
-let handle: FlightRecorderHandle | null = null;
+let handle: TransitionRecorderHandle | null = null;
 
-const attach = (options?: Parameters<typeof attachFlightRecorder>[0]) => {
-  handle = attachFlightRecorder(options);
+const attach = (options?: Parameters<typeof attachTransitionRecorder>[0]) => {
+  handle = attachTransitionRecorder(options);
   return handle;
 };
 
@@ -47,7 +47,7 @@ const mountScreen = () => {
   return screen;
 };
 
-const runFlight = async (screen: HTMLElement, status = "PUSHING") => {
+const runTransition = async (screen: HTMLElement, status = "PUSHING") => {
   screen.setAttribute("data-flemo-status", status);
   screen.setAttribute("data-flemo-active", "true");
   await settle();
@@ -57,12 +57,12 @@ const runFlight = async (screen: HTMLElement, status = "PUSHING") => {
   await frames(4);
 };
 
-describe("attachFlightRecorder branches", () => {
+describe("attachTransitionRecorder branches", () => {
   it("returns an inert handle without a DOM (SSR)", () => {
     vi.stubGlobal("window", undefined);
-    const recorder = attachFlightRecorder();
+    const recorder = attachTransitionRecorder();
     const report = recorder.report();
-    expect(report.flights).toEqual([]);
+    expect(report.transitions).toEqual([]);
     expect(report.overrides.warnings.some((entry) => entry.includes("no DOM available"))).toBe(
       true
     );
@@ -73,7 +73,7 @@ describe("attachFlightRecorder branches", () => {
     expect(real).not.toBe(recorder);
   });
 
-  it("collects long tasks via PerformanceObserver and correlates them to the flight", async () => {
+  it("collects long tasks via PerformanceObserver and correlates them to the transition", async () => {
     let observerCallback: ((list: { getEntries: () => unknown[] }) => void) | null = null;
     class FakePerformanceObserver {
       static supportedEntryTypes = ["longtask"];
@@ -102,9 +102,9 @@ describe("attachFlightRecorder branches", () => {
     await settle();
     await frames(3);
 
-    const flight = handle!.report().flights[0];
-    expect(flight.longTasks.length).toBeGreaterThanOrEqual(1);
-    expect(flight.anomalies.some((entry) => entry.includes("opening-swallow risk"))).toBe(true);
+    const transition = handle!.report().transitions[0];
+    expect(transition.longTasks.length).toBeGreaterThanOrEqual(1);
+    expect(transition.anomalies.some((entry) => entry.includes("opening-swallow risk"))).toBe(true);
   });
 
   it("files a long task inside the hold as absorbed, not opening-swallow", async () => {
@@ -141,11 +141,11 @@ describe("attachFlightRecorder branches", () => {
     await settle();
     await frames(3);
 
-    const flight = handle!.report().flights[0];
-    expect(flight.holdLongTasks.length).toBeGreaterThanOrEqual(1);
-    expect(flight.longTasks).toEqual([]);
-    expect(flight.anomalies.some((entry) => entry.includes("absorbed by the hold"))).toBe(true);
-    expect(flight.anomalies.some((entry) => entry.includes("opening-swallow"))).toBe(false);
+    const transition = handle!.report().transitions[0];
+    expect(transition.holdLongTasks.length).toBeGreaterThanOrEqual(1);
+    expect(transition.longTasks).toEqual([]);
+    expect(transition.anomalies.some((entry) => entry.includes("absorbed by the hold"))).toBe(true);
+    expect(transition.anomalies.some((entry) => entry.includes("opening-swallow"))).toBe(false);
   });
 
   it("counts bar, decorator, and part participants", async () => {
@@ -163,10 +163,10 @@ describe("attachFlightRecorder branches", () => {
 
     attach();
     await settle();
-    await runFlight(screen);
+    await runTransition(screen);
 
-    const flight = handle!.report().flights[0];
-    expect(flight.participants).toEqual({ screens: 1, bars: 1, decorators: 1, parts: 1 });
+    const transition = handle!.report().transitions[0];
+    expect(transition.participants).toEqual({ screens: 1, bars: 1, decorators: 1, parts: 1 });
   });
 
   it("classifies a running flemo-* CSSAnimation as compiled, and mixed with a player stake", async () => {
@@ -176,17 +176,17 @@ describe("attachFlightRecorder branches", () => {
     ];
     attach();
     await settle();
-    await runFlight(screen);
-    expect(handle!.report().flights[0].driver).toBe("compiled");
+    await runTransition(screen);
+    expect(handle!.report().transitions[0].driver).toBe("compiled");
 
     // Same signature plus an inline player stake → mixed.
     screen.style.animation = "none";
-    await runFlight(screen, "POPPING");
-    const flights = handle!.report().flights;
-    expect(flights[1].driver).toBe("mixed");
+    await runTransition(screen, "POPPING");
+    const transitions = handle!.report().transitions;
+    expect(transitions[1].driver).toBe("mixed");
   });
 
-  it("finalizes a >10s transitional flight as stuck via the rAF watchdog", async () => {
+  it("finalizes a transition left transitional for >10s as stuck via the rAF watchdog", async () => {
     const screen = mountScreen();
     attach();
     await settle();
@@ -202,15 +202,15 @@ describe("attachFlightRecorder branches", () => {
     nowSpy.mockRestore();
 
     const report = handle!.report();
-    const flight = report.flights[0];
-    expect(flight.landing.stuckStatuses).toEqual(["PUSHING"]);
-    expect(flight.anomalies.some((entry) => entry.includes("stuck >10s"))).toBe(true);
+    const transition = report.transitions[0];
+    expect(transition.endAudit.stuckStatuses).toEqual(["PUSHING"]);
+    expect(transition.anomalies.some((entry) => entry.includes("stuck >10s"))).toBe(true);
 
-    // Recovery: the queue unlocks and a fresh flight records normally.
+    // Recovery: the queue unlocks and a fresh transition records normally.
     screen.setAttribute("data-flemo-status", "COMPLETED");
     await settle();
-    await runFlight(screen, "POPPING");
-    expect(handle!.report().flights).toHaveLength(2);
+    await runTransition(screen, "POPPING");
+    expect(handle!.report().transitions).toHaveLength(2);
   });
 
   it("does not re-arm on the same locked queue after a stuck finalization", async () => {
@@ -227,24 +227,24 @@ describe("attachFlightRecorder branches", () => {
     const nowSpy = vi.spyOn(performance, "now").mockImplementation(() => realNow() + 11_000);
     await frames(2);
     nowSpy.mockRestore();
-    expect(handle!.report().flights).toHaveLength(1);
+    expect(handle!.report().transitions).toHaveLength(1);
 
     // The queue is still locked (status unchanged): further filtered
-    // mutations must NOT begin a duplicate flight on the same screens —
-    // a locked queue would repeat forever and evict real flights from the
+    // mutations must NOT begin a duplicate transition on the same screens —
+    // a locked queue would repeat forever and evict real transitions from the
     // bounded buffer.
     screen.setAttribute("data-flemo-active", "false");
     await settle();
     screen.setAttribute("data-flemo-active", "true");
     await settle();
     await frames(1);
-    expect(handle!.report().flights).toHaveLength(1);
+    expect(handle!.report().transitions).toHaveLength(1);
 
     // Once the locked screens clear, a fresh navigation records normally.
     screen.setAttribute("data-flemo-status", "COMPLETED");
     await settle();
-    await runFlight(screen, "POPPING");
-    expect(handle!.report().flights).toHaveLength(2);
+    await runTransition(screen, "POPPING");
+    expect(handle!.report().transitions).toHaveLength(2);
   });
 
   it("a report taken before the landing audit is a stable snapshot", async () => {
@@ -262,20 +262,20 @@ describe("attachFlightRecorder branches", () => {
     await settle();
 
     // Report BEFORE the audit frames elapse: landing must be a copy…
-    const early = handle!.report().flights[0].landing;
+    const early = handle!.report().transitions[0].endAudit;
     expect(early.residualInlineTransforms).toEqual([]);
 
     await frames(4);
     // …that does not mutate in the caller's hands once the audit lands…
     expect(early.residualInlineTransforms).toEqual([]);
     // …while a fresh report sees the audited residue.
-    const audited = handle!.report().flights[0].landing;
+    const audited = handle!.report().transitions[0].endAudit;
     expect(audited.residualInlineTransforms.some((entry) => entry.includes("translateX"))).toBe(
       true
     );
   });
 
-  it("reports a still-open flight provisionally, and a stuck one at report time", async () => {
+  it("reports a still-open transition provisionally, and a stuck one at report time", async () => {
     const screen = mountScreen();
     attach();
     await settle();
@@ -286,10 +286,10 @@ describe("attachFlightRecorder branches", () => {
     await frames(1);
 
     const openReport = handle!.report();
-    expect(openReport.flights).toHaveLength(1);
-    expect(openReport.flights[0].id).toContain("(in flight)");
+    expect(openReport.transitions).toHaveLength(1);
+    expect(openReport.transitions[0].id).toContain("(running)");
 
-    // The same open flight judged >10s old at report(): stuck at session level
+    // The same open transition judged >10s old at report(): stuck at session level
     // (rAF is throttled here so the watchdog never ran).
     const realNow = performance.now.bind(performance);
     const nowSpy = vi.spyOn(performance, "now").mockImplementation(() => realNow() + 11_000);
@@ -301,7 +301,7 @@ describe("attachFlightRecorder branches", () => {
     await settle();
   });
 
-  it("unions a screen that joins mid-flight into the participants", async () => {
+  it("unions a screen that joins mid-transition into the participants", async () => {
     const first = mountScreen();
     attach();
     await settle();
@@ -318,7 +318,7 @@ describe("attachFlightRecorder branches", () => {
     await settle();
     await frames(3);
 
-    expect(handle!.report().flights[0].participants.screens).toBe(2);
+    expect(handle!.report().transitions[0].participants.screens).toBe(2);
   });
 
   it("flags an off-viewport COMPLETED+active landing (blank-viewport signature)", async () => {
@@ -344,22 +344,24 @@ describe("attachFlightRecorder branches", () => {
     await frames(4);
 
     const report = handle!.report();
-    const flight = report.flights[0];
-    expect(flight.landing.offViewportAtRest).toBe(true);
+    const transition = report.transitions[0];
+    expect(transition.endAudit.offViewportAtRest).toBe(true);
     expect(
-      flight.landing.residualInlineTransforms.some((entry) => entry.includes("opacity=0.5"))
+      transition.endAudit.residualInlineTransforms.some((entry) => entry.includes("opacity=0.5"))
     ).toBe(true);
-    expect(flight.anomalies.some((entry) => entry.includes("blank-viewport signature"))).toBe(true);
+    expect(transition.anomalies.some((entry) => entry.includes("blank-viewport signature"))).toBe(
+      true
+    );
     expect(report.anomalies.some((entry) => entry.includes("blank-viewport"))).toBe(true);
   });
 
-  it("logs a one-line summary per flight when log is enabled", async () => {
+  it("logs a one-line summary per transition when log is enabled", async () => {
     const info = vi.spyOn(console, "info").mockImplementation(() => {});
     const screen = mountScreen();
     attach({ log: true });
     await settle();
-    await runFlight(screen);
-    expect(info).toHaveBeenCalledWith(expect.stringContaining("flight-1 PUSH"));
+    await runTransition(screen);
+    expect(info).toHaveBeenCalledWith(expect.stringContaining("transition-1 PUSH"));
   });
 
   it("replaces a stale global left by a previous recorder instance", () => {
@@ -379,23 +381,23 @@ describe("attachFlightRecorder branches", () => {
     root.remove();
     expect(document.documentElement).toBeNull();
 
-    let recorder: FlightRecorderHandle | null = null;
+    let recorder: TransitionRecorderHandle | null = null;
     expect(() => {
       recorder = attach();
     }).not.toThrow();
     // The handle is valid immediately, before any DOM exists.
-    expect(recorder!.report().flights).toEqual([]);
+    expect(recorder!.report().transitions).toEqual([]);
 
     // The document finishes parsing: root returns, DOMContentLoaded fires.
     document.appendChild(root);
     document.dispatchEvent(new Event("DOMContentLoaded"));
     await settle();
 
-    // Observation is live from here: a flight records normally.
+    // Observation is live from here: a transition records normally.
     const screen = mountScreen();
     await settle();
-    await runFlight(screen);
-    expect(handle!.report().flights).toHaveLength(1);
+    await runTransition(screen);
+    expect(handle!.report().transitions).toHaveLength(1);
   });
 
   it("cancels pending deferred wiring on detach", async () => {
@@ -410,17 +412,17 @@ describe("attachFlightRecorder branches", () => {
     await settle();
 
     // The detached recorder never wired: a status flip is not observed by it,
-    // and a fresh recorder attaches cleanly and owns the flight.
+    // and a fresh recorder attaches cleanly and owns the transition.
     const fresh = attach();
     await settle();
     const screen = mountScreen();
     await settle();
-    await runFlight(screen);
-    expect(fresh.report().flights).toHaveLength(1);
-    expect(recorder.report().flights).toEqual([]);
+    await runTransition(screen);
+    expect(fresh.report().transitions).toHaveLength(1);
+    expect(recorder.report().transitions).toEqual([]);
   });
 
-  it("cancels the sampler when detached mid-flight", async () => {
+  it("cancels the sampler when detached mid-transition", async () => {
     const screen = mountScreen();
     const recorder = attach();
     await settle();
@@ -436,7 +438,7 @@ describe("attachFlightRecorder branches", () => {
 // The closing tail: after the last animation reports "finished" the pose is
 // meant to stand still, so those frames are counted separately instead of as a
 // stall. Folding them in made a ~50ms "motion stalled" fire on every healthy
-// flight (measured on a real app, 10 of 10 flights, always exactly 3 frames).
+// transition (measured on a real app, 10 of 10 transitions, always exactly 3 frames).
 describe("closing tail frames", () => {
   it("counts frames after the animations finish as tail, not as a stall", async () => {
     const screen = mountScreen();
@@ -470,9 +472,9 @@ describe("closing tail frames", () => {
     screen.setAttribute("data-flemo-status", "COMPLETED");
     await settle();
 
-    const flight = handle!.report().flights[0];
-    expect(flight.motion.tailFrames).toBeGreaterThan(0);
-    expect(flight.motion.stalledFrames).toBe(0);
-    expect(flight.anomalies.join(" ")).not.toContain("stalled");
+    const transition = handle!.report().transitions[0];
+    expect(transition.motion.tailFrames).toBeGreaterThan(0);
+    expect(transition.motion.stalledFrames).toBe(0);
+    expect(transition.anomalies.join(" ")).not.toContain("stalled");
   });
 });

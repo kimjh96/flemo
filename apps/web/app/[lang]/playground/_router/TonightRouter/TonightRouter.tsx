@@ -2,8 +2,8 @@
 
 import { Route, Router, Slot } from "@flemo/react";
 
-import sharedAxisBackward from "@/app/[lang]/_transitions/sharedAxisBackward";
-import sharedAxisForward from "@/app/[lang]/_transitions/sharedAxisForward";
+import sharedAxisBackward from "../../_transitions/sharedAxisBackward";
+import sharedAxisForward from "../../_transitions/sharedAxisForward";
 
 import aperture from "../../_transitions/aperture";
 import drift from "../../_transitions/drift";
@@ -14,6 +14,8 @@ import sheet from "../../_transitions/sheet";
 import tether from "../../_transitions/tether";
 import recess from "../../_transitions/recess";
 import reveal from "../../_transitions/reveal";
+
+import TonightAutoplay from "../../_components/TonightAutoplay";
 
 import ActScreen from "../../_screens/ActScreen";
 import ActsScreen from "../../_screens/ActsScreen";
@@ -26,6 +28,8 @@ import "./TonightRouter.types";
 
 export interface TonightRouterProps {
   bench: BenchCase;
+  // Lets the landing hero play the app by itself. Off on the playground.
+  autoplay?: boolean;
 }
 
 // The mini-app. A NESTED <Router> with in-memory history, exactly as the
@@ -41,17 +45,17 @@ export interface TonightRouterProps {
 //
 // The bench switches which transition carries that push. The screens do not
 // branch on it — with one exception the deleted playground's clocks.ts already
-// paid for: the detail's floating header is covered by the artwork's flight
-// and revealed at the landing, so its entrance has to carry the flight's own
-// clock. detailChrome.ts is that element's part, and it takes the flight's
-// length from the flight (`after: "flight"`) rather than from a table of case
+// paid for: the detail's floating header is covered by the artwork's transition
+// and revealed at the landing, so its entrance has to carry the transition's own
+// clock. detailChrome.ts is that element's part, and it takes the transition's
+// length from the transition (`after: "transition"`) rather than from a table of case
 // names.
 //
 // `<Slot>` is required rather than decorative: the Router has a non-Route child
 // (the bench provider's subtree would be one too), and the docs are explicit:
 // "If a Router has children that are not Routes ... wrap the routes in a Slot
 // so flemo can tell screens from the surrounding layout."
-function TonightRouter({ bench }: TonightRouterProps) {
+function TonightRouter({ bench, autoplay = false }: TonightRouterProps) {
   return (
     <BenchContext.Provider value={bench}>
       <Router
@@ -74,8 +78,9 @@ function TonightRouter({ bench }: TonightRouterProps) {
         // arriving late and leaving early, chrome late in both directions.
         partTransitions={[cardBody, cardChrome, ...detailChromes]}
         defaultTransitionName="cupertino"
-        className="h-full w-full bg-[var(--color-bg)]"
+        className="h-full w-full bg-bg"
       >
+        <TonightAutoplay enabled={autoplay} />
         <Slot className="h-full w-full">
           <Route path="/tonight" element={<ActsScreen />} />
           <Route path="/tonight/posters" element={<PostersScreen />} />

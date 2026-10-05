@@ -4,13 +4,13 @@ import type { VariantMotion } from "@transition/variantMotion";
 
 import { channelValue, type PerceptualBox } from "@core/engine/perceptualSpan";
 
-// The LANDING GOVERNOR for the compiled tier: keep a flight's convergence
+// The LANDING GOVERNOR for the compiled tier: keep a transition's convergence
 // tail moving at no less than one device pixel per frame, by reshaping the
 // compiled animation's own timing function.
 //
 // A compiled animation's tail can only be governed through its easing — a
 // second animation overlaid on `transform` forces Blink off the compositor
-// for the rest of the flight (traced as Animation compositeFailed=64,
+// for the rest of the transition (traced as Animation compositeFailed=64,
 // kTargetHasIncompatibleAnimations), handing the motion to the main thread
 // exactly where the eye is watching. So the engine reshapes the ONE compiled
 // animation via an inline `animation-timing-function: linear(...)`: the

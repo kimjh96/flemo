@@ -128,11 +128,11 @@ describe("what drove the navigation", () => {
     ]);
   });
 
-  it("only counts input inside the window that could have caused the flight", () => {
+  it("only counts input inside the window that could have caused the transition", () => {
     attach();
     document.dispatchEvent(pointer("pointerdown", { pointerType: "touch" }));
     const now = performance.now();
-    // A flight that opened long after this input did not come from it.
+    // A transition that opened long after this input did not come from it.
     const evidence = handle!.inputBetween(now + INPUT_WINDOW_MS + 500, now + INPUT_WINDOW_MS + 600);
     expect(evidence.synthetic).toBe(0);
     expect(evidence.pointerTypes).toEqual([]);
@@ -162,7 +162,7 @@ describe("without a document", () => {
 });
 
 describe("relativeHit", () => {
-  it("puts an absolute moment back on the flight's own clock", () => {
+  it("puts an absolute moment back on the transition's own clock", () => {
     expect(relativeHit({ kind: "hold-reassert", detail: "x", atMs: 1041.26 }, 1000)).toEqual({
       kind: "hold-reassert",
       atMs: 41.3,

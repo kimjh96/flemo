@@ -8,7 +8,7 @@ The four factories share slot names with different meanings. Check the factory b
 | Reached through | the Router's `defaultTransitionName`, or a navigation's `transitionName` | `<Morph name>` | `<Part name>`, by name, under any transition | only a transition's `decoratorName` |
 | Clock | authored; source clock | its `enter`, else screen's | carrying screen, resolved per transition | naming transition, resolved once |
 | `idle` | at rest | at rest; departure's start pose | at rest | at rest; invisible for an overlay |
-| `enter` | active screen arriving | arriving side, which flies | screen entering background, PUSHING-false | screen entering background, PUSHING-false |
+| `enter` | active screen arriving | arriving side, which moves | screen entering background, PUSHING-false | screen entering background, PUSHING-false |
 | `exit` | covered screen leaving | departing side, which is cut | screen returning, POPPING-false | screen returning, POPPING-false |
 | `enterBack` | active screen leaving on pop | not a slot | not a slot | not a slot |
 | `exitBack` | covered screen returning | not a slot | not a slot | not a slot |

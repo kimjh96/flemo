@@ -35,7 +35,7 @@ import { TRANSITIONAL_STATUS_VALUES } from "@navigate/store";
 //   Treating "complete" as "painted" here was the re-entry hole: the whole
 //   cached list painted full-resolution originals inside the entering
 //   commit, and WebKit's synchronous paint-time decode turned that into a
-//   tap-to-flight stall on device.
+//   tap-to-transition stall on device.
 // - An element that has ALREADY painted (present before this offloader
 //   started, authored src changes on a live element) is NEVER touched:
 //   re-pointing or hiding a visible image is a blink (measured on device).
@@ -43,17 +43,17 @@ import { TRANSITIONAL_STATUS_VALUES } from "@navigate/store";
 // - An OPAQUE source (non-CORS — the worker cannot even learn its size, so
 //   it can never be scaled) must eventually paint as authored, and that
 //   paint carries the full synchronous decode. When a navigation is
-//   mid-flight, a fresh opaque insert stays hidden until the flight's rest
-//   (the flight-window latch) so the decode lands where every other held
+//   mid-transition, a fresh opaque insert stays hidden until the transition's rest
+//   (the transition-window latch) so the decode lands where every other held
 //   reveal lands — off the motion. At rest it reveals immediately.
 // Well-sized, data:/blob: sources and engines without the needed APIs are
 // left exactly as authored.
 
 import {
-  flightWindowActive,
-  onFlightWindowIdle,
-  onFlightWindowStart
-} from "@core/engine/flightWindow";
+  transitionWindowActive,
+  onTransitionWindowIdle,
+  onTransitionWindowStart
+} from "@core/engine/transitionWindow";
 import { attrSelector, OFFLOADED_SRC_ATTR, SCREEN_ATTR, STATUS_ATTR } from "@dom/attributes";
 import { detectBlinkEngine } from "@platform/engineProbes";
 
@@ -73,8 +73,8 @@ const MIN_TARGET_PX = 96;
 // mid-probe — repainting the stall AND flickering when the verdict landed).
 const PROBE_REVEAL_TIMEOUT_MS = 15000;
 
-// An opaque reveal deferred to the flight's rest still needs a bound in case
-// the flight-window release path dies with its Router: past any plausible
+// An opaque reveal deferred to the transition's rest still needs a bound in case
+// the transition-window release path dies with its Router: past any plausible
 // choreography, reveal anyway.
 const OPAQUE_REVEAL_CAP_MS = 3000;
 
@@ -101,7 +101,7 @@ export interface OversizeInput {
 
 // A screen mid-transition carries a transitional status from its very first
 // render — readable at insertion time, BEFORE the engine's drive effect has
-// opened the flight window.
+// opened the transition window.
 const TRANSITIONAL_STATUSES = new Set<string>(TRANSITIONAL_STATUS_VALUES);
 const insideTransitionalScreen = (image: HTMLImageElement): boolean => {
   const screen = image.closest(attrSelector(SCREEN_ATTR));
@@ -194,10 +194,10 @@ export function createImageDecodeOffloader(root: HTMLElement): () => void {
   // the authored source instead.
   const isSwapVerdict = (verdict: string | null | undefined): verdict is string =>
     !!verdict && verdict !== "skip" && verdict !== "opaque";
-  // Reveals deferred to the flight's rest (opaque originals inserted
-  // mid-flight); disposal must run them so nothing stays hidden.
+  // Reveals deferred to the transition's rest (opaque originals inserted
+  // mid-transition); disposal must run them so nothing stays hidden.
   const pendingReveals = new Set<() => void>();
-  // URLs with a worker probe in flight.
+  // URLs with a worker probe running.
   const probing = new Set<string>();
   // Elements currently held (hidden + parked) awaiting their URL's verdict.
   const held = new Map<HTMLImageElement, HeldElement>();
@@ -252,11 +252,11 @@ export function createImageDecodeOffloader(root: HTMLElement): () => void {
   };
 
   // Restore an element's visibility — immediately at rest, but DEFERRED to the
-  // flight's rest window while a navigation is mid-flight. Any held reveal (an
+  // transition's rest window while a navigation is mid-transition. Any held reveal (an
   // opaque original's full-res paint, OR a scaled blob's first paint) is still
-  // a rendering-update commit; landing it mid-flight competes with the
+  // a rendering-update commit; landing it mid-transition competes with the
   // transition driver's per-frame work and, on device, reads as an
-  // intermittent hitch exactly when a scrolled list's in-flight avatar probes
+  // intermittent hitch exactly when a scrolled list's running avatar probes
   // resolve during a push. Both classes now defer to rest — the same window
   // arrivalHold/responseHold deliver into — so the motion never carries a
   // reveal commit. Bounded (OPAQUE_REVEAL_CAP_MS) in case the window's release
@@ -266,7 +266,7 @@ export function createImageDecodeOffloader(root: HTMLElement): () => void {
       if (previousVisibility) image.style.visibility = previousVisibility;
       else image.style.removeProperty("visibility");
     };
-    if (!flightWindowActive()) {
+    if (!transitionWindowActive()) {
       restore();
       return;
     }
@@ -281,21 +281,21 @@ export function createImageDecodeOffloader(root: HTMLElement): () => void {
     };
     const cap = setTimeout(reveal, OPAQUE_REVEAL_CAP_MS);
     pendingReveals.add(reveal);
-    onFlightWindowIdle(reveal);
+    onTransitionWindowIdle(reveal);
   };
 
-  // Schedule `atRest` for the current flight's rest. The entering commit's
-  // insertions run BEFORE the drive effect opens the flight window — and the
+  // Schedule `atRest` for the current transition's rest. The entering commit's
+  // insertions run BEFORE the drive effect opens the transition window — and the
   // effect can flush later than the first frame on a loaded main thread — so
   // while the screen still reads transitional and no window is open yet,
   // keep polling one frame at a time: whichever comes first — the window
   // opening (park on its release) or the screen leaving its transitional
-  // status (flight over) — settles the reveal. The caller's cap bounds a
+  // status (transition over) — settles the reveal. The caller's cap bounds a
   // window that never materializes.
-  const deferToFlightRest = (image: HTMLImageElement, atRest: () => void) => {
+  const deferToTransitionRest = (image: HTMLImageElement, atRest: () => void) => {
     const tick = () => {
-      if (flightWindowActive()) {
-        onFlightWindowIdle(atRest);
+      if (transitionWindowActive()) {
+        onTransitionWindowIdle(atRest);
         return;
       }
       if (!insideTransitionalScreen(image) || typeof requestAnimationFrame !== "function") {
@@ -307,9 +307,9 @@ export function createImageDecodeOffloader(root: HTMLElement): () => void {
     tick();
   };
 
-  // Hide `image` through the current flight and run `finish` at its rest
+  // Hide `image` through the current transition and run `finish` at its rest
   // (bounded in case the window's release path dies with its Router).
-  // Visibility is the ONLY React-safe lever mid-flight: frameworks own src
+  // Visibility is the ONLY React-safe lever mid-transition: frameworks own src
   // as a prop and echo the authored URL over any swap, but they never
   // manage a visibility they didn't render.
   const holdHiddenUntilRest = (image: HTMLImageElement, finish: () => void): void => {
@@ -328,15 +328,15 @@ export function createImageDecodeOffloader(root: HTMLElement): () => void {
     };
     const cap = setTimeout(reveal, OPAQUE_REVEAL_CAP_MS);
     pendingReveals.add(reveal);
-    deferToFlightRest(image, reveal);
+    deferToTransitionRest(image, reveal);
   };
 
-  // Keep a known-opaque original unpainted through the current flight: its
-  // first paint carries the full synchronous decode (WebKit), so mid-flight
-  // it stays hidden until the flight's rest. Returns false at rest (nothing
+  // Keep a known-opaque original unpainted through the current transition: its
+  // first paint carries the full synchronous decode (WebKit), so mid-transition
+  // it stays hidden until the transition's rest. Returns false at rest (nothing
   // to protect).
   const holdOpaqueUntilRest = (image: HTMLImageElement, url: string): boolean => {
-    if (!flightWindowActive() && !insideTransitionalScreen(image)) return false;
+    if (!transitionWindowActive() && !insideTransitionalScreen(image)) return false;
     // The ownership stamp doubles as the arrival hold's exemption marker —
     // without it the hold would freeze-revert this very hide (see
     // arrivalHold.exemptFromFreeze). The src stays authored.
@@ -345,11 +345,11 @@ export function createImageDecodeOffloader(root: HTMLElement): () => void {
     return true;
   };
 
-  // Swap a known-oversized fresh insert while a flight is in (or entering)
+  // Swap a known-oversized fresh insert while a transition is in (or entering)
   // progress: the swap itself is applied now (pre-paint), but a framework
   // echo of the authored URL can undo it inside the pre-hold window — and
-  // re-asserting mid-flight would ping-pong with the arrival hold's
-  // attribute freeze. So the element rides the flight hidden, and the rest
+  // re-asserting mid-transition would ping-pong with the arrival hold's
+  // attribute freeze. So the element rides the transition hidden, and the rest
   // repairs the src once (frameworks are quiet by then; their next diff
   // sees authored==authored and stays silent).
   const holdSwapUntilRest = (image: HTMLImageElement, url: string, verdict: string): void => {
@@ -412,7 +412,7 @@ export function createImageDecodeOffloader(root: HTMLElement): () => void {
   };
 
   // Low-core Blink ONLY: the worker's full-original decode contends with the
-  // compositor for a flight's frames (device 2026-08-14, Note 9). Deferred
+  // compositor for a transition's frames (device 2026-08-14, Note 9). Deferred
   // probes flush past the convergence into true idle. WebKit probes
   // immediately (verified engine-neutral: the pre-campaign build janks the
   // same on Safari, so this machinery is not the cause there).
@@ -428,7 +428,7 @@ export function createImageDecodeOffloader(root: HTMLElement): () => void {
   const parkProbeFlush = () => {
     if (probeFlushParked) return;
     probeFlushParked = true;
-    onFlightWindowIdle(() => {
+    onTransitionWindowIdle(() => {
       if (disposed) return;
       const ric = (globalThis as { requestIdleCallback?: (cb: () => void) => void })
         .requestIdleCallback;
@@ -439,7 +439,7 @@ export function createImageDecodeOffloader(root: HTMLElement): () => void {
   };
   const probe = (url: string, boxWidth: number, boxHeight: number) => {
     if (verdicts.has(url) || probing.has(url)) return;
-    if (flightWindowActive() && detectBlinkEngine()) {
+    if (transitionWindowActive() && detectBlinkEngine()) {
       if (!deferredProbes.has(url)) deferredProbes.set(url, { boxWidth, boxHeight });
       parkProbeFlush();
       return;
@@ -454,10 +454,10 @@ export function createImageDecodeOffloader(root: HTMLElement): () => void {
     activeWorker.postMessage({ url, targetWidth, neededArea, ratio: OVERSIZE_AREA_RATIO });
   };
 
-  // Flight opening: kill in-flight worker decodes (no cancel API otherwise)
+  // Transition opening: kill running worker decodes (no cancel API otherwise)
   // and re-queue them for rest. Blink-only. Results reveal at rest anyway
   // (holdSwapUntilRest), so nothing visible is lost.
-  const yieldWorkerForFlight = () => {
+  const yieldWorkerForTransition = () => {
     if (!detectBlinkEngine()) return;
     if (!worker || probing.size === 0) return;
     worker.terminate();
@@ -476,7 +476,7 @@ export function createImageDecodeOffloader(root: HTMLElement): () => void {
     probing.clear();
     if (deferredProbes.size > 0) parkProbeFlush();
   };
-  const detachFlightStart = onFlightWindowStart(yieldWorkerForFlight);
+  const detachTransitionStart = onTransitionWindowStart(yieldWorkerForTransition);
 
   // Responsive path: let the browser pick and download its candidate as
   // authored (single download, selection stays correct — no re-implementation
@@ -601,7 +601,7 @@ export function createImageDecodeOffloader(root: HTMLElement): () => void {
       // — decide locally instead of mistaking "complete" for "painted"
       // (that misread let a re-entered list paint every raw original inside
       // the entering commit; WebKit's synchronous paint-time decode made it
-      // a tap-to-flight stall).
+      // a tap-to-transition stall).
       const box = image.getBoundingClientRect();
       const oversized = shouldOffloadImage({
         naturalWidth: image.naturalWidth,
@@ -614,9 +614,9 @@ export function createImageDecodeOffloader(root: HTMLElement): () => void {
       const knownVerdict = verdicts.get(url);
       if (isSwapVerdict(knownVerdict)) {
         // Known-oversized with a scaled result: swap before any paint —
-        // riding out a flight hidden so a framework echo cannot resurface
+        // riding out a transition hidden so a framework echo cannot resurface
         // the original mid-motion.
-        if (flightWindowActive() || insideTransitionalScreen(image)) {
+        if (transitionWindowActive() || insideTransitionalScreen(image)) {
           holdSwapUntilRest(image, url, knownVerdict);
         } else {
           image.setAttribute(OFFLOADED_SRC_ATTR, url);
@@ -626,8 +626,8 @@ export function createImageDecodeOffloader(root: HTMLElement): () => void {
       }
       if (knownVerdict === "opaque") {
         // Known-unscalable original about to paint at full resolution: at
-        // rest that is simply the cost; mid-flight, the decode relocates to
-        // the flight's rest.
+        // rest that is simply the cost; mid-transition, the decode relocates to
+        // the transition's rest.
         holdOpaqueUntilRest(image, url);
         return;
       }
@@ -642,7 +642,7 @@ export function createImageDecodeOffloader(root: HTMLElement): () => void {
     if (verdict === "opaque") {
       // A known-unscalable original still loading: from the HTTP cache it
       // completes within the entering commit's first frames and paints its
-      // full-resolution decode mid-flight. Same relocation as the complete
+      // full-resolution decode mid-transition. Same relocation as the complete
       // case — hidden shows nothing an unloaded img wouldn't, and a slow
       // network load simply finds the element revealed at rest.
       holdOpaqueUntilRest(image, url);
@@ -650,8 +650,8 @@ export function createImageDecodeOffloader(root: HTMLElement): () => void {
     }
     if (verdict) {
       // Known-oversized source: swap before any paint or download — through
-      // a flight, hidden (see holdSwapUntilRest).
-      if (flightWindowActive() || insideTransitionalScreen(image)) {
+      // a transition, hidden (see holdSwapUntilRest).
+      if (transitionWindowActive() || insideTransitionalScreen(image)) {
         holdSwapUntilRest(image, url, verdict);
       } else {
         image.setAttribute(OFFLOADED_SRC_ATTR, url);
@@ -743,20 +743,20 @@ export function createImageDecodeOffloader(root: HTMLElement): () => void {
       image.removeAttribute(OFFLOADED_SRC_ATTR);
     }
   };
-  // Mid-flight the engine's arrival hold freezes in-place attribute writes
+  // Mid-transition the engine's arrival hold freezes in-place attribute writes
   // (reverting them pre-paint and replaying at rest) — re-asserting there
   // would ping-pong the two observers in an unbounded microtask loop. While
-  // a flight window is open, park ONE rest sweep instead: the hold's replay
+  // a transition window is open, park ONE rest sweep instead: the hold's replay
   // lands React's echoes at rest, and the sweep re-asserts every owned
   // element once after them.
   let restSweepParked = false;
   const srcObserver = new MutationObserver((records) => {
     /* v8 ignore next -- disposal disconnects in the same tick. */
     if (disposed) return;
-    if (flightWindowActive()) {
+    if (transitionWindowActive()) {
       if (restSweepParked) return;
       restSweepParked = true;
-      onFlightWindowIdle(() => {
+      onTransitionWindowIdle(() => {
         restSweepParked = false;
         /* v8 ignore next -- disposal guard for a sweep landing after teardown. */
         if (disposed) return;
@@ -778,7 +778,7 @@ export function createImageDecodeOffloader(root: HTMLElement): () => void {
 
   return () => {
     disposed = true;
-    detachFlightStart();
+    detachTransitionStart();
     observer.disconnect();
     srcObserver.disconnect();
     worker?.terminate();

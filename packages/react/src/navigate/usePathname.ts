@@ -6,8 +6,8 @@ import useHistoryStore from "@stores/useHistoryStore";
 // `pendingIndex` so a pop reports its destination immediately (consistent with
 // push), instead of lagging until the back transition finishes.
 /**
- * The current pathname of the nearest Router, for chrome rendered OUTSIDE a
- * `Screen` that needs the active route.
+ * The current pathname of the nearest Router, for a header, tab bar or other fixed UI rendered
+ * OUTSIDE a `Screen` that needs the active route.
  *
  * It reports the navigation's DESTINATION, so a pop reads the path it is
  * returning to from the first frame rather than lagging until the transition

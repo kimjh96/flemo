@@ -16,17 +16,18 @@ export interface PartProps extends PropsWithChildren<ComponentPropsWithRef<"div"
 }
 
 /**
- * Animates one named element inside a screen or inside shared screen chrome.
+ * Animates one named element inside a screen or inside a shared bar.
  *
  * Only the wrapped element moves; the rest of the bar stays put. The element
- * follows the flight of the Router that owns the ENCLOSING screen, so a Part in
- * a nested Router's chrome belongs to the outer flight, and a Part outside every
- * screen belongs to the nearest Router.
+ * follows the transition of the Router that handles the ENCLOSING screen, so a
+ * Part in a nested Router's header or tab bar follows the outer transition, and
+ * a Part outside every screen follows the nearest Router.
  *
- * A pose-only Part follows an interactive pop automatically and inherits the
- * carrying screen's matching duration and delay. Easing never inherits: author
- * the screen transition's easing on a Part that must hold the same spatial phase
- * during both a programmatic pop and a swipe.
+ * A Part that sets only its variant values follows the swipe of an interactive
+ * pop automatically and inherits the matching duration and delay of the screen
+ * it is in. Easing never inherits: set the screen transition's easing on a Part
+ * that must stay at the same point along its path as the screen during both a
+ * programmatic pop and a swipe.
  */
 // Programmatic transitions are driven by the compiled `@keyframes` the bar
 // selector emits (compositor, no React re-render); the status / active the
@@ -35,10 +36,10 @@ export interface PartProps extends PropsWithChildren<ComponentPropsWithRef<"div"
 function Part({ ref, name, style, children, ...props }: PartProps) {
   const { isActive, isPrev, navigateStore, routerId: screenRouterId, transitionName } = useScreen();
   // The part's OWNING Router, stamped on the element so the engine can scope
-  // a flight's choreography without structure guesses even for parts OUTSIDE
+  // a transition's choreography without structure guesses even for parts OUTSIDE
   // any screen (a persistent header next to a <Slot>, a portal). Inside a
   // screen the ENCLOSING screen's owner wins (a part in a nested Router's
-  // chrome belongs to the outer flight); outside one, the nearest Router.
+  // chrome belongs to the outer transition); outside one, the nearest Router.
   const nearestRouterId = useContext(RouterIdContext);
   const ownerRouterId = screenRouterId ?? nearestRouterId ?? undefined;
 
@@ -62,12 +63,12 @@ function Part({ ref, name, style, children, ...props }: PartProps) {
     <div
       ref={ref}
       data-flemo-part-name={name}
-      // The flight's transition, so the compiled rule can hand this part the
+      // The running transition's definition, so the compiled rule can hand this part the
       // clock that transition runs at rather than the zero an omitted duration
-      // resolves to (see resolvePartClock). It is the ENCLOSING screen's, for
+      // resolves to (see resolvePartTiming). It is the ENCLOSING screen's, for
       // the same reason the status below is: a part in a nested Router's chrome
-      // belongs to the outer flight. Absent outside any screen, where there is
-      // no flight to inherit from and the by-name rule keeps what was authored.
+      // belongs to the outer transition. Absent outside any screen, where there is
+      // no transition to inherit from and the by-name rule keeps what was authored.
       data-flemo-transition={transitionName}
       data-flemo-router={ownerRouterId}
       data-flemo-status={status}

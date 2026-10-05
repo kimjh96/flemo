@@ -1,7 +1,7 @@
-// Rendering for the panel's three data regions: the header chips, the flight
-// list, and the flight detail. Each function fully rebuilds its own region
+// Rendering for the panel's three data regions: the header chips, the transition
+// list, and the transition detail. Each function fully rebuilds its own region
 // and nothing else — the caller decides WHEN a region may be rebuilt (only
-// while no flight is in progress, and only when a change key moved).
+// while no transition is in progress, and only when a change key moved).
 
 import { clear, el, svgEl } from "./dom";
 import {
@@ -14,7 +14,7 @@ import {
   releasedGapSeries
 } from "./format";
 
-import type { FlemoReport, FlightRecord, FramePhaseStats, LongTaskSpan } from "../types";
+import type { FlemoReport, TransitionRecord, FramePhaseStats, LongTaskSpan } from "../types";
 
 /** Mirrors anomalies.ts STALL_MS — the point a stall becomes user-visible. */
 const STALL_TONE_MS = 48;
@@ -70,30 +70,30 @@ export const renderChips = (node: Element, report: FlemoReport | null): void => 
   }
 };
 
-/** Newest first — the flight you just ran is the one you came to look at. */
-export const renderFlightList = (
+/** Newest first — the transition you just ran is the one you came to look at. */
+export const renderTransitionList = (
   node: Element,
-  flights: readonly FlightRecord[],
+  transitions: readonly TransitionRecord[],
   selectedId: string | null,
   onSelect: (id: string) => void
 ): void => {
   clear(node);
-  if (flights.length === 0) {
-    line(node, "no flights recorded yet — navigate once", "li dim");
+  if (transitions.length === 0) {
+    line(node, "no transitions recorded yet — navigate once", "li dim");
     return;
   }
-  for (let index = flights.length - 1; index >= 0; index -= 1) {
-    const flight = flights[index];
-    const id = formatText(flight?.id);
+  for (let index = transitions.length - 1; index >= 0; index -= 1) {
+    const transition = transitions[index];
+    const id = formatText(transition?.id);
     const row = el("button", "row");
     row.type = "button";
-    row.setAttribute("data-flight-id", id);
+    row.setAttribute("data-transition-id", id);
     row.setAttribute("aria-selected", String(id === selectedId));
-    row.appendChild(el("span", "kind", formatText(flight?.kind)));
-    row.appendChild(el("span", "driver", formatText(flight?.driver)));
-    row.appendChild(el("span", "dur", formatMs(flight?.durationMs)));
-    row.appendChild(el("span", "screens", `${formatCount(flight?.participants?.screens)} scr`));
-    const count = flight?.anomalies?.length ?? 0;
+    row.appendChild(el("span", "kind", formatText(transition?.kind)));
+    row.appendChild(el("span", "driver", formatText(transition?.driver)));
+    row.appendChild(el("span", "dur", formatMs(transition?.durationMs)));
+    row.appendChild(el("span", "screens", `${formatCount(transition?.participants?.screens)} scr`));
+    const count = transition?.anomalies?.length ?? 0;
     row.appendChild(el("span", count > 0 ? "n bad" : "n", String(count)));
     row.addEventListener("click", () => onSelect(id));
     node.appendChild(row);
@@ -146,9 +146,9 @@ const sparkline = (series: readonly number[]): SVGElement => {
   return svg;
 };
 
-const renderLongTasks = (parent: Element, flight: FlightRecord): void => {
-  const visible = flight.longTasks ?? [];
-  const absorbed = flight.holdLongTasks ?? [];
+const renderLongTasks = (parent: Element, transition: TransitionRecord): void => {
+  const visible = transition.longTasks ?? [];
+  const absorbed = transition.holdLongTasks ?? [];
   if (visible.length === 0 && absorbed.length === 0) {
     line(parent, "none", "li dim");
     return;
@@ -156,42 +156,45 @@ const renderLongTasks = (parent: Element, flight: FlightRecord): void => {
   const describe = (task: LongTaskSpan | undefined) =>
     `${formatMs(task?.startMs)} + ${formatMs(task?.durationMs)}`;
   for (const task of visible) line(parent, describe(task), "li bad");
-  // Absorbed tasks ran while the screen was posed, not moving: the engine's
+  // Absorbed tasks ran while the screen was held still, not moving: the engine's
   // commit absorption working as designed, never a finding.
   for (const task of absorbed) line(parent, `${describe(task)} (absorbed by hold)`, "li dim");
 };
 
-export const renderFlightDetail = (node: Element, flight: FlightRecord | null): void => {
+export const renderTransitionDetail = (
+  node: Element,
+  transition: TransitionRecord | null
+): void => {
   clear(node);
-  if (!flight) {
-    line(node, "select a flight", "li dim");
+  if (!transition) {
+    line(node, "select a transition", "li dim");
     return;
   }
 
   const timing = section(node, "timing");
-  kv(timing, "id", formatText(flight.id));
-  kv(timing, "kind / driver", `${formatText(flight.kind)} · ${formatText(flight.driver)}`);
-  kv(timing, "router", formatText(flight.routerId));
-  kv(timing, "t0", formatText(flight.t0?.iso));
-  kv(timing, "duration", formatMs(flight.durationMs));
+  kv(timing, "id", formatText(transition.id));
+  kv(timing, "kind / driver", `${formatText(transition.kind)} · ${formatText(transition.driver)}`);
+  kv(timing, "router", formatText(transition.routerId));
+  kv(timing, "t0", formatText(transition.t0?.iso));
+  kv(timing, "duration", formatMs(transition.durationMs));
   kv(
     timing,
-    "participants",
-    `${formatCount(flight.participants?.screens)} screens · ` +
-      `${formatCount(flight.participants?.bars)} bars · ` +
-      `${formatCount(flight.participants?.decorators)} decorators · ` +
-      `${formatCount(flight.participants?.parts)} parts`
+    "moving elements",
+    `${formatCount(transition.participants?.screens)} screens · ` +
+      `${formatCount(transition.participants?.bars)} bars · ` +
+      `${formatCount(transition.participants?.decorators)} decorators · ` +
+      `${formatCount(transition.participants?.parts)} parts`
   );
   kv(
     timing,
     "hold",
-    `${formatText(flight.holds?.kind)} · released ${formatMs(flight.holds?.releasedAtMs)}`
+    `${formatText(transition.holds?.kind)} · released ${formatMs(transition.holds?.releasedAtMs)}`
   );
 
   const frames = section(node, "frames");
-  renderPhase(frames, "held (absorbed)", flight.frameSamples?.held);
-  renderPhase(frames, "released (visible)", flight.frameSamples?.released);
-  const series = releasedGapSeries(flight.frameSamples);
+  renderPhase(frames, "held (absorbed)", transition.frameSamples?.held);
+  renderPhase(frames, "released (visible)", transition.frameSamples?.released);
+  const series = releasedGapSeries(transition.frameSamples);
   if (series) frames.appendChild(sparkline(series));
 
   // Did it MOVE — the question frame timing cannot answer. Every defect of
@@ -199,21 +202,21 @@ export const renderFlightDetail = (node: Element, flight: FlightRecord | null): 
   // these rows are the ones to read first when a user says "버벅" and the
   // frame stats look clean.
   const motion = section(node, "motion (did it move)");
-  const stall = flight.motion?.longestStallMs;
-  const reasserted = flight.motion?.holdReassertedAtMs;
-  kv(motion, "released frames", formatCount(flight.motion?.sampledFrames));
+  const stall = transition.motion?.longestStallMs;
+  const reasserted = transition.motion?.holdReassertedAtMs;
+  kv(motion, "released frames", formatCount(transition.motion?.sampledFrames));
   kv(
     motion,
     "stalled frames",
-    formatCount(flight.motion?.stalledFrames),
-    (flight.motion?.stalledFrames ?? 0) > 0 ? "bad" : undefined
+    formatCount(transition.motion?.stalledFrames),
+    (transition.motion?.stalledFrames ?? 0) > 0 ? "bad" : undefined
   );
   kv(motion, "longest stall", formatMs(stall), (stall ?? 0) >= STALL_TONE_MS ? "bad" : undefined);
   kv(
     motion,
     "paused after release",
-    formatBool(flight.motion?.pausedAfterRelease),
-    flight.motion?.pausedAfterRelease === true ? "bad" : undefined
+    formatBool(transition.motion?.pausedAfterRelease),
+    transition.motion?.pausedAfterRelease === true ? "bad" : undefined
   );
   kv(
     motion,
@@ -227,27 +230,28 @@ export const renderFlightDetail = (node: Element, flight: FlightRecord | null): 
   kv(
     motion,
     "first animation",
-    flight.motion?.firstAnimationAtMs === null || flight.motion?.firstAnimationAtMs === undefined
+    transition.motion?.firstAnimationAtMs === null ||
+      transition.motion?.firstAnimationAtMs === undefined
       ? "not observed"
-      : `+${formatMs(flight.motion.firstAnimationAtMs)} after t0`
+      : `+${formatMs(transition.motion.firstAnimationAtMs)} after t0`
   );
 
-  // Shared elements. A pair that never flew is silent everywhere else on the
+  // Shared elements. A pair that never moved is silent everywhere else on the
   // page: no error, no attribute, no animation — the element simply appears
   // where it belongs, which looks exactly like a navigation without one.
-  const morphs = flight.morphs;
+  const morphs = transition.morphs;
   if (morphs) {
     const shared = section(node, "shared elements");
     kv(shared, "registered", formatCount(morphs.registered));
     kv(
       shared,
-      "pairable / flew",
-      `${formatCount(morphs.pairable?.length)} · ${formatCount(morphs.flew?.length)}`
+      "pairable / moved",
+      `${formatCount(morphs.pairable?.length)} · ${formatCount(morphs.moved?.length)}`
     );
     const skipped = morphs.skipped ?? [];
     kv(
       shared,
-      "did not fly",
+      "did not move",
       skipped.length === 0 ? "none" : skipped.join(", "),
       skipped.length > 0 ? "bad" : undefined
     );
@@ -276,14 +280,14 @@ export const renderFlightDetail = (node: Element, flight: FlightRecord | null): 
 
   // Tripwires are REPORTED events, not sampled ones: they cannot miss the
   // single frame they describe, which is why they get their own region.
-  const hits = flight.tripwires ?? [];
+  const hits = transition.tripwires ?? [];
   if (hits.length > 0) {
     const tripwires = section(node, "tripwires (one-frame events)");
     for (const hit of hits)
       line(tripwires, `+${formatMs(hit.atMs)} ${hit.kind}: ${hit.detail}`, "li bad");
   }
 
-  const input = flight.input;
+  const input = transition.input;
   if (input) {
     const drove = section(node, "what drove it");
     kv(
@@ -295,27 +299,27 @@ export const renderFlightDetail = (node: Element, flight: FlightRecord | null): 
     kv(drove, "pointer types", input.pointerTypes?.join(", ") || "none observed");
   }
 
-  // A still-loading image completing mid-flight decodes on the moving layer:
+  // A still-loading image completing mid-transition decodes on the moving layer:
   // glass-measured at one skipped present per decode, which is why the engine
   // holds them. Completions beyond the held count are that regression.
   const images = section(node, "images");
-  const completed = flight.images?.completedDuringFlight ?? 0;
-  const held = flight.images?.heldDuringFlight ?? 0;
-  const completedUnheld = flight.images?.completedUnheld;
+  const completed = transition.images?.completedDuringTransition ?? 0;
+  const held = transition.images?.heldDuringTransition ?? 0;
+  const completedUnheld = transition.images?.completedUnheld;
   // Older/partial reports may not carry completedUnheld. Preserve the old
   // best-effort tone only for those; schema-v2 reports use the per-image
   // result so an unrelated held image cannot hide an unheld completion.
   const hasUnheldCompletion =
     typeof completedUnheld === "number" ? completedUnheld > 0 : completed > held;
-  kv(images, "loading at t0", formatCount(flight.images?.loadingAtStart));
-  kv(images, "added mid-flight", formatCount(flight.images?.addedDuringFlight));
+  kv(images, "loading at t0", formatCount(transition.images?.loadingAtStart));
+  kv(images, "added mid-transition", formatCount(transition.images?.addedDuringTransition));
   kv(
     images,
-    "completed mid-flight",
-    formatCount(flight.images?.completedDuringFlight),
+    "completed mid-transition",
+    formatCount(transition.images?.completedDuringTransition),
     hasUnheldCompletion ? "bad" : undefined
   );
-  kv(images, "held by the engine", formatCount(flight.images?.heldDuringFlight));
+  kv(images, "held by the engine", formatCount(transition.images?.heldDuringTransition));
   kv(
     images,
     "completed without hold",
@@ -323,19 +327,19 @@ export const renderFlightDetail = (node: Element, flight: FlightRecord | null): 
     hasUnheldCompletion ? "bad" : undefined
   );
 
-  renderLongTasks(section(node, "long tasks"), flight);
+  renderLongTasks(section(node, "long tasks"), transition);
 
-  const landing = section(node, "landing");
-  const residual = flight.landing?.residualInlineTransforms ?? [];
+  const landing = section(node, "end of transition");
+  const residual = transition.endAudit?.residualInlineTransforms ?? [];
   if (residual.length === 0) {
     kv(landing, "inline residue", "clean");
   } else {
     for (const entry of residual) kv(landing, "inline residue", formatText(entry));
   }
-  kv(landing, "off-viewport at rest", formatBool(flight.landing?.offViewportAtRest));
-  const stuck = flight.landing?.stuckStatuses ?? [];
+  kv(landing, "off-viewport at rest", formatBool(transition.endAudit?.offViewportAtRest));
+  const stuck = transition.endAudit?.stuckStatuses ?? [];
   kv(landing, "stuck statuses", stuck.length === 0 ? "none" : stuck.join(", "));
-  const orphans = flight.landing?.orphanedHolds ?? [];
+  const orphans = transition.endAudit?.orphanedHolds ?? [];
   if (orphans.length === 0) {
     kv(landing, "orphaned holds", "none");
   } else {
@@ -343,7 +347,7 @@ export const renderFlightDetail = (node: Element, flight: FlightRecord | null): 
   }
 
   const anomalies = section(node, "anomalies");
-  const found = flight.anomalies ?? [];
+  const found = transition.anomalies ?? [];
   if (found.length === 0) {
     line(anomalies, "none", "li dim");
     return;

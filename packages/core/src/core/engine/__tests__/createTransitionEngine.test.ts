@@ -8,8 +8,8 @@ import none from "@transition/none";
 import { transitionMap } from "@transition/transition";
 
 import createTransitionEngine from "@core/engine/createTransitionEngine";
-import { resetFlightWindowForTests } from "@core/engine/flightWindow";
 import { LAYER_SETTLE_MS } from "@core/engine/layerSettleHold";
+import { resetTransitionWindowForTests } from "@core/engine/transitionWindow";
 import { SKIP_ANIMATION_ATTR, type TransitionEngineDeps } from "@core/engine/types";
 
 // A transition whose enter variant actually animates (duration > 0), so
@@ -114,7 +114,7 @@ describe("createTransitionEngine.driveScreenLifecycle", () => {
     vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
     const decorator = newDiv();
     const bar = newDiv();
-    // A RIDING bar the engine promotes during the flight (the layer settle
+    // A RIDING bar the engine promotes during the transition (the layer settle
     // hold only manages elements it stamped — a bare consumer will-change is
     // left untouched).
     bar.setAttribute("data-flemo-bar-riding", "true");
@@ -154,9 +154,9 @@ describe("createTransitionEngine.driveScreenLifecycle", () => {
     // The bar's promoted layer demotes off-cadence, LAYER_SETTLE_MS past the
     // flip (see layerSettleHold.ts) — never in the flip commit itself.
     expect(bar.style.getPropertyValue("will-change")).toBe("transform");
-    // jsdom + fake timers never run the landing's composed flight-window
+    // jsdom + fake timers never run the landing's composed transition-window
     // release (it rides the real rAF clock) — close it as the landing does.
-    resetFlightWindowForTests();
+    resetTransitionWindowForTests();
     vi.advanceTimersByTime(LAYER_SETTLE_MS);
     expect(bar.style.getPropertyValue("will-change")).toBe("");
 
@@ -222,7 +222,7 @@ describe("createTransitionEngine.driveScreenLifecycle", () => {
     dispose();
   });
 
-  it("does not land a flight on an end that ran for no time", async () => {
+  it("does not land a transition on an end that ran for no time", async () => {
     // `elapsedTime` is how long the animation actually ran. Zero means the
     // animation was torn down and rebuilt rather than finished — WebKit
     // reports that as an `animationend`, with the name, the keyframes and the
@@ -247,7 +247,7 @@ describe("createTransitionEngine.driveScreenLifecycle", () => {
   it("lands a variant with no motion of its own on the end that reports no time", async () => {
     // The other side of the guard. `none` animates nothing, so its end
     // legitimately reports `elapsedTime: 0` — there was no time to report — and
-    // a flight that refused it would wait out the watchdog on every screen that
+    // a transition that refused it would wait out the watchdog on every screen that
     // authored no motion.
     const dispose = drive({
       status: "PUSHING",
@@ -308,7 +308,7 @@ describe("createTransitionEngine.driveScreenLifecycle", () => {
     const dispose = drive({ status: "PUSHING" });
     const removeSpy = vi.spyOn(scope.style, "removeProperty");
 
-    // A data/suspense commit cancels the animation mid-flight; no animationend
+    // A data/suspense commit cancels the animation mid-transition; no animationend
     // ever comes for it. The engine restarts it rather than resolve early.
     scope.dispatchEvent(animationCancelEvent(SCREEN_ANIM));
     expect(removeSpy).toHaveBeenCalledWith("animation"); // restart trick ran
@@ -473,7 +473,7 @@ describe("createTransitionEngine.driveScreenLifecycle", () => {
     disposeReleased();
   });
 
-  it("does not restart when SKIP_ANIMATION is set mid-flight; resolves immediately", () => {
+  it("does not restart when SKIP_ANIMATION is set mid-transition; resolves immediately", () => {
     const dispose = drive({ status: "PUSHING" });
     const removeSpy = vi.spyOn(scope.style, "removeProperty");
 

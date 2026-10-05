@@ -85,7 +85,7 @@ interface GatePhaseEntry {
   // the authored motion's span plus the recovery margin. The gate default
   // (TRANSITION_GATE_BACKSTOP_MS) assumed no transition outlives ~1.2s, which
   // silently CUT any longer authored motion at the backstop — the store
-  // flipped to COMPLETED mid-flight and the screen snapped to rest.
+  // flipped to COMPLETED mid-transition and the screen snapped to rest.
   minLifetimeMs?: number;
 }
 
@@ -107,8 +107,8 @@ class TaskManager {
   // Measured on the marketing site, whose landing runs two looping memory
   // mockups: clicking its primary call to action started the real navigation
   // in 58-67ms while the mockups were idle, and in 246-868ms while one was
-  // mid-flight. Cleanly separated, ten trials. On a phone, where each mockup
-  // flight is far longer, that is the reported "the tap does nothing for
+  // mid-transition. Cleanly separated, ten trials. On a phone, where each mockup
+  // transition is far longer, that is the reported "the tap does nothing for
   // seconds, then the screen changes with no transition".
   //
   // Each lane keeps the exact serial guarantee it always had; lanes simply do
@@ -119,7 +119,7 @@ class TaskManager {
   // The chain IS the serialization: a lane's whole task body, including the
   // wait for an open gate and the release on the way out, is awaited inside one
   // `.then`, and the trailing `.catch` keeps a failure from poisoning the rest.
-  // A lane therefore never has two task bodies in flight, which is why there is
+  // A lane therefore never has two task bodies running, which is why there is
   // no lock here to take.
   private lanes: Map<string, { chain: Promise<void> }> = new Map();
 
@@ -196,14 +196,14 @@ class TaskManager {
   private pendingWaiters: Set<() => void> = new Set();
 
   /**
-   * Wake the queue on the next frame, so the terminal flip's commit and the
-   * queued flight's opening commit land in different ones.
+   * Wake the queue on the next frame, so the final status change's commit and
+   * the queued transition's opening commit happen in different frames.
    *
-   * Falls straight through where there is no frame clock (SSR, a non-browser
+   * Runs immediately where there is no animation frame (SSR, a non-browser
    * embedder): there is no commit to separate from.
    *
-   * Reaching this at all takes a task genuinely PENDING ahead of the queued one
-   * — a waiter added to an empty queue resolves on the spot and never goes
+   * Reaching this at all takes a task genuinely PENDING ahead of the queued one.
+   * A waiter added to an empty queue resolves on the spot and never goes
    * through the notify path, so a test that merely drives two tasks exercises
    * nothing here. The suite holds a manual task open and queues behind it.
    */
@@ -256,22 +256,22 @@ class TaskManager {
 
       // 대기 큐 처리 재시작
       await this.processPendingTasks();
-      // ONE FRAME between a flight's teardown and the next flight's opening.
+      // ONE FRAME between a transition's teardown and the next transition's opening.
       //
       // Waking the queue here, synchronously with the terminal flip, put both
-      // state changes in ONE binding commit: the finished flight's screen is
-      // unmounted and the queued flight's opening is stamped together, so a
+      // state changes in ONE binding commit: the finished transition's screen is
+      // unmounted and the queued transition's opening is stamped together, so a
       // single frame carries both subtrees' style, layout and paint.
       //
       // Reproduced by driving two system-back gestures 60ms apart against a
       // production build under a 6x CPU throttle: a dropped frame of 31-37ms,
       // in every run, at the exact millisecond the screen count falls — and
       // none in the single-back control. No long task: it is not one script
-      // doing too much, it is one frame asked to commit two flights' worth of
+      // doing too much, it is one frame asked to commit two transitions' worth of
       // DOM. Device-reported on a Galaxy Z Flip 4 as one hitch on a fast
       // double back.
       //
-      // A queued navigation is already a whole flight behind, so the frame this
+      // A queued navigation is already a whole transition behind, so the frame this
       // costs is not one anybody is waiting on.
       queueMicrotask(() => this.wakeQueueNextFrame());
     }

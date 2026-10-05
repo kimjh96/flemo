@@ -4,11 +4,11 @@ import type { BaseTransition, SwipeAnimate, TransitionVariant } from "@transitio
 // A part's variant: a POSE, and optionally a clock.
 //
 // Omitting `duration` runs this variant on the SCREEN's own duration for the
-// same variant key (resolvePartClock) — the number an author matching a piece
+// same variant key (resolvePartTiming) — the number an author matching a piece
 // of bar chrome to its transition was writing out by hand, and the number that
 // used to resolve to ZERO when they did not: the part snapped while the screen
 // carrying it took three quarters of a second, and a part authored LONGER than
-// its screen held the whole flight open, which disables swipe-back for as long
+// its screen held the whole transition open, which disables swipe-back for as long
 // as it runs.
 //
 // `ease` is NOT inherited, for the reason stated on DecoratorVariantValue:
@@ -20,20 +20,20 @@ import type { BaseTransition, SwipeAnimate, TransitionVariant } from "@transitio
  * A part's own animation options: the screen's, plus one thing a screen cannot
  * express for it.
  *
- * `after: "flight"` starts the part when the flight it rides ENDS. A part that
- * is covered for the length of a flight and revealed at the landing has to
- * wait exactly that long, and the length belongs to whichever transition is
- * carrying it — which the part does not know and must not be made to know.
- * Before this the only way to write it was a literal, so a consumer's chrome
+ * `after: "transition"` starts the part after the screen transition ENDS. A part
+ * that is covered for the length of a transition and revealed when it ends has
+ * to wait exactly that long, and the length belongs to whichever transition the
+ * part is moving with, which the part does not know and must not be made to know.
+ * Before this the only way to write it was a literal, so a consumer's header
  * needed one part per transition and a table of their durations: this
- * repository's own playground carried eight rows, and a transition with no row
+ * repository's own playground had eight rows, and a transition with no row
  * simply had no part at all.
  *
- * `delay` still means what it means, and composes: `{ after: "flight", delay:
- * 0.04 }` is four hundredths after the landing.
+ * `delay` still means what it means, and composes: `{ after: "transition", delay:
+ * 0.04 }` is four hundredths of a second after the transition ends.
  */
 export type PartVariantOptions = AnimationOptions & {
-  after?: "flight";
+  after?: "transition";
 };
 
 export type PartVariantValue = {
@@ -54,10 +54,10 @@ export type PartTransitionName =
  * Advanced per-element overrides for the interactive pop path.
  *
  * A Part with no callback here already follows the transition's swipe by
- * scrubbing its declared `POPPING` variant and resolved clock. Adding any one
- * of these callbacks opts that Part element out of the default rider, so the
- * callbacks become solely responsible for its drag pose and both landing
- * outcomes. Use them only when the gesture needs a different shape from the
+ * scrubbing its declared `POPPING` variant and resolved timing. Adding any one
+ * of these callbacks stops that Part element from following the swipe by
+ * default, so the callbacks become solely responsible for its style during the
+ * drag and for both outcomes when the finger lifts. Use them only when the gesture needs a different shape from the
  * declared programmatic pop.
  */
 export type PartTransitionOptions = {
@@ -66,13 +66,13 @@ export type PartTransitionOptions = {
     triggered: boolean,
     options: { animate: SwipeAnimate; element: HTMLElement; active: boolean }
   ) => void;
-  /** Writes the custom drag pose from progress in the range 0 through 100. */
+  /** Writes the custom drag style from progress in the range 0 through 100. */
   onSwipe?: (
     triggered: boolean,
     progress: number,
     options: { animate: SwipeAnimate; element: HTMLElement; active: boolean }
   ) => void;
-  /** Lands the custom pose; `triggered` reports commit versus cancellation. */
+  /** Finishes the custom style; `triggered` reports whether the swipe goes back (true) or is cancelled (false). */
   onSwipeEnd?: (
     triggered: boolean,
     options: { animate: SwipeAnimate; element: HTMLElement; active: boolean }

@@ -153,7 +153,7 @@ describe("contentsHoldAcrossBox", () => {
   });
 
   it("holds a LEFT-anchored growth whose children keep their distance from that edge", () => {
-    // The same subtree, judged from the corner the flight actually anchors on:
+    // The same subtree, judged from the corner the transition actually anchors on:
     // a box that grows rightward leaves its left-placed children exactly where
     // they were, and measuring from the far edge would call every one of them
     // moved.
@@ -176,7 +176,7 @@ describe("contentsHoldAcrossBox", () => {
   it("measures each child's distance from a bottom-anchored corner", () => {
     // A bottom-left/right growth is read from the bottom edge, the same way a
     // top growth is read from the top: the vertical distance a child keeps from
-    // the corner the flight holds, not from the corner it grows toward.
+    // the corner the transition holds, not from the corner it grows toward.
     const box = mount(`<span data-from-right="30"></span><span data-from-right="10"></span>`);
     expect(
       contentsHoldAcrossBox(box, { width: 98, height: 40 }, { width: 139, height: 40 }, BOTTOM)

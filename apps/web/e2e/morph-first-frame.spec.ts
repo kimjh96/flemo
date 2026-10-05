@@ -5,21 +5,21 @@ import { waitForNavIdle } from "./helpers/flemo";
 // A MORPH STARTS WHERE IT WAS, OR IT IS BROKEN.
 //
 // The regression net this file replaces was a still frame of the LANDING, and a
-// still frame cannot see a flight that begins in the wrong place. Two defects
+// still frame cannot see a transition that begins in the wrong place. Two defects
 // walked straight through it in one afternoon: a title that started twelve
-// pixels above the label it was flying from, and a position that ran ahead of
+// pixels above the label it was moving from, and a position that ran ahead of
 // its own size. Both were reported from the playground by eye, after passing.
 //
-// So this watches the FIRST frame instead. Every text that is about to fly is
-// measured before the tap; the first frame of the flight is measured after it;
+// So this watches the FIRST frame instead. Every text that is about to move is
+// measured before the tap; the first frame of the transition is measured after it;
 // and the two have to agree. A pixel and a half of slack is the rounding a
 // device grid can put on either measurement — everything the corrections in
 // this area are for is well inside it, and everything that broke was ten times
 // outside it.
 const CASES = ["zoom", "cupertino", "material", "layout", "reveal", "drift", "sheet"] as const;
 
-// The bench opens on the list; the poster grid is the other shape a card flies
-// from, and it is the one that caught the twelve-pixel jump. A pair FLIES from
+// The bench opens on the list; the poster grid is the other shape a card moves
+// from, and it is the one that caught the twelve-pixel jump. A pair MOVES from
 // the list and RIDES its container from the grid, which are different code
 // paths for the same defect.
 const SCREENS = [
@@ -63,14 +63,14 @@ test.describe("a morph starts where it was", () => {
         });
         test.skip(target === null, "no morph on this screen");
 
-        // Where every flying text sits before the tap, and where it is on the
+        // Where every moving text sits before the tap, and where it is on the
         // first frame it is airborne.
         await page.evaluate(() => {
           const text = (element: Element) =>
             element.childNodes.length === 1 && element.firstChild?.nodeType === 3;
           // A BOX IN THE RIGHT PLACE IS NOT A LINE IN THE RIGHT PLACE.
           //
-          // The box is where the flight puts the element; the baseline is where
+          // The box is where the transition puts the element; the baseline is where
           // the eye reads it, and the two are a half-leading and an ascent
           // apart. A title whose box began exactly where it sat still began a
           // whole pixel high, in both engines and on every bench, because the

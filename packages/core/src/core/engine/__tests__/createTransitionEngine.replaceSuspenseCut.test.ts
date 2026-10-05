@@ -86,7 +86,7 @@ describe("replace suspended-mount cut", () => {
     transitionMap.set(TAB, crossfade);
     deps = {
       // Both screens of the one replace share the scope's navigate store, so
-      // both read the SAME in-flight task id.
+      // both read the SAME running task id.
       getTransitionTaskId: vi.fn(() => "task-replace"),
       setDragStatus: vi.fn(),
       setReplaceTransitionStatus: vi.fn()

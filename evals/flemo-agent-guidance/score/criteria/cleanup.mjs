@@ -4,9 +4,9 @@
 // transition artifacts remain after landing."
 //
 // Every one of these is a state the page is left in, so all four are read after
-// the run's last flight has settled. The flight layers are the tell: the engine
+// the run's last transition has settled. The transition layers are the tell: the engine
 // stages a copy, a stand-in and a ghost while an element travels and takes them
-// all away on landing, so anything still in a layer is a flight that never
+// all away on landing, so anything still in a layer is a transition that never
 // finished cleaning up after itself.
 
 import { MOVING, settled } from "../drive.mjs";
@@ -48,7 +48,8 @@ export const run = async ({ page, errors }) => {
   const failures = [];
   if (errors.length > 0) failures.push(`console: ${errors.slice(0, 3).join(" | ")}`);
   for (const [scope, entry] of Object.entries(state.scopes)) {
-    if (entry.stuck > 0) failures.push(`scope ${scope} left ${entry.stuck} screen(s) mid-flight`);
+    if (entry.stuck > 0)
+      failures.push(`scope ${scope} left ${entry.stuck} screen(s) mid-transition`);
     // A scope states exactly one stack top. Zero means the binding lost it;
     // more than one means two screens each believe they are the top, which is
     // the shape a doubled push leaves behind.

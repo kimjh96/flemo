@@ -309,7 +309,7 @@ describe("createSwipeController drag hooks", () => {
     // Every participant of a release gets its own scaled clock — each names
     // its own ceiling — and the decorator's is written FIRST and is shorter.
     // A shared element handed that clock finishes before the screen carrying
-    // the slot it is flying to, and jumps the difference as it lands: measured
+    // the slot it is moving to, and jumps the difference as it lands: measured
     // at 21.8px on a swipe-back.
     let screenSeconds: number | null = null;
     const handlers = {

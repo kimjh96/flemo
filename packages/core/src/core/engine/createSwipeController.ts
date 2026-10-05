@@ -38,7 +38,7 @@ import {
 
 import { sharedBarsMatch, type SharedBarPresenceLike } from "@screen/computeBarRiding";
 
-import { resolveDecoratorClock } from "@transition/decorator/resolveDecoratorClock";
+import { resolveDecoratorTiming } from "@transition/decorator/resolveDecoratorTiming";
 import {
   partTransitionMap,
   resolvePartDefinition
@@ -96,20 +96,20 @@ export interface SwipeControllerConfig {
   //
   // A shared element cannot be driven from a transition's `onSwipe` the way a
   // screen or a <Part> is: it is not the author's element to write, it belongs
-  // to a flight the runtime stages. So the controller reports the gesture
+  // to a transition the runtime stages. So the controller reports the gesture
   // instead — start, progress, release — and the binding hands it to the morph
   // runtime. Every transition with a `swipeDirection` gets an interactive morph
   // out of this without authoring anything, cupertino included.
   onDragStart?: () => void;
-  /** 0 at rest, 1 at the point the gesture would commit. */
+  /** 0 at rest, 1 at the point where releasing would go back. */
   onDragProgress?: (progress: number) => void;
-  /** The release: whether it committed, and the seconds the screens settle in. */
+  /** The release: whether the swipe goes back, and the seconds the screens take to finish moving. */
   onDragSettle?: (committed: boolean, seconds: number) => void;
   /**
    * The Router scope's part layer (see @screen/partLayer), for staging the
    * covered side's matched shared-bar parts while the finger is down.
    *
-   * A drag is not a flight: the navigate status stays COMPLETED throughout, so
+   * A drag is not a transition: the navigate status stays COMPLETED throughout, so
    * the engine's own staging never arms and the previous screen's bar parts
    * cross-fade under the screen being dragged off them. Omitted by a binding
    * that renders no layer; the drag then behaves as it did before.
@@ -126,12 +126,12 @@ export interface SwipeController {
   // removed or hidden under it. Forwarded by the binding as `lostpointercapture`.
   lostPointerCapture: (event: PointerEvent) => void;
   /**
-   * Abandon whatever gesture is in flight, with no pointer to close it.
+   * Abandon whatever gesture is running, with no pointer to close it.
    *
-   * The binding calls this when the SCREEN goes away underneath one: an unmount,
+   * The binding calls this when the SCREEN goes away during a gesture: an unmount,
    * or a freeze (which detaches the listeners but keeps this controller, since
    * it outlives the effects). Without it the gesture state has exactly one way
-   * out — a pointerup carrying the id that armed it — and if the browser never
+   * out (a pointerup with the id that started it), and if the browser never
    * delivers that event, nothing ever does. See the note on `abandon` below.
    */
   abandon: () => void;
@@ -475,7 +475,7 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
     for (const bar of prev) holdScopeLayer(bar, config.getTransition(), false, layerOwner);
   };
 
-  // The screens and the dim the drag itself moves. A FLIGHT promotes every
+  // The screens and the dim the drag itself moves. A TRANSITION promotes every
   // participant for its whole span (holdParticipantLayers → layerSettleHold),
   // which is why a transition stays smooth on a weak GPU; the gesture promoted
   // its riding BARS only, so the two full-screen scopes and the dim were
@@ -505,9 +505,9 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
     const decoratorDef = config.getDecorator();
     if (decoratorDef) {
       // The decorator's variant table only carries a clock once this
-      // transition's is folded in (resolveDecoratorClock); the layer hold reads
+      // transition's is folded in (resolveDecoratorTiming); the layer hold reads
       // that table to size what it promotes.
-      dragDecoratorClock = resolveDecoratorClock(transition, decoratorDef);
+      dragDecoratorClock = resolveDecoratorTiming(transition, decoratorDef);
       holdDecoratorLayer(decorator);
       holdDecoratorLayer(resolvePrevDecorator());
     }
@@ -545,7 +545,7 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
 
   // How long a staging may sit unclaimed. Every drag exit releases explicitly,
   // so this only covers a teardown that reaches none of them — and unlike a
-  // flight, a drag has no authored span to derive a deadline from: it lasts as
+  // transition, a drag has no authored span to derive a deadline from: it lasts as
   // long as the finger does.
   const DRAG_STRANDED_MS = 60_000;
 
@@ -728,7 +728,7 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
       decoratorSwipe = beginRiderSwipe(collectDecoratorRiders());
     }
 
-    // The drag is a flight the engine never sees: the navigate status stays
+    // The drag is a transition the engine never sees: the navigate status stays
     // COMPLETED, so nothing else stages the covered side's bar parts and they
     // would cross-fade underneath the screen the finger is moving.
     if (!stagedDragParts) stageDragParts();
@@ -778,13 +778,13 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
   //
   // A swipe-back is a POP, so the dragged screen's riders take the active side
   // of POPPING and the screen returning underneath takes the passive one — the
-  // same two variants the landing flight would run.
+  // same two variants the landing transition would run.
   /**
    * The screen a piece of chrome rides, as the scrub needs to read it.
    *
    * A part and a dim are chrome ON a screen, and a drag reports the two screens
    * separately: which of the two numbers the chrome reads, and the curve that
-   * screen's own pop runs, are the pair that keeps the chrome in the flight's
+   * screen's own pop runs, are the pair that keeps the chrome in the transition's
    * phase rather than the finger's (see `RiderMotion.phase`).
    *
    * Null where that screen animates nothing, which is a side with no phase to
@@ -893,7 +893,7 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
     const transition = config.getTransition();
     const decoratorDef = config.getDecorator();
     if (!decoratorDef || decoratorDef.onSwipe || decoratorDef.onSwipeStart) return [];
-    const clock = resolveDecoratorClock(transition, decoratorDef);
+    const clock = resolveDecoratorTiming(transition, decoratorDef);
     const riders: RiderMotion[] = [];
     const addDecorator = (element: HTMLElement | null, active: boolean) => {
       if (!element) return;
@@ -905,13 +905,13 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
       // of them. Whose curve the dim RUNS is settled by what it animates: a
       // luminance ramp on a positional decelerate curve is an abrupt step with
       // a long invisible tail, so `overlay` leaves its easing unwritten and
-      // `resolveDecoratorClock` never inherits one. Where the dim SITS while a
+      // `resolveDecoratorTiming` never inherits one. Where the dim SITS while a
       // finger is down is a different question, and reading the gesture through
       // the screen's curve does not change the dim's own.
       //
       // Left position-controlled it was the worst offender on the bench:
       // measured on a cupertino pop at a screen three quarters across, the
-      // flight has this dim at 0.62 and the drag had it at 0.245. It also
+      // transition has this dim at 0.62 and the drag had it at 0.245. It also
       // contradicted the decorator's own design, which spreads the dim evenly
       // over the DURATION it inherits; a drag linear in screen position is
       // anything but even in time under a front-loaded curve.
@@ -1215,7 +1215,7 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
   // paint; then the follow resumes from the finger's CURRENT position, so the
   // gesture picks up where the finger is rather than replaying what it missed.
   // The opening is a frame or two late and everything after it is continuous
-  // — the same trade the flight's anim-hold makes for a push.
+  // — the same trade the transition's anim-hold makes for a push.
   //
   // Costs nothing where there is nothing to wake: a screen that was never
   // frozen is already displayed at the first check, and the hold releases in
@@ -1536,7 +1536,7 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
     let settleReported = false;
     // Resolves when the staged screens have finished their landing. A
     // navigation committed before that removes the screen while it is still
-    // flying, and it vanishes instead of leaving.
+    // moving, and it vanishes instead of leaving.
     let screensLanded: Promise<void> | null = null;
     // Reported the MOMENT the release is decided, not after the handler's own
     // settle resolves. A handler awaits its screen animations — cupertino
@@ -1625,7 +1625,7 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
     // THE SCREENS' CEILING, for the decorator to borrow.
     //
     // A decorator has no clock of its own on the programmatic path any more
-    // (resolveDecoratorClock): it runs for exactly as long as the screen it
+    // (resolveDecoratorTiming): it runs for exactly as long as the screen it
     // dresses. A release must not undo that, and `overlay` is what it looked
     // like when it did — its handler named 0.3s against cupertino's 0.7s, a
     // number left over from before the settle existed, so a swipe-completed pop
@@ -1659,7 +1659,7 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
     // A PART keeps its own ceiling, and that is not an oversight. A part is
     // referenced by name and is not bound to any transition, so it has no
     // screen clock to inherit in the first place; authoring its own span is
-    // how a part says "leave in the first fifth of the flight". Borrowing the
+    // how a part says "leave in the first fifth of the transition". Borrowing the
     // screen's here would stretch every such part to the full release.
     const animatePartForEnd: typeof animateInline = tapLike
       ? (target, value, options) =>
@@ -1774,7 +1774,7 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
       // engine's COMPLETED cleanup strips them once the rest rules own the
       // element.
       partEls = { current: [], prev: [] };
-      // Home BEFORE the commit, so the landing flight's own staging finds them
+      // Home BEFORE the commit, so the landing transition's own staging finds them
       // in their bar and takes them over cleanly. Handing the same elements
       // across would not work: stageBarParts collects from the bar, so parts
       // already up in the layer read as nothing to stage, and the drag's
@@ -1790,7 +1790,7 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
       // makes the scope a containing block, so a consumer's `position: fixed`
       // overlay stays trapped under the shared bars from the first swipe on.
       //
-      // After `back()`, so the landing flight has already re-held these
+      // After `back()`, so the landing transition has already re-held these
       // elements under the engine's owner: the union keeps them promoted and
       // nothing demotes between the two.
       releaseDragLayers();
@@ -1818,7 +1818,7 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
 
   const pointerDown = (event: PointerEvent) => {
     // A second finger, or a non-left mouse button: proves nothing about the
-    // gesture in flight and starts nothing of its own.
+    // gesture running and starts nothing of its own.
     if (event.isPrimary === false || (event.pointerType === "mouse" && event.button !== 0)) return;
 
     // A PRIMARY pointer going down is proof that no other pointer is down —
@@ -1965,7 +1965,7 @@ export default function createSwipeController(config: SwipeControllerConfig): Sw
    * ordinary cancel path, so the screen settles back to rest exactly as a real
    * `pointercancel` would settle it — this is a recovery, and a recovery that
    * teleported the screen would trade one visible defect for another. With no
-   * gesture in flight it still clears the arming flags, which is the state that
+   * gesture running it still clears the arming flags, which is the state that
    * actually blocks scrolling.
    */
   function abandon() {

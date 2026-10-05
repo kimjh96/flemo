@@ -4,13 +4,13 @@ import { MORPH_SHEET_ATTR } from "@dom/attributes";
 
 import { declaredMorphKeyframes, ensurePinnedPoses, insertMorphRules } from "@morph/morphSheet";
 
-// THE PER-FLIGHT SHEET.
+// THE PER-TRANSITION SHEET.
 //
 // A morph's keyframes cannot be compiled with the rest: how far the element
 // travels and how much it grows are two rects that exist only once the arriving
-// screen has laid out. So they are inserted at the flight's start and dropped
-// when it lands — and what has to hold is that a flight drops EXACTLY its own
-// rules, since two flights legitimately share the sheet.
+// screen has laid out. So they are inserted at the transition's start and dropped
+// when it lands — and what has to hold is that a transition drops EXACTLY its own
+// rules, since two transitions legitimately share the sheet.
 
 const sheetTag = () =>
   document.head.querySelector<HTMLStyleElement>(`style[${MORPH_SHEET_ATTR}=""]`);
@@ -28,7 +28,7 @@ afterEach(() => {
 });
 
 describe("insertMorphRules", () => {
-  it("inserts a flight's rules and takes back exactly those", () => {
+  it("inserts a transition's rules and takes back exactly those", () => {
     const first = insertMorphRules(["@keyframes flemo-morph-a { from { opacity: 0 } }"]);
     const second = insertMorphRules(["@keyframes flemo-morph-b { from { opacity: 0 } }"]);
 
@@ -36,8 +36,8 @@ describe("insertMorphRules", () => {
 
     first();
 
-    // The second flight's rule is untouched, and it is found by identity —
-    // the first flight's index would by now point at it.
+    // The second transition's rule is untouched, and it is found by identity —
+    // the first transition's index would by now point at it.
     expect(ruleTexts()).toHaveLength(1);
     expect(ruleTexts()[0]).toContain("flemo-morph-b");
 
@@ -45,7 +45,7 @@ describe("insertMorphRules", () => {
     expect(ruleTexts()).toHaveLength(0);
   });
 
-  it("reuses one style tag across flights", () => {
+  it("reuses one style tag across transitions", () => {
     const dispose = insertMorphRules(["@keyframes flemo-morph-c { from { opacity: 0 } }"]);
     insertMorphRules(["@keyframes flemo-morph-d { from { opacity: 0 } }"])();
     expect(document.head.querySelectorAll(`style[${MORPH_SHEET_ATTR}]`)).toHaveLength(1);
@@ -64,7 +64,7 @@ describe("insertMorphRules", () => {
   });
 
   it("hands back a no-op disposer where there is no document to insert into", () => {
-    // SSR renders a morph's markup and stages no flight, so the sheet is never
+    // SSR renders a morph's markup and stages no transition, so the sheet is never
     // reached — but the disposer is still called on unmount.
     vi.stubGlobal("document", undefined);
     expect(() =>
@@ -75,9 +75,9 @@ describe("insertMorphRules", () => {
 
 // THE PINNED POSE'S REGISTRATIONS.
 //
-// Everything else in this sheet belongs to one flight and leaves with it. These
+// Everything else in this sheet belongs to one transition and leaves with it. These
 // five do not: a `@property` registration is document-wide, and adding or
-// removing one invalidates style for the whole page — the single frame a flight
+// removing one invalidates style for the whole page — the single frame a transition
 // has the least room in. So they go in once and stay.
 describe("ensurePinnedPoses", () => {
   it("registers the pinned pose's five coordinates", () => {
@@ -95,7 +95,7 @@ describe("ensurePinnedPoses", () => {
     insertRule.mockRestore();
   });
 
-  it("registers once and not again on the next flight", () => {
+  it("registers once and not again on the next transition", () => {
     const insertRule = vi.spyOn(CSSStyleSheet.prototype, "insertRule").mockReturnValue(0);
 
     ensurePinnedPoses();
@@ -107,10 +107,10 @@ describe("ensurePinnedPoses", () => {
     insertRule.mockRestore();
   });
 
-  it("keeps them out of the sheet every flight writes to", () => {
+  it("keeps them out of the sheet every transition writes to", () => {
     // Blink re-reads a sheet whole when a rule in it changes, and a re-read
     // sheet carrying `@property` restyles the entire document. Sharing the
-    // flights' sheet made every insertion and every landing do exactly that.
+    // transitions' sheet made every insertion and every landing do exactly that.
     const writes: { sheet: CSSStyleSheet; rule: string }[] = [];
     const insertRule = CSSStyleSheet.prototype.insertRule;
     const spy = vi.spyOn(CSSStyleSheet.prototype, "insertRule").mockImplementation(function (
@@ -126,10 +126,10 @@ describe("ensurePinnedPoses", () => {
     insertMorphRules(["@keyframes flemo-morph-p { from { opacity: 0 } }"])();
 
     const registrations = writes.filter(({ rule }) => rule.startsWith("@property"));
-    const flights = writes.filter(({ rule }) => rule.startsWith("@keyframes"));
+    const transitions = writes.filter(({ rule }) => rule.startsWith("@keyframes"));
     expect(registrations.length).toBeGreaterThan(0);
     expect(registrations.every(({ sheet }) => sheet === propertiesTag()?.sheet)).toBe(true);
-    expect(flights.every(({ sheet }) => sheet === sheetTag()?.sheet)).toBe(true);
+    expect(transitions.every(({ sheet }) => sheet === sheetTag()?.sheet)).toBe(true);
     expect(propertiesTag()).not.toBe(sheetTag());
     spy.mockRestore();
   });
@@ -146,9 +146,9 @@ describe("ensurePinnedPoses", () => {
   });
 });
 
-// READING A FLIGHT BACK OUT.
+// READING A TRANSITION BACK OUT.
 //
-// A gesture's release stages the return of a flight it did not compile, and
+// A gesture's release stages the return of a transition it did not compile, and
 // the path it needs is not always readable off the animation: an engine can
 // answer a compiled animation with its offsets and none of its custom
 // properties, which for a pinned pose is the whole travel. The sheet has them.
@@ -159,13 +159,13 @@ const fakeAnimation = (name: string, target: HTMLElement) =>
   }) as unknown as Animation;
 
 describe("declaredMorphKeyframes", () => {
-  it("reads a flight's compiled path, curves and stops included", () => {
+  it("reads a transition's compiled path, curves and stops included", () => {
     const element = document.createElement("div");
     document.body.appendChild(element);
-    element.id = "flyer";
+    element.id = "mover";
     insertMorphRules([
       "@keyframes flemo-morph-1-travel { 0%, 30% { --flemo-pose-x: 0px } 60% { --flemo-pose-x: 40px; animation-timing-function: linear } 100% { --flemo-pose-x: 100px } }",
-      "#flyer { animation-name: flemo-morph-1-travel; animation-timing-function: cubic-bezier(0.32, 0.72, 0, 1) }"
+      "#mover { animation-name: flemo-morph-1-travel; animation-timing-function: cubic-bezier(0.32, 0.72, 0, 1) }"
     ]);
 
     const frames = declaredMorphKeyframes(fakeAnimation("flemo-morph-1-travel", element));
@@ -180,8 +180,8 @@ describe("declaredMorphKeyframes", () => {
     element.remove();
   });
 
-  it("takes the flyer's curve off the shorthand it was written with", () => {
-    // The element in flight carries its animations inline, as one list — so the
+  it("takes the mover's curve off the shorthand it was written with", () => {
+    // The element running carries its animations inline, as one list — so the
     // curve is matched to the name by position rather than found in a rule.
     const element = document.createElement("div");
     document.body.appendChild(element);

@@ -1,19 +1,19 @@
-// Route + transition contracts for the flemo app shell. RegisterRoute is a
-// single global registry; the shell owns the marketing paths, and the nested
-// The nested docs Router contributes its own namespaced paths.
+// Route and transition contracts for the site shell. RegisterRoute is one global
+// registry; the shell owns the section paths, and the nested docs Router adds
+// its own (including "/docs/:slug", which the shell also matches).
 declare module "@flemo/react" {
   interface RegisterRoute {
     "/": Record<string, never>;
-    "/showcase": Record<string, never>;
+    "/docs": Record<string, never>;
     "/playground": Record<string, never>;
     "/playground/composition": Record<string, never>;
-    "/docs": Record<string, never>;
+    "/showcase": Record<string, never>;
   }
 
   interface RegisterTransition {
-    "shared-axis-forward": "shared-axis-forward";
-    "shared-axis-backward": "shared-axis-backward";
-    "docs-enter": "docs-enter";
+    "site-forward": "site-forward";
+    "site-backward": "site-backward";
+    "site-drill": "site-drill";
   }
 }
 

@@ -211,7 +211,7 @@ describe("a swipe declared with nothing but a direction", () => {
     // DEVICE-REPORTED. A transition that wrote `onEnd` awaited its own screens
     // inside it, so the navigation only committed once they were home. The
     // declarative path had nothing to await and committed at once, which
-    // unmounts the screen while it is still flying: it vanishes instead of
+    // unmounts the screen while it is still moving: it vanishes instead of
     // leaving.
     const order: string[] = [];
     const controller = createSwipeController({
@@ -231,7 +231,7 @@ describe("a swipe declared with nothing but a direction", () => {
 
   it("leaves both screens their landed pose, not their rest style", async () => {
     // DEVICE-REPORTED, twice. Cancelling a landed animation returns the element
-    // to its own rest style, and for the screen that just flew out that style
+    // to its own rest style, and for the screen that just moved out that style
     // is where it started: it blinked back into view for the frames between the
     // landing and the unmount. Holding the animation's fill instead was the
     // first attempt and WebKit did not honour it, so the pose is written
@@ -251,7 +251,7 @@ describe("a swipe declared with nothing but a direction", () => {
     // it as the active one. Measured on the bench at -117px.
     expect(dom.prevScope.style.transform).not.toBe("");
     // The animations themselves are released, so neither can outrank the next
-    // flight's own keyframe.
+    // transition's own keyframe.
     expect(CANCELLED).toContain(dom.scope);
     expect(CANCELLED).toContain(dom.prevScope);
   });
@@ -359,7 +359,7 @@ describe("a swipe declared with nothing but a direction", () => {
     await flush();
 
     expect(back).not.toHaveBeenCalled();
-    // Handed back all the same, so the next flight's own keyframe outranks
+    // Handed back all the same, so the next transition's own keyframe outranks
     // nothing left behind here.
     expect(CANCELLED).toContain(dom.scope);
     expect(CANCELLED).toContain(dom.prevScope);

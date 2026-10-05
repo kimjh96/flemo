@@ -2,9 +2,9 @@ import { LONG_GAP_MS } from "./anomalies";
 
 import type { DriverEvidence } from "./frameProbe";
 
-import type { FlightDriver, FlightKind, FramePhaseStats, FrameSampleStats } from "./types";
+import type { TransitionDriver, TransitionKind, FramePhaseStats, FrameSampleStats } from "./types";
 
-// Pure helpers over sampled flight data. Kept free of DOM access so anomaly
+// Pure helpers over sampled transition data. Kept free of DOM access so anomaly
 // pipelines are testable with synthetic inputs.
 
 const round1 = (value: number) => Math.round(value * 10) / 10;
@@ -53,13 +53,13 @@ export const computeFrameStats = (
 };
 
 /**
- * Which tier drove the flight.
+ * Which tier drove the transition.
  *
  * The library compiles every animation, so `inline` never comes from flemo:
- * it means SOMETHING ELSE was writing frames onto a participant, which is
+ * it means SOMETHING ELSE was writing frames onto an element that moves, which is
  * worth knowing and is why the signature is still watched for.
  */
-export const classifyDriver = (evidence: DriverEvidence): FlightDriver => {
+export const classifyDriver = (evidence: DriverEvidence): TransitionDriver => {
   const inline = evidence.inlineSuppression || evidence.inlineAdvance;
   if (inline && evidence.compiledAnimation) return "mixed";
   if (inline) return "inline";
@@ -67,7 +67,7 @@ export const classifyDriver = (evidence: DriverEvidence): FlightDriver => {
   return "unknown";
 };
 
-export const kindFromStatus = (status: string): FlightKind | null => {
+export const kindFromStatus = (status: string): TransitionKind | null => {
   if (status === "PUSHING") return "PUSH";
   if (status === "POPPING") return "POP";
   if (status === "REPLACING") return "REPLACE";

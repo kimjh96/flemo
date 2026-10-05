@@ -25,7 +25,7 @@ const isDevEnvironment = (): boolean =>
   typeof process !== "undefined" && process?.env?.NODE_ENV !== "production";
 
 /**
- * Names already reported, so a lookup on every frame of every flight cannot
+ * Names already reported, so a lookup on every frame of every transition cannot
  * turn one mistake into a console full of them.
  */
 const said = new Set<string>();
@@ -41,7 +41,7 @@ export const resetDevWarningsForTesting = (): void => {
  * Every report below used to carry its own copy of these four lines, which is
  * one copy per report to keep in step: a warning that forgot the environment
  * check would ship to production, and one that forgot the set would fire on
- * every frame of every flight. The console IS the destination for all of them,
+ * every frame of every transition. The console IS the destination for all of them,
  * because each fires only on a consumer's own misconfiguration, which flemo
  * cannot fix for them, and only in development.
  */
@@ -90,11 +90,11 @@ export const warnUnknownEasing = (value: string): void =>
  * glass.
  *
  * A morph's `exit` is not a fade. The runtime pins the departing element at
- * that variant's END pose from the flight's first frame and holds it there
+ * that variant's END pose from the transition's first frame and holds it there
  * ("CUT FROM THE FIRST FRAME", attachMorph), because a window narrow enough to
  * be invisible is still a window a dropped frame can land in. So a pose that
  * does not reach `opacity: 0` is an instruction to keep painting the element
- * the flight is carrying away from.
+ * the transition is carrying away from.
  *
  * Every built-in preset writes `opacity: 0`, which reads as taste and is a
  * contract. Authored as `1` on this repository's own card-open page, a push hid
@@ -105,18 +105,17 @@ export const warnUnknownEasing = (value: string): void =>
 export const warnDepartureNotHidden = (name: string, opacity: unknown): void =>
   sayOnce(
     `morph-exit:${name}`,
-    `[flemo] The morph "${name}" leaves its departure visible: its \`exit\` pose ends with ` +
-      `${opacity === undefined ? "no opacity" : `opacity ${String(opacity)}`}, and that pose is ` +
-      "the CUT the runtime pins the departing element at for the whole flight. Every preset ends " +
-      "`exit` at `opacity: 0`; anything else keeps painting the element you are flying away " +
-      "from, which a push usually covers and a pop reveals."
+    `[flemo] The morph "${name}" keeps the element on the old screen visible: its \`exit\` variant ends with ` +
+      `${opacity === undefined ? "no opacity" : `opacity ${String(opacity)}`}, and the element on the old screen ` +
+      "stays at that style for the whole transition. Every preset ends `exit` at `opacity: 0`. Any other " +
+      "value keeps rendering the element you are moving away from, which a push usually covers and a pop reveals."
   );
 
 /**
  * Say once, in development, that a morph camera and its screen are both trying
  * to move the same transform.
  *
- * `carry: "screen"` IS that screen's motion for the flight, and two authors of
+ * `carry: "screen"` IS that screen's motion for the transition, and two authors of
  * one transform is not a thing CSS composes: the camera supersedes the screen's
  * own pose rather than adding to it. The rule is in `zoom`'s own doc comment
  * ("PAIR IT WITH A STILL SCREEN TRANSITION") and there was no way to notice
@@ -125,10 +124,10 @@ export const warnDepartureNotHidden = (name: string, opacity: unknown): void =>
 export const warnCameraOverridesScreen = (name: string, transitionName: string): void =>
   sayOnce(
     `morph-camera:${name}:${transitionName}`,
-    `[flemo] The morph "${name}" carries a camera and the screen transition ` +
-      `"${transitionName}" moves the screen itself. The camera supersedes that motion for the ` +
-      "flight, so the transition's own travel is discarded rather than combined. Pair a camera " +
-      "with a still transition (`none`, or one that only fades)."
+    `[flemo] The morph "${name}" sets \`carry: "screen"\`, and the screen transition ` +
+      `"${transitionName}" moves the screen itself. While the morph runs, \`carry: "screen"\` replaces ` +
+      "that movement instead of adding to it, so the transition's own movement is lost. Use " +
+      '`carry: "screen"` with a transition that keeps the screen still (`none`, or one that only fades).'
   );
 
 export default warnUnregistered;

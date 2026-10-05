@@ -1,4 +1,4 @@
-// Report schema for the flemo flight recorder.
+// Report schema for the flemo transition recorder.
 //
 // Design goal: an agent (or human) reading ONE serialized FlemoReport cold —
 // no access to the page, no follow-up questions to the user — can reconstruct
@@ -16,8 +16,8 @@
 // eating the machine. So the report leads with what it thinks, states what it
 // could verify about the session, and only then hands over the data.
 
-/** How a flight's motion was driven, judged from DOM signatures alone. */
-export type FlightDriver =
+/** How a transition's motion was driven, judged from DOM signatures alone. */
+export type TransitionDriver =
   // Per-frame inline writing: `animation` suppressed on the screen scope plus
   // an advancing inline transform/opacity. flemo retired its rAF player in
   // 2026-08, so this signature no longer comes from the library — seeing it
@@ -27,45 +27,45 @@ export type FlightDriver =
   // The compiled-CSS tier: a running CSSAnimation whose name starts with
   // "flemo-" (compositor- or main-thread-presented, engine-dependent).
   | "compiled"
-  // Both signatures observed across the flight's participants.
+  // Both signatures observed across the elements that move.
   | "mixed"
-  // Neither signature observed (zero-duration flight, or the sampler attached
+  // Neither signature observed (zero-duration transition, or the sampler attached
   // after the motion ended).
   | "unknown";
 
 /** Navigation kind, from the transitional `data-flemo-status` value. */
-export type FlightKind = "PUSH" | "POP" | "REPLACE";
+export type TransitionKind = "PUSH" | "POP" | "REPLACE";
 
 /** A single moment on both clocks: monotonic performance.now + wall clock. */
-export interface FlightTimestamp {
+export interface TransitionTimestamp {
   /** performance.now() milliseconds (same clock as longTasks/frame gaps). */
   ms: number;
   /** ISO-8601 wall-clock time, for correlating with external logs. */
   iso: string;
 }
 
-/** Elements that carried transitional flemo attributes during the flight. */
-export interface FlightParticipants {
+/** Elements that carried transitional flemo attributes during the transition. */
+export interface TransitionParticipants {
   screens: number;
   bars: number;
   decorators: number;
   parts: number;
 }
 
-/** The animation-hold observed on the flight (data-flemo-anim-hold). */
-export interface FlightHolds {
+/** The animation-hold observed on the transition (data-flemo-anim-hold). */
+export interface TransitionHolds {
   /** "park-under" | "park-over" | "park" | "true", or null if no hold ran. */
   kind: string | null;
   /**
    * Milliseconds after t0 at which the LAST hold released (every
    * transitional screen's data-flemo-anim-hold at "false"). Null when no
-   * hold ran — or when a hold never released (then the whole flight is the
+   * hold ran — or when a hold never released (then the whole transition is the
    * held phase).
    */
   releasedAtMs: number | null;
 }
 
-/** Frame-gap stats for one phase of a flight (held vs released). */
+/** Frame-gap stats for one phase of a transition (held vs released). */
 export interface FramePhaseStats {
   count: number;
   medianGapMs: number;
@@ -74,9 +74,9 @@ export interface FramePhaseStats {
 }
 
 /**
- * Stats over the recorder's own rAF-observed frame gaps during the flight,
+ * Stats over the recorder's own rAF-observed frame gaps during the transition,
  * segmented by the anim-hold phase. The engine deliberately absorbs heavy
- * commits INTO the hold (the screen is posed, not moving), so a gap during
+ * commits INTO the hold (the screen is held at its starting style, not moving), so a gap during
  * `held` is the engine working as designed — only `released` gaps are
  * user-visible jank, and only they drive anomaly rules.
  */
@@ -92,7 +92,7 @@ export interface FrameSampleStats {
   released: FramePhaseStats;
 }
 
-/** A PerformanceObserver("longtask") entry overlapping the flight window. */
+/** A PerformanceObserver("longtask") entry overlapping the transition window. */
 export interface LongTaskSpan {
   startMs: number;
   durationMs: number;
@@ -101,18 +101,18 @@ export interface LongTaskSpan {
 /**
  * Whether the motion actually MOVED, as opposed to whether frames arrived.
  *
- * Frame timing and pose progress are different questions, and the 2026-08
+ * Frame timing and style progress are different questions, and the 2026-08
  * campaign turned on the difference: a hold attribute re-asserted over a
- * running flight paused the animation for ~250ms while rAF kept ticking at a
- * perfect 16.7ms — every timing metric clean, the screen frozen. The decisive
- * instrument was a pose encoder, so the recorder carries one: for a compiled
- * flight it reads the animation's own clock, for an inline-driven one the pose
- * being written. Neither forces a style flush.
+ * running transition paused the animation for ~250ms while rAF kept ticking at a
+ * perfect 16.7ms. Every timing metric was clean and the screen was frozen. The
+ * decisive instrument was a progress sampler, so the recorder carries one: for a
+ * compiled transition it reads the animation's current time, for an inline-driven
+ * one the inline style being written. Neither forces a style flush.
  */
 export interface MotionProgress {
   /** Frames sampled during the RELEASED (visible-motion) phase. */
   sampledFrames: number;
-  /** Released frames where neither the clock nor the pose moved. */
+  /** Released frames where neither the animation's current time nor the style changed. */
   stalledFrames: number;
   /** Longest unbroken run of stalled released frames, in ms. */
   longestStallMs: number;
@@ -122,11 +122,11 @@ export interface MotionProgress {
   holdReassertedAtMs: number | null;
   /**
    * Released frames sampled AFTER every tracked animation reported "finished".
-   * The motion is over there and the pose is legitimately still; the flight is
+   * The motion is over there and the style is legitimately still; the transition is
    * simply not closed yet. Counted separately because folding them into
-   * `stalledFrames` made a ~50ms "stall" fire on EVERY healthy flight — a
+   * `stalledFrames` made a ~50ms "stall" fire on EVERY healthy transition — a
    * constant that masks the real ones (measured on plen, 2026-08-20: 10 of 10
-   * flights, always exactly 3 frames).
+   * transitions, always exactly 3 frames).
    */
   tailFrames: number;
   /**
@@ -136,34 +136,34 @@ export interface MotionProgress {
    * The status flip and the first moving frame are different moments: a React
    * commit, a style recalculation and a present sit between them, and on a
    * phone that gap has measured 90-165ms while every other number stayed
-   * clean. Null means no flemo animation reported a start for this flight.
+   * clean. Null means no flemo animation reported a start for this transition.
    */
   firstAnimationAtMs: number | null;
 }
 
 /**
- * Images inside the flight's participants. A still-loading <img> that
- * finishes DURING the flight decodes and first-rasters on the moving layer —
- * glass-measured at one skipped present per decode (2026-08-18). The engine
- * holds those images for the flight span; an unheld one completing mid-flight
- * is that regression coming back.
+ * Images inside the elements that move. A still-loading <img> that finishes
+ * DURING the transition decodes and first-rasters on the moving layer, which
+ * costs one skipped frame on screen per decode (measured 2026-08-18). The engine
+ * holds those images for the transition span; an unheld one completing
+ * mid-transition is that regression coming back.
  */
 export interface ImageActivity {
-  /** Participant images not yet complete when the flight opened. */
+  /** Images inside the elements that move, not yet complete when the transition opened. */
   loadingAtStart: number;
   /**
-   * Images that appeared INSIDE a participant after the flight opened and
-   * were still loading — a data commit landing mid-navigation. The engine's
+   * Images that appeared INSIDE an element that moves after the transition
+   * opened and were still loading: a data commit arriving mid-navigation. The engine's
    * own image hold watches for exactly these, so the recorder must too.
    */
-  addedDuringFlight: number;
-  /** Of the tracked images, how many completed before the flight ended. */
-  completedDuringFlight: number;
+  addedDuringTransition: number;
+  /** Of the tracked images, how many completed before the transition ended. */
+  completedDuringTransition: number;
   /** Tracked images seen carrying the engine's hold marker. */
-  heldDuringFlight: number;
+  heldDuringTransition: number;
   /**
    * The number that actually matters: images that completed during the
-   * flight WITHOUT a hold, counted per image. Subtracting the two counts
+   * transition WITHOUT a hold, counted per image. Subtracting the two counts
    * above would cancel out a held-but-still-loading image against an
    * unheld completed one and report nothing.
    */
@@ -171,7 +171,7 @@ export interface ImageActivity {
 }
 
 /**
- * The shared elements on this flight, and whether they actually flew.
+ * The shared elements on this transition, and whether they actually moved.
  *
  * WHY THIS IS ITS OWN SECTION. A morph that does not pair produces no error,
  * no attribute, no animation and no console line: the element simply appears
@@ -184,44 +184,44 @@ export interface ImageActivity {
  */
 export interface MorphActivity {
   /**
-   * Frames where the DEPARTING end was still painting, and the strongest
-   * opacity it was seen at. A morph's `exit` pose is the cut the runtime pins
-   * the departure at, so anything but `opacity: 0` keeps it on glass for the
-   * whole flight — invisible on a push, uncovered by a pop.
+   * Frames where the end on the OLD screen was still visible, and the
+   * strongest opacity it was seen at. A morph's `exit` variant is the style the
+   * runtime holds that end at, so anything but `opacity: 0` keeps it on screen
+   * for the whole transition: hidden on a push, uncovered by a pop.
    */
   departureFrames: number;
   departureMaxOpacity: number;
   /**
-   * The widest gap between a `<Part>` inside a flying box and the box itself,
+   * The widest gap between a `<Part>` inside a moving box and the box itself,
    * which part it was, and for how many frames. A part is pinned at the width
-   * it had when the flight staged it; on a pop that is the returning side's,
+   * it had when the transition started; on a pop that is the returning side's,
    * so the part can sit narrower than the card it is inside for the whole
    * gesture.
    */
   partGapPx: number;
   partGapName: string | null;
   partGapFrames: number;
-  /** Registered morphs seen anywhere in the document as the flight opened. */
+  /** Registered morphs seen anywhere in the document as the transition opened. */
   registered: number;
   /**
    * Pairing keys carried by ends in TWO different screens: a pair that had
-   * everything it needs to fly.
+   * everything it needs to move.
    */
   pairable: string[];
-  /** Pairing keys whose end was stamped with a flight role (it flew). */
-  flew: string[];
+  /** Pairing keys whose end was stamped with a transition role (it moved). */
+  moved: string[];
   /**
    * Pairable keys that never took a role. This is the morph-skip signature —
-   * the pair existed and the flight did not happen.
+   * the pair existed and the transition did not happen.
    */
   skipped: string[];
-  /** A screen was driven as a camera (`carry: "screen"`) on this flight. */
+  /** A screen was driven as a camera (`carry: "screen"`) on this transition. */
   camera: boolean;
-  /** Ghosts (copies of the replaced element) seen during the flight. */
+  /** Ghosts (copies of the replaced element) seen during the transition. */
   ghosts: number;
   /**
-   * Morph elements still stamped with a role once the flight landed. A role
-   * outliving its flight is the stranded-participant class: it stays in the
+   * Morph elements still stamped with a role once the transition ended. A role
+   * outliving its transition is the stranded-element class: it stays in the
    * layer and poisons the NEXT pairing, which is how one interrupted swipe
    * turned into every later pop losing its camera.
    */
@@ -231,19 +231,19 @@ export interface MorphActivity {
   /** Ghosts left in the document at rest. */
   strandedGhosts: number;
   /**
-   * Morph keyframe rules left in the per-flight sheet at rest, over what the
-   * flight started with. One `<style>` element holds them all and outlives
-   * every flight, so the rules are the leak, not the element.
+   * Morph keyframe rules left in the per-transition sheet at rest, over what the
+   * transition started with. One `<style>` element holds them all and outlives
+   * every transition, so the rules are the leak, not the element.
    */
   leakedSheetRules: number;
   /**
    * Pairing keys used by more than one end inside a SINGLE screen. Not a
    * runtime failure: two ends under one screen are not a pair, so one of them
-   * can never fly. Reported because the symptom (an element that morphs only
+   * can never move. Reported because the symptom (an element that morphs only
    * sometimes) reads exactly like a library defect.
    */
   duplicatedKeys: string[];
-  /** Elements left inside a flight layer at rest (the corpse class). */
+  /** Elements left inside a transition layer at rest (the corpse class). */
   layerResidue: number;
 }
 
@@ -254,14 +254,14 @@ export interface MorphActivity {
  * The distinction is the whole reason this exists. Three of this project's
  * hardest defects lasted exactly one frame — a false `animationend` carrying
  * `elapsedTime` 0, an `animationcancel` from a re-parent that let a negative
- * delay overwrite the authored one, a ghost cut a frame before its fade — and
+ * delay overwrite the authored one, a ghost removed a frame before its fade — and
  * a sampler that looks three times a second sees none of them. These are
  * event listeners: they cost nothing while nothing happens, and they cannot
  * miss the frame when it does.
  */
 export interface TripwireHit {
   kind: "animation-cancel" | "zero-length-animation-end" | "hold-reassert" | "ghost-cut";
-  /** Offset from the flight's t0, in ms. */
+  /** Offset from the transition's t0, in ms. */
   atMs: number;
   /** The animation or element involved, and what the hit means. */
   detail: string;
@@ -277,7 +277,7 @@ export interface TripwireHit {
  * mouse-only input has not tested what a phone does, however clean it reads.
  */
 export interface InputEvidence {
-  /** Trusted pointer/click events observed shortly before the flight opened. */
+  /** Trusted pointer/click events observed shortly before the transition opened. */
   trusted: number;
   /** Untrusted (script-dispatched) ones. */
   synthetic: number;
@@ -285,12 +285,13 @@ export interface InputEvidence {
   pointerTypes: string[];
 }
 
-/** Post-landing residue audit, taken 2 rAF after the flight completed. */
-export interface LandingAudit {
+/** Residue audit at the end of the transition, taken 2 rAF after it completed. */
+export interface EndAudit {
   /**
-   * Inline transform/opacity left on participating [data-flemo-screen]
-   * elements at rest. The landed scope belongs to the compiled rest rules —
-   * any inline pose here is a cleanup failure (the flemo PR #259 class).
+   * Inline transform/opacity left at rest on the [data-flemo-screen] elements
+   * that took part in the transition. Once the transition ends, the screen's
+   * style belongs to the compiled rest rules, so any inline style here is a
+   * cleanup failure (the flemo PR #259 class).
    */
   residualInlineTransforms: string[];
   /**
@@ -298,38 +299,38 @@ export interface LandingAudit {
    * of the viewport width off screen: the blank-viewport signature.
    */
   offViewportAtRest: boolean;
-  /** Transitional statuses still present ~10s after the flight began. */
+  /** Transitional statuses still present ~10s after the transition began. */
   stuckStatuses: string[];
   /**
    * Engine hold markers still on the page at rest. Every hold is supposed to
-   * be released when the flight lands; a leftover marker means something is
-   * still hidden with no owner left to reveal it — the class that produced
-   * ~130 permanently blank avatars before the single-owner guard landed.
+   * be released when the transition ends; a leftover marker means something is
+   * still hidden with no owner left to reveal it, the class that produced
+   * ~130 permanently blank avatars before the single-owner guard shipped.
    */
   orphanedHolds: string[];
 }
 
-/** One recorded navigation flight. */
-export interface FlightRecord {
-  /** Sequential id, "flight-1"… in recording order. */
+/** One recorded navigation transition. */
+export interface TransitionRecord {
+  /** Sequential id, "transition-1"… in recording order. */
   id: string;
-  /** data-flemo-router of the first participating screen, if stamped. */
+  /** data-flemo-router of the first screen in the transition, if stamped. */
   routerId?: string;
-  /** The comparison bucket armed when this flight ran (see `mark`). */
+  /** The comparison bucket armed when this transition ran (see `mark`). */
   bucket?: string;
-  kind: FlightKind;
-  t0: FlightTimestamp;
-  t1: FlightTimestamp;
+  kind: TransitionKind;
+  t0: TransitionTimestamp;
+  t1: TransitionTimestamp;
   durationMs: number;
-  driver: FlightDriver;
-  participants: FlightParticipants;
-  holds: FlightHolds;
+  driver: TransitionDriver;
+  participants: TransitionParticipants;
+  holds: TransitionHolds;
   frameSamples: FrameSampleStats;
   /** Did the motion advance, frame by frame — not just: did frames arrive. */
   motion: MotionProgress;
-  /** Image load/hold activity inside the participants during the flight. */
+  /** Image load/hold activity inside the elements that move, during the transition. */
   images: ImageActivity;
-  /** Shared elements: which paired, which flew, what they left behind. */
+  /** Shared elements: which paired, which moved, what they left behind. */
   morphs: MorphActivity;
   /** One-frame events the recorder was notified of rather than sampled. */
   tripwires: TripwireHit[];
@@ -341,12 +342,12 @@ export interface FlightRecord {
    */
   longTasks: LongTaskSpan[];
   /**
-   * Long tasks fully absorbed by the hold phase: the screen was posed, not
+   * Long tasks fully absorbed by the hold phase: the screen was held still, not
    * moving, so these are the engine's commit-absorption working as designed,
    * not user-visible jank.
    */
   holdLongTasks: LongTaskSpan[];
-  landing: LandingAudit;
+  endAudit: EndAudit;
   /** Human/agent-readable findings derived from the data above. */
   anomalies: string[];
 }
@@ -367,7 +368,7 @@ export interface ObservationCapabilities {
    *
    * This is the instrument checking ITSELF. A probe that never fires reads
    * exactly like a page with nothing to report, and a build whose probe was
-   * silently broken once passed every layer green. If flights were recorded
+   * silently broken once passed every layer green. If transitions were recorded
    * and this is false, the animation channel saw nothing — treat every
    * animation-derived field in this report as unmeasured, not as clean.
    */
@@ -440,7 +441,7 @@ export interface OverridesSection {
 }
 
 /**
- * One comparison bucket: every flight recorded while that label was armed.
+ * One comparison bucket: every transition recorded while that label was armed.
  *
  * The A/B ladder is this project's standard move and it has been run by hand
  * every time — navigate five times, read five numbers off a console, change
@@ -450,28 +451,28 @@ export interface OverridesSection {
  */
 export interface BucketSummary {
   bucket: string;
-  flights: number;
+  transitions: number;
   medianDurationMs: number;
   medianReleasedGapMs: number;
   worstReleasedGapMs: number;
   longGapCount: number;
   anomalyCount: number;
-  /** Flights whose motion stalled at least once (see MotionProgress). */
-  stalledFlights: number;
+  /** Transitions whose motion stalled at least once (see MotionProgress). */
+  stalledTransitions: number;
 }
 
 /**
- * Flights carried over from before the last full page load.
+ * Transitions carried over from before the last full page load.
  *
  * A development session reloads constantly — HMR, a rebuild, a hard refresh to
  * clear state — and each reload used to take the trace with it, including the
- * one flight the user had just seen go wrong. Kept apart from the live flights
+ * one transition the user had just seen go wrong. Kept apart from the live transitions
  * rather than merged: they came from a different page instance, possibly a
  * different build.
  */
 export interface PreviousSession {
   savedAt: string;
-  flights: FlightRecord[];
+  transitions: TransitionRecord[];
   note: string;
 }
 
@@ -489,12 +490,12 @@ export interface FlemoReport {
   /** The observable half of the judging protocol, checked. */
   preconditions: Precondition[];
   overrides: OverridesSection;
-  flights: FlightRecord[];
+  transitions: TransitionRecord[];
   /** Per-bucket summaries; empty unless `mark()` armed at least one. */
   comparison: BucketSummary[];
-  /** Flights restored from the previous page instance, or null. */
+  /** Transitions restored from the previous page instance, or null. */
   previousSession: PreviousSession | null;
-  /** Session-level findings (observation traps, active pins, stuck flights). */
+  /** Session-level findings (observation traps, active pins, stuck transitions). */
   anomalies: string[];
   /**
    * Constant list of layers NO in-page instrument can see. If every field in
@@ -511,27 +512,27 @@ export interface FlemoReport {
   judgingProtocol: string[];
 }
 
-export interface FlightRecorderOptions {
-  /** Ring-buffer size for recorded flights. Default 50. */
-  maxFlights?: number;
-  /** console.info a one-line summary per completed flight. Default false. */
+export interface TransitionRecorderOptions {
+  /** Ring-buffer size for recorded transitions. Default 50. */
+  maxTransitions?: number;
+  /** console.info a one-line summary per completed transition. Default false. */
   log?: boolean;
-  /** Install window.flemo = { report, flights, mark, detach }. Default true. */
+  /** Install window.flemo = { report, transitions, mark, detach }. Default true. */
   installGlobal?: boolean;
   /**
-   * Carry flights across a full page load through sessionStorage. Default
-   * true — a development session reloads constantly and the flight worth
+   * Carry transitions across a full page load through sessionStorage. Default
+   * true — a development session reloads constantly and the transition worth
    * reading is usually the one before the reload. Written only while no
-   * flight is running.
+   * transition is running.
    */
   persist?: boolean;
 }
 
-export interface FlightRecorderHandle {
+export interface TransitionRecorderHandle {
   detach: () => void;
   report: () => FlemoReport;
   /**
-   * Arm a comparison bucket. Every flight recorded from here on carries the
+   * Arm a comparison bucket. Every transition recorded from here on carries the
    * label until it is changed; `null` clears it. Returns the label in force.
    */
   mark: (bucket: string | null) => string | null;

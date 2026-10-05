@@ -1,13 +1,13 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { clearTrace, loadTrace, saveTrace, TRACE_KEY } from "../persistence";
-import { attachFlightRecorder } from "../recorder";
+import { attachTransitionRecorder } from "../recorder";
 
-import type { FlightRecord, FlightRecorderHandle } from "../types";
+import type { TransitionRecord, TransitionRecorderHandle } from "../types";
 
 // WHAT THE RECORDER KNOWS BEYOND THE FRAME NUMBERS: which shared elements
-// flew, what the browser reported in a single frame, which comparison the
-// flight belongs to, and what survives the next reload.
+// moved, what the browser reported in a single frame, which comparison the
+// transition belongs to, and what survives the next reload.
 
 const frame = () => new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
 const frames = async (count: number) => {
@@ -15,10 +15,10 @@ const frames = async (count: number) => {
 };
 const settle = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
 
-let handle: FlightRecorderHandle | null = null;
+let handle: TransitionRecorderHandle | null = null;
 
-const attach = (options?: Parameters<typeof attachFlightRecorder>[0]) => {
-  handle = attachFlightRecorder(options);
+const attach = (options?: Parameters<typeof attachTransitionRecorder>[0]) => {
+  handle = attachTransitionRecorder(options);
   return handle;
 };
 
@@ -55,7 +55,7 @@ const animation = (type: string, name: string, elapsedTime = 0.4): Event => {
   return event;
 };
 
-const fly = async (screens: HTMLElement[], during?: () => void) => {
+const move = async (screens: HTMLElement[], during?: () => void) => {
   for (const screen of screens) screen.setAttribute("data-flemo-status", "POPPING");
   screens[0].setAttribute("data-flemo-active", "true");
   await settle();
@@ -68,7 +68,7 @@ const fly = async (screens: HTMLElement[], during?: () => void) => {
 };
 
 describe("shared elements, through the recorder", () => {
-  it("reports a pair that never flew, and the anomaly that names it", async () => {
+  it("reports a pair that never moved, and the anomaly that names it", async () => {
     const a = mountScreen("a");
     const b = mountScreen("b");
     morph(a, "hero");
@@ -76,15 +76,15 @@ describe("shared elements, through the recorder", () => {
     attach();
     await settle();
 
-    await fly([a, b]);
+    await move([a, b]);
 
-    const flight = handle!.report().flights[0];
-    expect(flight.morphs.pairable).toEqual(["hero"]);
-    expect(flight.morphs.skipped).toEqual(["hero"]);
-    expect(flight.anomalies.some((entry) => entry.includes("did not fly"))).toBe(true);
+    const transition = handle!.report().transitions[0];
+    expect(transition.morphs.pairable).toEqual(["hero"]);
+    expect(transition.morphs.skipped).toEqual(["hero"]);
+    expect(transition.anomalies.some((entry) => entry.includes("did not move"))).toBe(true);
   });
 
-  it("takes a role stamped mid-flight as proof the pair flew", async () => {
+  it("takes a role stamped mid-transition as proof the pair moved", async () => {
     const a = mountScreen("a");
     const b = mountScreen("b");
     const end = morph(a, "hero");
@@ -92,54 +92,54 @@ describe("shared elements, through the recorder", () => {
     attach();
     await settle();
 
-    await fly([a, b], () => end.setAttribute("data-flemo-morph", "enter"));
+    await move([a, b], () => end.setAttribute("data-flemo-morph", "enter"));
 
-    const flight = handle!.report().flights[0];
-    expect(flight.morphs.flew).toEqual(["hero"]);
-    expect(flight.morphs.skipped).toEqual([]);
+    const transition = handle!.report().transitions[0];
+    expect(transition.morphs.moved).toEqual(["hero"]);
+    expect(transition.morphs.skipped).toEqual([]);
   });
 
-  it("counts a ghost that arrives during the flight", async () => {
+  it("counts a ghost that arrives during the transition", async () => {
     const a = mountScreen("a");
     attach();
     await settle();
 
-    await fly([a], () => {
+    await move([a], () => {
       const ghost = document.createElement("div");
       ghost.setAttribute("data-flemo-morph-ghost", "");
       a.appendChild(ghost);
     });
 
-    expect(handle!.report().flights[0].morphs.ghosts).toBe(1);
+    expect(handle!.report().transitions[0].morphs.ghosts).toBe(1);
   });
 });
 
 describe("tripwires, through the recorder", () => {
-  it("attributes a one-frame event to the flight it landed in", async () => {
+  it("attributes a one-frame event to the transition it landed in", async () => {
     const a = mountScreen("a");
     attach();
     await settle();
 
-    await fly([a], () => {
+    await move([a], () => {
       a.dispatchEvent(animation("animationcancel", "flemo-screen-cupertino-POPPING-true"));
     });
 
-    const flight = handle!.report().flights[0];
-    expect(flight.tripwires.map((hit) => hit.kind)).toContain("animation-cancel");
-    expect(flight.tripwires[0].atMs).toBeGreaterThanOrEqual(0);
-    expect(flight.anomalies.some((entry) => entry.includes("tripwire animation-cancel"))).toBe(
+    const transition = handle!.report().transitions[0];
+    expect(transition.tripwires.map((hit) => hit.kind)).toContain("animation-cancel");
+    expect(transition.tripwires[0].atMs).toBeGreaterThanOrEqual(0);
+    expect(transition.anomalies.some((entry) => entry.includes("tripwire animation-cancel"))).toBe(
       true
     );
   });
 
-  it("drops a hit that landed while nothing was in flight", async () => {
+  it("drops a hit that landed while nothing was running", async () => {
     const a = mountScreen("a");
     attach();
     await settle();
     a.dispatchEvent(animation("animationcancel", "flemo-screen-x"));
 
-    await fly([a]);
-    expect(handle!.report().flights[0].tripwires).toEqual([]);
+    await move([a]);
+    expect(handle!.report().transitions[0].tripwires).toEqual([]);
   });
 
   it("records when the first flemo keyframe actually started", async () => {
@@ -147,14 +147,14 @@ describe("tripwires, through the recorder", () => {
     attach();
     await settle();
 
-    await fly([a], () => {
+    await move([a], () => {
       a.dispatchEvent(animation("animationstart", "flemo-screen-cupertino-POPPING-true"));
       // A second start does not move the first.
       a.dispatchEvent(animation("animationstart", "flemo-bar-cupertino-POPPING-true"));
     });
 
-    const { motion, ...rest } = handle!.report().flights[0];
-    expect(rest.id).toBe("flight-1");
+    const { motion, ...rest } = handle!.report().transitions[0];
+    expect(rest.id).toBe("transition-1");
     expect(motion.firstAnimationAtMs).not.toBeNull();
     expect(motion.firstAnimationAtMs).toBeGreaterThanOrEqual(0);
   });
@@ -169,11 +169,11 @@ describe("tripwires, through the recorder", () => {
     expect(handle!.report().environment.observation.animationEvents).toBe(true);
   });
 
-  it("says out loud when flights were recorded and the channel never fired", async () => {
+  it("says out loud when transitions were recorded and the channel never fired", async () => {
     const a = mountScreen("a");
     attach();
     await settle();
-    await fly([a]);
+    await move([a]);
 
     expect(
       handle!.report().verdict.some((line) => line.includes("animation channel observed NOTHING"))
@@ -182,26 +182,30 @@ describe("tripwires, through the recorder", () => {
 });
 
 describe("comparison buckets", () => {
-  it("labels flights from the moment a bucket is armed, and compares them", async () => {
+  it("labels transitions from the moment a bucket is armed, and compares them", async () => {
     const a = mountScreen("a");
     attach();
     await settle();
 
     expect(handle!.mark("A")).toBe("A");
-    await fly([a]);
+    await move([a]);
     handle!.mark("B");
-    await fly([a]);
+    await move([a]);
     // An empty label clears the bucket rather than creating one.
     expect(handle!.mark("")).toBeNull();
-    await fly([a]);
+    await move([a]);
 
     const report = handle!.report();
-    expect(report.flights.map((flight) => flight.bucket)).toEqual(["A", "B", undefined]);
+    expect(report.transitions.map((transition) => transition.bucket)).toEqual([
+      "A",
+      "B",
+      undefined
+    ]);
     expect(report.comparison.map((entry) => entry.bucket)).toEqual(["A", "B"]);
-    expect(report.comparison[0].flights).toBe(1);
+    expect(report.comparison[0].transitions).toBe(1);
   });
 
-  it("keeps a flight already in the air under the label it opened with", async () => {
+  it("keeps a transition already in the air under the label it opened with", async () => {
     const a = mountScreen("a");
     attach();
     await settle();
@@ -216,40 +220,40 @@ describe("comparison buckets", () => {
     await settle();
     await frames(3);
 
-    expect(handle!.report().flights[0].bucket).toBe("A");
+    expect(handle!.report().transitions[0].bucket).toBe("A");
   });
 
   it("reports no comparison at all until a bucket is used", async () => {
     const a = mountScreen("a");
     attach();
     await settle();
-    await fly([a]);
+    await move([a]);
     expect(handle!.report().comparison).toEqual([]);
   });
 });
 
 describe("the trace across a page load", () => {
-  it("restores the previous instance's flights, kept apart from the live ones", async () => {
-    saveTrace([{ id: "flight-99", kind: "PUSH" } as unknown as FlightRecord], "3");
+  it("restores the previous instance's transitions, kept apart from the live ones", async () => {
+    saveTrace([{ id: "transition-99", kind: "PUSH" } as unknown as TransitionRecord], "4");
     attach();
     const report = handle!.report();
-    expect(report.previousSession?.flights[0].id).toBe("flight-99");
-    expect(report.flights).toEqual([]);
+    expect(report.previousSession?.transitions[0].id).toBe("transition-99");
+    expect(report.transitions).toEqual([]);
   });
 
-  it("writes the trace when the page goes away, and not while a flight runs", async () => {
+  it("writes the trace when the page goes away, and not while a transition runs", async () => {
     const a = mountScreen("a");
     attach();
     await settle();
-    await fly([a]);
+    await move([a]);
 
     document.dispatchEvent(new Event("visibilitychange"));
     // jsdom reports "visible", so nothing is written yet.
-    expect(loadTrace("3")).toBeNull();
+    expect(loadTrace("4")).toBeNull();
 
     const hidden = vi.spyOn(document, "visibilityState", "get").mockReturnValue("hidden");
     document.dispatchEvent(new Event("visibilitychange"));
-    expect(loadTrace("3")?.flights).toHaveLength(1);
+    expect(loadTrace("4")?.transitions).toHaveLength(1);
     hidden.mockRestore();
   });
 
@@ -269,7 +273,7 @@ describe("the trace across a page load", () => {
     const a = mountScreen("a");
     attach({ persist: false });
     await settle();
-    await fly([a]);
+    await move([a]);
 
     const hidden = vi.spyOn(document, "visibilityState", "get").mockReturnValue("hidden");
     document.dispatchEvent(new Event("visibilitychange"));
@@ -277,7 +281,7 @@ describe("the trace across a page load", () => {
     expect(sessionStorage.getItem(TRACE_KEY)).toBeNull();
   });
 
-  // RULE ONE OF persistence.ts: never write during a flight. sessionStorage is
+  // RULE ONE OF persistence.ts: never write during a transition. sessionStorage is
   // synchronous main-thread I/O, and a JSON serialization of the whole buffer
   // inside a transition is exactly the long task this package exists to find.
   it("writes the trace on its own timer once the page is idle", async () => {
@@ -285,7 +289,7 @@ describe("the trace across a page load", () => {
     try {
       const a = mountScreen("a");
       attach();
-      // One closed flight, then nothing in the air: the tick may write.
+      // One closed transition, then nothing in the air: the tick may write.
       a.setAttribute("data-flemo-status", "POPPING");
       await Promise.resolve();
       await Promise.resolve();
@@ -293,16 +297,16 @@ describe("the trace across a page load", () => {
       await Promise.resolve();
       await Promise.resolve();
       vi.advanceTimersByTime(10_000);
-      expect(loadTrace("3")?.flights.length).toBeGreaterThan(0);
+      expect(loadTrace("4")?.transitions.length).toBeGreaterThan(0);
     } finally {
       vi.useRealTimers();
     }
   });
 
-  it("lets its own timer run while a flight is in the air, and writes nothing", async () => {
+  it("lets its own timer run while a transition is in the air, and writes nothing", async () => {
     vi.useFakeTimers();
     try {
-      saveTrace([{ id: "from-before" } as unknown as FlightRecord], "3");
+      saveTrace([{ id: "from-before" } as unknown as TransitionRecord], "4");
       const a = mountScreen("a");
       attach();
       a.setAttribute("data-flemo-status", "POPPING");
@@ -310,7 +314,7 @@ describe("the trace across a page load", () => {
       await Promise.resolve();
       await Promise.resolve();
       vi.advanceTimersByTime(10_000);
-      expect(loadTrace("3")?.flights[0].id).toBe("from-before");
+      expect(loadTrace("4")?.transitions[0].id).toBe("from-before");
     } finally {
       vi.useRealTimers();
     }
@@ -318,7 +322,7 @@ describe("the trace across a page load", () => {
 });
 
 describe("what drove the session", () => {
-  it("carries the input evidence onto the flight and into the preconditions", async () => {
+  it("carries the input evidence onto the transition and into the preconditions", async () => {
     const a = mountScreen("a");
     attach();
     await settle();
@@ -326,11 +330,11 @@ describe("what drove the session", () => {
     // synthetic probe leaves behind.
     a.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, pointerType: "mouse" }));
 
-    await fly([a]);
+    await move([a]);
 
     const report = handle!.report();
-    expect(report.flights[0].input.synthetic).toBe(1);
-    expect(report.flights[0].input.pointerTypes).toEqual(["mouse"]);
+    expect(report.transitions[0].input.synthetic).toBe(1);
+    expect(report.transitions[0].input.pointerTypes).toEqual(["mouse"]);
     const realInput = report.preconditions.find((check) => check.id === "real-input");
     expect(realInput?.status).toBe("violated");
     expect(report.verdict[0]).toContain("NOT EVIDENCE");

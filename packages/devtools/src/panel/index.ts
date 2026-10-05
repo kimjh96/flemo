@@ -1,7 +1,7 @@
 // The visual panel for @flemo/devtools.
 //
 // THE ONE RULE THIS FILE EXISTS TO ENFORCE: the panel must never touch the
-// DOM while a flight is in progress.
+// DOM while a transition is in progress.
 //
 // This project spent weeks chasing a stutter that was finally attributed to
 // DevTools being OPEN (inspector overhead + panel repaints) rather than to
@@ -24,13 +24,18 @@
 // perturbs the measurement is worse than no instrument.
 
 import { PANEL_HEIGHT_KEY } from "../overrides";
-import { createShadowHost, flightInProgress, resolveRecorder } from "../surface";
+import { createShadowHost, transitionInProgress, resolveRecorder } from "../surface";
 import { el, setText } from "./dom";
-import { DASH, environmentSummary, flightListSignature } from "./format";
+import { DASH, environmentSummary, transitionListSignature } from "./format";
 import { PANEL_CSS } from "./styles";
-import { renderBlindSpots, renderChips, renderFlightDetail, renderFlightList } from "./view";
+import {
+  renderBlindSpots,
+  renderChips,
+  renderTransitionDetail,
+  renderTransitionList
+} from "./view";
 
-import type { FlemoReport, FlightRecorderHandle } from "../types";
+import type { FlemoReport, TransitionRecorderHandle } from "../types";
 
 export interface DevtoolsPanelOptions {
   /**
@@ -38,7 +43,7 @@ export interface DevtoolsPanelOptions {
    * installed, otherwise the panel attaches its own and detaches it with
    * itself.
    */
-  recorder?: FlightRecorderHandle;
+  recorder?: TransitionRecorderHandle;
   /** Start with the panel expanded. Default false (toggle button only). */
   initialOpen?: boolean;
   /** Corner for the toggle button. Default "bottom-right". */
@@ -52,7 +57,7 @@ export interface DevtoolsPanelHandle {
 }
 
 /** ~3 refreshes/second while open — fast enough to feel live, far below the
- *  frame budget, and irrelevant anyway since refreshes never run in flight. */
+ *  frame budget, and irrelevant anyway since refreshes never run during a transition. */
 const OPEN_REFRESH_MS = 320;
 /** Closed: one badge update every 2s. */
 const IDLE_REFRESH_MS = 2000;
@@ -65,7 +70,7 @@ let activePanel: DevtoolsPanelHandle | null = null;
 
 /**
  * Mount the devtools panel: a floating toggle plus a bottom drawer with the
- * flight list and per-flight detail, rendered into a shadow root so no
+ * transition list and per-transition detail, rendered into a shadow root so no
  * consumer CSS reaches in and none of ours reaches out.
  *
  * Idempotent — while a panel is mounted, further calls return the same
@@ -85,11 +90,11 @@ export const attachDevtoolsPanel = (options: DevtoolsPanelOptions = {}): Devtool
   toggle.type = "button";
   toggle.setAttribute("data-corner", options.position ?? "bottom-right");
   toggle.setAttribute("aria-label", "flemo devtools");
-  const flightCount = el("span", "count", "0");
+  const transitionCount = el("span", "count", "0");
   const anomalyDot = el("span", "dot");
   anomalyDot.hidden = true;
   toggle.appendChild(el("span", "mark", "flemo"));
-  toggle.appendChild(flightCount);
+  toggle.appendChild(transitionCount);
   toggle.appendChild(anomalyDot);
 
   const panel = el("section", "panel");
@@ -105,7 +110,7 @@ export const attachDevtoolsPanel = (options: DevtoolsPanelOptions = {}): Devtool
   closeButton.type = "button";
   const detachButton = el("button", "act", "Detach");
   detachButton.type = "button";
-  // The A/B ladder, armed from the panel. Every flight recorded from here on
+  // The A/B ladder, armed from the panel. Every transition recorded from here on
   // carries the label, and `comparison` in the report does the arithmetic that
   // used to be done by hand off a console — where it twice went wrong.
   const bucketButton = el("button", "act", "A/B: off");
@@ -193,11 +198,11 @@ export const attachDevtoolsPanel = (options: DevtoolsPanelOptions = {}): Devtool
 
   const render = (): void => {
     const report = readReport();
-    const flights = report?.flights ?? [];
+    const transitions = report?.transitions ?? [];
 
     // The badge is the only thing that updates while the panel is closed.
-    setText(flightCount, String(flights.length));
-    const anomalous = flights.some((flight) => (flight?.anomalies?.length ?? 0) > 0);
+    setText(transitionCount, String(transitions.length));
+    const anomalous = transitions.some((transition) => (transition?.anomalies?.length ?? 0) > 0);
     anomalyDot.hidden = !anomalous;
     panel.hidden = !open;
     if (!open) return;
@@ -215,22 +220,22 @@ export const attachDevtoolsPanel = (options: DevtoolsPanelOptions = {}): Devtool
     }
 
     // Selection is stable by id; only an empty selection auto-follows the
-    // newest flight, so a refresh never yanks the pane you are reading.
-    if (selectedId === null && flights.length > 0) {
-      selectedId = flights[flights.length - 1]?.id ?? null;
+    // newest transition, so a refresh never yanks the pane you are reading.
+    if (selectedId === null && transitions.length > 0) {
+      selectedId = transitions[transitions.length - 1]?.id ?? null;
     }
 
-    const listKey = flightListSignature(flights, selectedId);
+    const listKey = transitionListSignature(transitions, selectedId);
     if (listKey !== listSignature) {
       listSignature = listKey;
-      renderFlightList(list, flights, selectedId, select);
+      renderTransitionList(list, transitions, selectedId, select);
     }
 
-    const selected = flights.find((flight) => flight?.id === selectedId) ?? null;
+    const selected = transitions.find((transition) => transition?.id === selectedId) ?? null;
     const detailKey = JSON.stringify(selected);
     if (detailKey !== detailSignature) {
       detailSignature = detailKey;
-      renderFlightDetail(detail, selected);
+      renderTransitionDetail(detail, selected);
     }
 
     if (!blindRendered) {
@@ -241,9 +246,9 @@ export const attachDevtoolsPanel = (options: DevtoolsPanelOptions = {}): Devtool
 
   function requestRender(): void {
     if (detached) return;
-    // The whole point of this file: a flight is running, so we do nothing.
+    // The whole point of this file: a transition is running, so we do nothing.
     // The next tick picks it up once the screens land.
-    if (flightInProgress()) return;
+    if (transitionInProgress()) return;
     render();
   }
 
@@ -274,7 +279,7 @@ export const attachDevtoolsPanel = (options: DevtoolsPanelOptions = {}): Devtool
   // --- interactions ----------------------------------------------------
   // User-initiated writes (toggling, selecting, copying) are exempt from the
   // freeze in the sense that the user asked for them — but they still route
-  // through requestRender(), so a click landing mid-flight defers like
+  // through requestRender(), so a click landing mid-transition defers like
   // everything else.
   toggle.addEventListener("click", () => setOpen(!open));
   closeButton.addEventListener("click", () => setOpen(false));
@@ -291,9 +296,9 @@ export const attachDevtoolsPanel = (options: DevtoolsPanelOptions = {}): Devtool
   const markCopied = (): void => {
     if (detached) return;
     // The clipboard write resolves on its own schedule, which can be mid-
-    // flight — and the label restore fires on a timer that has no idea
+    // transition — and the label restore fires on a timer that has no idea
     // either. Both are DOM writes, so both wait exactly like a render does.
-    if (flightInProgress()) {
+    if (transitionInProgress()) {
       window.clearTimeout(copyTimer);
       copyTimer = window.setTimeout(markCopied, OPEN_REFRESH_MS);
       return;
@@ -307,7 +312,7 @@ export const attachDevtoolsPanel = (options: DevtoolsPanelOptions = {}): Devtool
   // teardown. markCopied needs one because the clipboard promise CAN resolve
   // after detach; this cannot.
   function restoreCopyLabel(): void {
-    if (flightInProgress()) {
+    if (transitionInProgress()) {
       copyTimer = window.setTimeout(restoreCopyLabel, OPEN_REFRESH_MS);
       return;
     }
@@ -318,9 +323,9 @@ export const attachDevtoolsPanel = (options: DevtoolsPanelOptions = {}): Devtool
   const fallbackCopy = (json: string): void => {
     // The async Clipboard API can reject after a navigation has started (or
     // after the panel detached). The legacy textarea path is still a DOM
-    // write, so it follows the same flight gate as every other panel update.
+    // write, so it follows the same transition gate as every other panel update.
     if (detached) return;
-    if (flightInProgress()) {
+    if (transitionInProgress()) {
       window.clearTimeout(copyTimer);
       copyTimer = window.setTimeout(() => fallbackCopy(json), OPEN_REFRESH_MS);
       return;

@@ -4,19 +4,19 @@ import type { SwipeInfo, SwipeOptions, Transition } from "@transition/typing";
  * The swipe a transition declares, with its defaults filled in.
  *
  * A transition states as little as `{ direction }` and every caller downstream
- * needs a complete answer: how far to commit, how fast, where the two sides
- * are. Resolving that at each call site is how the defaults drift, so it
+ * needs a complete answer: how far the swipe must go to go back, how fast,
+ * where the two sides are. Resolving that at each call site is how the defaults drift, so it
  * happens once, here, and "a direction is a complete swipe" is a fact about
  * this function rather than a promise made in a doc comment.
  */
 export interface ResolvedSwipe {
   direction: "x" | "y";
-  /** How far the gesture must carry the screen to navigate, in px. */
+  /** How far the gesture must move the screen to navigate, in px. */
   commitDistance: (span: number) => number;
   /** How fast the finger must still be going to navigate regardless. */
   commitVelocity: number;
   /**
-   * Where the drag itself carries each side, when that is not where the pop
+   * Where the drag itself moves each side, when that is not where the pop
    * does. `undefined` means walk the pop, which is the case for most.
    */
   dragTo: { current: SwipeOptions["current"]; prev: SwipeOptions["prev"] };
@@ -28,19 +28,19 @@ export interface ResolvedSwipe {
   /**
    * Whether flemo drives the screens itself.
    *
-   * Two drivers on one transform is how a bar drifts from the screen it
-   * rides, so exactly one of the two owns them, and NAMING WHERE THEY GO IS
-   * HOW A TRANSITION CLAIMS THEM. Declaring `current` or `prev` keeps the
+   * Two drivers on one transform is how a bar drifts away from the screen it
+   * follows, so exactly one of the two controls the screens, and NAMING WHERE
+   * THEY GO IS HOW A TRANSITION TAKES CONTROL OF THEM. Declaring `current` or `prev` keeps the
    * screens on the scrub whatever hooks are also written, and the hook's own
    * writes to them are refused while everything else it animates goes
    * through.
    *
    * That combination is the point rather than a leniency. A gesture that
-   * carries a morphing element about freely needs a hook for the element and
-   * has no reason to give up the screens for it — and the screens are the
+   * moves a morphing element around freely needs a hook for the element and
+   * has no reason to give up the screens for it, and the screens are the
    * expensive half, being two full-screen layers. Writing a hook without
-   * naming a destination still hands them over, which is what a drag that
-   * moves the screens themselves to arbitrary places has to do.
+   * naming a destination still gives the screens to the hook, which is what a
+   * drag that moves the screens themselves to arbitrary places has to do.
    *
    * `onStart` only answers whether the gesture may begin, so it never costs
    * the screens.
@@ -52,8 +52,8 @@ export interface ResolvedSwipe {
  * The distance at which a release navigates, as a fraction of the screen's own
  * span.
  *
- * 50px on the 390px screen it was chosen on — the number cupertino carried
- * before this was shared — expressed as a fraction so a wider screen asks for
+ * 50px on the 390px screen it was chosen on (the number cupertino used
+ * before this was shared), expressed as a fraction so a wider screen asks for
  * proportionally more rather than the same 50px.
  */
 export const DEFAULT_COMMIT_FRACTION = 50 / 390;

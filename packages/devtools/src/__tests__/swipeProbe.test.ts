@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { attachSwipeProbe, SWIPE_PROBE_MS } from "../swipeProbe";
 
-// A drag is not a flight, so nothing else in this package opens a window for
+// A drag is not a transition, so nothing else in this package opens a window for
 // one. What this pins is the question a swipe report always turns out to be
 // about: did the release MOVE the screens, and did it slow down as it arrived.
 

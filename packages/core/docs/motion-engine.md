@@ -13,9 +13,9 @@ under `core/engine/`, `platform/` and `dom/` appears in it. The previous version
 this file sat untracked for a release cycle and ended up describing two modules that
 had been deleted; that failure mode is now a failing test.
 
-## 1. One driver, and what varies per flight
+## 1. One driver, and what varies per transition
 
-Every flight is driven by the **compiled compositor CSS**: `compileTransitionStyles.ts`
+Every transition is driven by the **compiled compositor CSS**: `compileTransitionStyles.ts`
 emits `@keyframes` plus variant-scoped rules matched on the `data-flemo-*` attributes
 the binding renders (see `dom/attributes.ts` for the whole protocol), and the binding
 injects them. The browser's own animation machinery plays them — compositor-driven on
@@ -27,21 +27,21 @@ once the routing sent every supported browser to the compiled tier anyway. Do no
 reintroduce a per-frame writer without reading `platform/engineProbes.ts`'s header
 first — it records what that cost.
 
-What DOES vary per flight is how the flight's **opening** is protected, because the
+What DOES vary per transition is how the transition's **opening** is protected, because the
 compiled clock is stamped when the style change commits: a heavy first frame ages it
 while nothing is presented, and the transition reads as abbreviated (the "swallowed
 opening"). Two questions decide the treatment, and each is answered in one place:
 
-| question                          | answered by                                               | returns                                                                                                                                      |
-| --------------------------------- | --------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| what kind of browser is this?     | `platform/profile.ts` — `resolvePlatformProfile()`        | the atomic release flip, the render-settle gate, the deferred release commit, the park variant, the rest promotion, the image-decode offload |
-| so what does THIS navigation get? | `core/engine/flightRouting.ts` — `resolveFlightRouting()` | the governed / desktop head and its length, whether clock surgery is allowed, the frame-pacing keepalive                                     |
+| question                          | answered by                                                       | returns                                                                                                                                      |
+| --------------------------------- | ----------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| what kind of browser is this?     | `platform/profile.ts` — `resolvePlatformProfile()`                | the atomic release flip, the render-settle gate, the deferred release commit, the park variant, the rest promotion, the image-decode offload |
+| so what does THIS navigation get? | `core/engine/transitionRouting.ts` — `resolveTransitionRouting()` | the governed / desktop head and its length, whether clock surgery is allowed, the frame-pacing keepalive                                     |
 
 Neither is cached: both read their flags live, so a DevTools toggle lands on the next
 navigation. A binding asks and renders; it never re-derives either. (It used to, and
 core and the binding disagreed about the settle gate for two release cycles.)
 
-## 2. Flight lifecycle, end to end
+## 2. Transition lifecycle, end to end
 
 The react binding (`ScreenMotion.tsx`) renders declarative state; the engine
 (`createTransitionEngine.ts` → `driveScreenLifecycle`) owns everything imperative.
@@ -77,7 +77,7 @@ Chronologically:
   data). Runs on **all engines** for the active side of PUSHING/POPPING **and for the
   INACTIVE returning screen of a pop**, whose unfreeze storm is node-light, so it
   carries `minNodes: 1` where the active side uses 30; REPLACING stays ungated. Note
-  the gate only protects the START of a flight — a block landing mid-flight ages a
+  the gate only protects the START of a transition — a block landing mid-transition ages a
   wall-clocked compiled animation regardless.
 - **Outer `<Part>` holds**: the compiled hold rule pauses held elements and their
   `[data-flemo-part-name]` descendants, which covers a Part inside a screen and a Part
@@ -85,14 +85,14 @@ Chronologically:
   outside any screen — the position `<Part>` supports on purpose (persistent chrome
   beside a `<Slot>`, a portal) — has neither, while the compiled part selector still
   drives it (name + status + active, no structural term). The engine stamps the hold on
-  it directly for the hold window: active side only, one owner per flight. Collection
-  goes through `collectFlightParts`, i.e. the `data-flemo-router` marker — DOM ancestry
+  it directly for the hold window: active side only, one owner per transition. Collection
+  goes through `collectTransitionParts`, i.e. the `data-flemo-router` marker — DOM ancestry
   cannot draw this boundary (each screen sits in its own wrapper, a root Router renders
   no container, two Routers may share a parent), so a container-scoped walk reaches only
   the screen's own subtree where everything is already held. Stamp is status-scoped
-  (never pause a part this flight does not drive — `animation-play-state` is
+  (never pause a part this transition does not drive — `animation-play-state` is
   per-element and would catch consumer-authored animations too); the release sweep is
-  status-agnostic, so a pause can never outlive the flight on persistent chrome.
+  status-agnostic, so a pause can never outlive the transition on persistent chrome.
 - **Atomic release flip**: on non-Blink, for authored `driver:"native"` pins and for the
   governed-compiled touch-WebKit tier, the release callback writes
   `data-flemo-anim-hold="false"` directly on the DOM inside the readiness rAF (rAF →
@@ -101,34 +101,34 @@ Chronologically:
   frame. Sessions outside those populations keep the state-only path (see the profile's
   `atomicReleaseFlip`).
 
-### Release → flight
+### Release → transition
 
 - The engine effect re-runs with `animHoldReleased: true` and the compiled animation
-  starts. `resolveFlightRouting()` has already decided which head covers its opening
+  starts. `resolveTransitionRouting()` has already decided which head covers its opening
   and whether the clock may be touched.
-- From the FIRST transitional commit (not release), the engine arms the in-flight
+- From the FIRST transitional commit (not release), the engine arms the running
   armor on the cold side of the navigation (entering screen on push/replace, returning
   screen on pop):
-  - **arrivalHold** — MutationObserver holds mid-flight DOM swaps/additions off-glass
+  - **arrivalHold** — MutationObserver holds mid-transition DOM swaps/additions off-glass
     (compiled `[data-flemo-held-arrival] { display: none !important }` rule) and
     reflects everything in one commit at rest. Armed early because a commit landing in
     the _release frame's_ own rendering update ages the compiled clock.
   - **invisibleAnimationHold** — pauses invisible consumer animations (the culled
-    skeleton-shimmer subtree whose mid-flight first composite stalls presentation).
-  - **responseHold** — a patched `window.fetch` parks mid-flight response
+    skeleton-shimmer subtree whose mid-transition first composite stalls presentation).
+  - **responseHold** — a patched `window.fetch` parks mid-transition response
     _resolutions_ (every method, streams excluded) and delivers them in one batch at
     rest; moves the reveal's React render (script cost `display:none` can't touch) out
-    of the flight. Backstopped by the whole choreography span + 1500ms.
-  - **beginFlightWindow** — global latch for out-of-engine machinery (the image decode
+    of the transition. Backstopped by the whole choreography span + 1500ms.
+  - **beginTransitionWindow** — global latch for out-of-engine machinery (the image decode
     offloader defers reveals to the same rest).
   - A navigation owns its participants: any running swipe-settle animation is concluded
-    before the flight drives, since it would outrank the compiled rules (the "settle
+    before the transition drives, since it would outrank the compiled rules (the "settle
     race" bug, real-device).
 - `stampAsyncImageDecode` runs for EVERY participant (active or passive, before any
   early-return fork); `holdParticipantLayers` pins each participant's compiled
-  `will-change`/`contain` promotions inline for the flight (see layerSettleHold below)
+  `will-change`/`contain` promotions inline for the transition (see layerSettleHold below)
   and stamps the desktop-Blink governed landing easing.
-- Compiled Blink flights additionally arm a **frame-pacing keepalive** (a do-nothing
+- Compiled Blink transitions additionally arm a **frame-pacing keepalive** (a do-nothing
   rAF loop, started lazily and then never stopped for the session — Chrome's macOS
   ProMotion presentation paces unevenly when main is idle) and the display-interval
   probe.
@@ -142,7 +142,7 @@ Chronologically:
   DISARMED by any recovery event (cancel-resume, watchdog, stall shift) and _not armed
   at all_ on the governed touch-WebKit tiers (wall-clock timers assume presentation
   tracks the wall clock; on touch WebKit it doesn't — the cut would snap a visibly
-  mid-flight screen — see `governedSlide` and `forceCompiled` in `flightRouting.ts`).
+  mid-transition screen — see `governedSlide` and `forceCompiled` in `transitionRouting.ts`).
   Any unanalyzable participant vetoes.
 - **Early landing**: the arrival hold's release fires when every participant is within
   one _CSS_ pixel / alpha step (dpr=1 band — at or before the cut), so the reveal
@@ -169,11 +169,11 @@ Chronologically:
     cleanup in their own COMPLETED branch; a _frozen_ prev screen's cleanup runs in the
     engine's own teardown instead (its COMPLETED effect never runs — Activity freezes it
     in the same commit).
-- The arrival/response/image/flight-window holds release together via
+- The arrival/response/image/transition-window holds release together via
   `scheduleLanding` — two rAFs past COMPLETED (or immediately on interrupt; a
   navigation starting inside the pending window calls `landNow()` first).
 - **layerSettleHold**: participants' pinned compositor promotions demote off-cadence,
-  `LAYER_SETTLE_MS` past the flip and only once the flight window is idle — the demote
+  `LAYER_SETTLE_MS` past the flip and only once the transition window is idle — the demote
   repaint was the full-viewport flash landing exactly on the convergence frames.
 
 ## 3. The inline lease model (`transition/animateInline.ts`)
@@ -188,7 +188,7 @@ Every inline CSS property flemo writes on an element is covered by a **lease**:
   rather than deleting, so a consumer's own `animation-delay: 0.2s` survives a
   transition that overwrote it. Owner-scoped clears release only that writer's stake
   and restore only when the last stake is gone; the ownerless call is the **force
-  form** (flight-over final authority: the COMPLETED flip). With no
+  form** (transition-over final authority: the COMPLETED flip). With no
   explicit property list, the force form releases every leased property, or — on an
   element with an _empty_ lease map — falls back to stripping `transform`/`opacity`.
 - Writers exist because two drivers legitimately co-write one element (a swipe settle
@@ -215,33 +215,33 @@ is not a consumer value; the landed scope belongs to the compiled rest rules.**
 
 ## 4. Module inventory
 
-`packages/core/src/core/engine/` — the flight itself:
+`packages/core/src/core/engine/` — the transition itself:
 
-| Module                      | One line                                                                                                                                                                                                                                                                                                                     |
-| --------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `createTransitionEngine.ts` | The conductor: per-screen lifecycle drive, holds arming, the resolution paths, COMPLETED cleanup.                                                                                                                                                                                                                            |
-| `flightRouting.ts`          | Per-flight decision: which opening treatment, and may the engine touch the clock (section 1).                                                                                                                                                                                                                                |
-| `flightParticipants.ts`     | Who is in this flight — a screen's parts vs a nested screen's, this Router's vs another's. Scoping is by the `data-flemo-router` marker, never by DOM ancestry.                                                                                                                                                              |
-| `barPartStaging.ts`         | The covered screen's matched shared-bar `<Part>` elements, lifted into the Router's part layer for the flight and returned on landing. Two screens sharing a bar id each render their own copy inside their own isolated container, so one side's cross-fade runs under the other's opaque surface where nothing can see it. |
-| `riderSwipe.ts`             | What rides a flight, moved by the finger. A drag flips no status, so the compiled rules never match and a `<Part>` or a dim that declared only a pose sat still while the screens moved. The gesture stages their animations itself and scrubs them, the morph's model, and an authored `onSwipe*` still overrides it.       |
-| `participantLayers.ts`      | The compositor-layer lease held for the flight, released off-cadence after it; the landing governor's inline easing rides the same lease.                                                                                                                                                                                    |
-| `layerRiders.ts`            | What rides beside a scope: a riding shared bar, and a `<Layer>` overlay. Both need identical treatment from all three drivers and differ only in where they are — a bar never leaves its container, an overlay does, so an overlay names its owner instead.                                                                  |
-| `flightHolds.ts`            | Every hold one screen owns across drive runs: the in-flight arrival armor and the warm side's image-only hold.                                                                                                                                                                                                               |
-| `cancelResume.ts`           | Re-joins a browser-cancelled compiled animation to its own timeline with a negative inline delay, up to `RESUME_BUDGET`.                                                                                                                                                                                                     |
-| `arrivalHold.ts`            | In-flight commit hold: mid-flight swaps/additions held off-glass and reflected in one commit at rest.                                                                                                                                                                                                                        |
-| `responseHold.ts`           | Flight-scoped fetch-resolution park (every method, minus streams), delivered in one batch at rest.                                                                                                                                                                                                                           |
-| `invisibleAnimationHold.ts` | Pauses invisible consumer animations for the flight (the culled-subtree first-composite stall).                                                                                                                                                                                                                              |
-| `imageDecodeHygiene.ts`     | Stamps `decoding="async"` on participants' images, respecting authored attributes.                                                                                                                                                                                                                                           |
-| `imageDecodeOffloader.ts`   | Off-main decode-to-scale for oversized images; auto-gated to legacy Android Blink.                                                                                                                                                                                                                                           |
-| `flightWindow.ts`           | Global nestable "a flight is in progress" latch for out-of-engine modules.                                                                                                                                                                                                                                                   |
-| `layerSettleHold.ts`        | Inline-pinned compositor promotions and their deferred demotion past the flip.                                                                                                                                                                                                                                               |
-| `landingGovernor.ts`        | Reshapes the compiled easing so the convergence tail never falls under one device pixel per frame. Its removed sibling — the integer-pixel SNAP — is documented there as falsified; do not re-derive it.                                                                                                                     |
-| `perceptualSpan.ts`         | The imperceptibility-band math shared by the completion cut and the early landing.                                                                                                                                                                                                                                           |
-| `nativeStallAnchor.ts`      | Clock surgery for main-thread-presenting engines. Authored `driver: "native"` pins only.                                                                                                                                                                                                                                     |
-| `gpuPipelinePrewarm.ts`     | One-shot boot-idle probes compiling Chrome Graphite's GPU pipelines before the first flight.                                                                                                                                                                                                                                 |
-| `emulationNotice.ts`        | Once-per-session warning when a transition runs under DevTools device emulation (a scaled surface fabricates shimmer).                                                                                                                                                                                                       |
-| `createSwipeController.ts`  | Framework-neutral swipe-back: drag-follow inline writes, the release settle clock, bar mirroring, tap slop. Its header carries the Low Power Mode DO-NOT-RETRY list.                                                                                                                                                         |
-| `types.ts`                  | The injected engine interface (`TransitionEngineDeps`).                                                                                                                                                                                                                                                                      |
+| Module                      | One line                                                                                                                                                                                                                                                                                                                         |
+| --------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `createTransitionEngine.ts` | The conductor: per-screen lifecycle drive, holds arming, the resolution paths, COMPLETED cleanup.                                                                                                                                                                                                                                |
+| `transitionRouting.ts`      | Per-transition decision: which opening treatment, and may the engine touch the clock (section 1).                                                                                                                                                                                                                                |
+| `transitionParticipants.ts` | Who is in this transition — a screen's parts vs a nested screen's, this Router's vs another's. Scoping is by the `data-flemo-router` marker, never by DOM ancestry.                                                                                                                                                              |
+| `barPartStaging.ts`         | The covered screen's matched shared-bar `<Part>` elements, lifted into the Router's part layer for the transition and returned on landing. Two screens sharing a bar id each render their own copy inside their own isolated container, so one side's cross-fade runs under the other's opaque surface where nothing can see it. |
+| `riderSwipe.ts`             | What rides a transition, moved by the finger. A drag flips no status, so the compiled rules never match and a `<Part>` or a dim that declared only a pose sat still while the screens moved. The gesture stages their animations itself and scrubs them, the morph's model, and an authored `onSwipe*` still overrides it.       |
+| `participantLayers.ts`      | The compositor-layer lease held for the transition, released off-cadence after it; the landing governor's inline easing rides the same lease.                                                                                                                                                                                    |
+| `layerRiders.ts`            | What rides beside a scope: a riding shared bar, and a `<Layer>` overlay. Both need identical treatment from all three drivers and differ only in where they are — a bar never leaves its container, an overlay does, so an overlay names its owner instead.                                                                      |
+| `transitionHolds.ts`        | Every hold one screen owns across drive runs: the running arrival armor and the warm side's image-only hold.                                                                                                                                                                                                                     |
+| `cancelResume.ts`           | Re-joins a browser-cancelled compiled animation to its own timeline with a negative inline delay, up to `RESUME_BUDGET`.                                                                                                                                                                                                         |
+| `arrivalHold.ts`            | Running commit hold: mid-transition swaps/additions held off-glass and reflected in one commit at rest.                                                                                                                                                                                                                          |
+| `responseHold.ts`           | Transition-scoped fetch-resolution park (every method, minus streams), delivered in one batch at rest.                                                                                                                                                                                                                           |
+| `invisibleAnimationHold.ts` | Pauses invisible consumer animations for the transition (the culled-subtree first-composite stall).                                                                                                                                                                                                                              |
+| `imageDecodeHygiene.ts`     | Stamps `decoding="async"` on participants' images, respecting authored attributes.                                                                                                                                                                                                                                               |
+| `imageDecodeOffloader.ts`   | Off-main decode-to-scale for oversized images; auto-gated to legacy Android Blink.                                                                                                                                                                                                                                               |
+| `transitionWindow.ts`       | Global nestable "a transition is in progress" latch for out-of-engine modules.                                                                                                                                                                                                                                                   |
+| `layerSettleHold.ts`        | Inline-pinned compositor promotions and their deferred demotion past the flip.                                                                                                                                                                                                                                                   |
+| `landingGovernor.ts`        | Reshapes the compiled easing so the convergence tail never falls under one device pixel per frame. Its removed sibling — the integer-pixel SNAP — is documented there as falsified; do not re-derive it.                                                                                                                         |
+| `perceptualSpan.ts`         | The imperceptibility-band math shared by the completion cut and the early landing.                                                                                                                                                                                                                                               |
+| `nativeStallAnchor.ts`      | Clock surgery for main-thread-presenting engines. Authored `driver: "native"` pins only.                                                                                                                                                                                                                                         |
+| `gpuPipelinePrewarm.ts`     | One-shot boot-idle probes compiling Chrome Graphite's GPU pipelines before the first transition.                                                                                                                                                                                                                                 |
+| `emulationNotice.ts`        | Once-per-session warning when a transition runs under DevTools device emulation (a scaled surface fabricates shimmer).                                                                                                                                                                                                           |
+| `createSwipeController.ts`  | Framework-neutral swipe-back: drag-follow inline writes, the release settle clock, bar mirroring, tap slop. Its header carries the Low Power Mode DO-NOT-RETRY list.                                                                                                                                                             |
+| `types.ts`                  | The injected engine interface (`TransitionEngineDeps`).                                                                                                                                                                                                                                                                          |
 
 `packages/core/src/platform/` — what kind of browser this is:
 
@@ -250,9 +250,9 @@ is not a consumer value; the landed scope belongs to the compiled rest rules.**
 | `profile.ts`            | `resolvePlatformProfile()`: every per-browser decision as one object of named fields.                                                    |
 | `engineProbes.ts`       | Pure `navigator` reads (Blink, legacy Android Blink, desktop macOS WebKit, desktop Blink). Its header records the retired driver policy. |
 | `governedCompiled.ts`   | Whether this session takes the governed compiled treatment (touch WebKit).                                                               |
-| `displayCadence.ts`     | The session's learned frame interval, fed by the in-flight probe.                                                                        |
+| `displayCadence.ts`     | The session's learned frame interval, fed by the running probe.                                                                          |
 | `releaseLatency.ts`     | The session's learned release-to-first-frame, per status, which decides whether a flat head has a latency to cover.                      |
-| `displayProbe.ts`       | That probe, plus the frame-pacing keepalive — rAF run during flights, once to measure and once merely to exist.                          |
+| `displayProbe.ts`       | That probe, plus the frame-pacing keepalive — rAF run during transitions, once to measure and once merely to exist.                      |
 | `steadySixtyCadence.ts` | The steady-60 desktop verdict, derived from the same samples. Selects defaults, never a driver.                                          |
 
 `packages/core/src/runtime/` — what the app sits in, between navigations:
@@ -263,26 +263,26 @@ is not a consumer value; the landed scope belongs to the compiled rest rules.**
 
 `packages/core/src/dom/` — the contract between the packages:
 
-| Module          | One line                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
-| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `attributes.ts` | Every `data-flemo-*` name and the animation hold's value vocabulary. Enforced from both ends: core fails on a raw literal, the binding fails on an undeclared attribute.                                                                                                                                                                                                                                                                                                                         |
-| `holdMirror.ts` | Puts a staging layer back under the hold its screens are under, so what the layer carries starts on the same frame as the flight around it. The strongest hold wins while any source is still held, and a source that has LEFT the document reads as released: an unmounted screen can never flip its own attribute again, and the mirror used to hold the layer for ever on the value that screen left wearing. Shared by the morph layer and the part layer, which had that defect separately. |
-| `stacking.ts`   | The paint order one screen keeps inside its own box: content under its chrome, chrome under a `<Layer>` overlay that exists to cover it, and the dim over all three. Was tree order alone, which could not be stated or asserted and made paint a function of JSX position.                                                                                                                                                                                                                      |
-| `staging.ts`    | What moving an element into a staging layer needs: the layer's own coordinates (a bezel or preview scales the box), and carrying CSS animation clocks across the re-parent that would otherwise restart them. Shared by the morph flight layer and the part layer, and it lives here because `@morph` already imports `@core/engine` — an engine-driven staging runtime cannot reach back into `@morph` without closing a cycle.                                                                 |
+| Module          | One line                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| --------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `attributes.ts` | Every `data-flemo-*` name and the animation hold's value vocabulary. Enforced from both ends: core fails on a raw literal, the binding fails on an undeclared attribute.                                                                                                                                                                                                                                                                                                                             |
+| `holdMirror.ts` | Puts a staging layer back under the hold its screens are under, so what the layer carries starts on the same frame as the transition around it. The strongest hold wins while any source is still held, and a source that has LEFT the document reads as released: an unmounted screen can never flip its own attribute again, and the mirror used to hold the layer for ever on the value that screen left wearing. Shared by the morph layer and the part layer, which had that defect separately. |
+| `stacking.ts`   | The paint order one screen keeps inside its own box: content under its chrome, chrome under a `<Layer>` overlay that exists to cover it, and the dim over all three. Was tree order alone, which could not be stated or asserted and made paint a function of JSX position.                                                                                                                                                                                                                          |
+| `staging.ts`    | What moving an element into a staging layer needs: the layer's own coordinates (a bezel or preview scales the box), and carrying CSS animation clocks across the re-parent that would otherwise restart them. Shared by the morph transition layer and the part layer, and it lives here because `@morph` already imports `@core/engine` — an engine-driven staging runtime cannot reach back into `@morph` without closing a cycle.                                                                 |
 
 Campaign modules outside those directories:
 
-| Module                                          | One line                                                                                                                                                                                                                                                                                                      |
-| ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `screen/animStartAnchor.ts`                     | The anim-hold decision (`animHoldKey`) and release scheduling — decode readiness, the render-settle gate, the pop pair coordinator.                                                                                                                                                                           |
-| `screen/pendingNetwork.ts`                      | In-flight request accounting, so the settle gate can tell "still loading" from "already complete".                                                                                                                                                                                                            |
-| `screen/partLayer.ts`                           | The per-Router box a matched shared bar's parts are staged in, published by the binding for the reason the morph flight layer is: only a Router knows which box bounds its screens. Deliberately not the morph layer — a morph owns the box it stages in and strips the mirrored hold on landing.             |
-| `transition/gestureScrub.ts`                    | The drag clock every gesture-driven flight shares: the travel-to-time inversion, and the release rate with the rules learned on glass (the finished-animation rewind, the preserved `currentTime`, the reverse finish that fires no `animationend`).                                                          |
-| `transition/partTransition/resolvePartClock.ts` | A part's variant table with its clock filled in from the screen's same variant key, the rule `resolveDecoratorClock` already applies to a dim. A part declares a pose; how long the hand-over takes is the flight's answer.                                                                                   |
-| `transition/variantMotion.ts`                   | The variant → `{from, to, duration, delay, ease}` resolver: one source for "where does each variant start".                                                                                                                                                                                                   |
-| `transition/animateInline.ts`                   | The inline lease model (section 3) and the imperative swipe write path.                                                                                                                                                                                                                                       |
-| `transition/compileTransitionStyles.ts`         | The keyframes compiler: variant rules, `will-change`/`contain` scoping, hold/park rules, the flat-head keyframes behind each head's gate attribute, translate3d-only transforms. Timing is LITERAL by contract — `calc(var())` in animation timing demotes WebKit fades to the main thread (device-bisected). |
-| `transition/enteringInitialStyle.ts`            | The entering screen's inline from-pose for its first styled frame (see the lease hazard in section 3).                                                                                                                                                                                                        |
+| Module                                           | One line                                                                                                                                                                                                                                                                                                      |
+| ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `screen/animStartAnchor.ts`                      | The anim-hold decision (`animHoldKey`) and release scheduling — decode readiness, the render-settle gate, the pop pair coordinator.                                                                                                                                                                           |
+| `screen/pendingNetwork.ts`                       | Running request accounting, so the settle gate can tell "still loading" from "already complete".                                                                                                                                                                                                              |
+| `screen/partLayer.ts`                            | The per-Router box a matched shared bar's parts are staged in, published by the binding for the reason the morph transition layer is: only a Router knows which box bounds its screens. Deliberately not the morph layer — a morph owns the box it stages in and strips the mirrored hold on landing.         |
+| `transition/gestureScrub.ts`                     | The drag clock every gesture-driven transition shares: the travel-to-time inversion, and the release rate with the rules learned on glass (the finished-animation rewind, the preserved `currentTime`, the reverse finish that fires no `animationend`).                                                      |
+| `transition/partTransition/resolvePartTiming.ts` | A part's variant table with its clock filled in from the screen's same variant key, the rule `resolveDecoratorTiming` already applies to a dim. A part declares a pose; how long the hand-over takes is the transition's answer.                                                                              |
+| `transition/variantMotion.ts`                    | The variant → `{from, to, duration, delay, ease}` resolver: one source for "where does each variant start".                                                                                                                                                                                                   |
+| `transition/animateInline.ts`                    | The inline lease model (section 3) and the imperative swipe write path.                                                                                                                                                                                                                                       |
+| `transition/compileTransitionStyles.ts`          | The keyframes compiler: variant rules, `will-change`/`contain` scoping, hold/park rules, the flat-head keyframes behind each head's gate attribute, translate3d-only transforms. Timing is LITERAL by contract — `calc(var())` in animation timing demotes WebKit fades to the main thread (device-bisected). |
+| `transition/enteringInitialStyle.ts`             | The entering screen's inline from-pose for its first styled frame (see the lease hazard in section 3).                                                                                                                                                                                                        |
 
 ## 5. Removed, and not to be re-derived
 
@@ -297,17 +297,17 @@ to bring one back — all of these did.
 | The integer-device-pixel **landing snap** | A live A/B on real content judged texel-rigid stepping WORSE than the authored fractional glide — the same verdict as the transformPart 2D-vs-3D experiment, where translate3d was chosen precisely FOR filtered sub-pixel compositing. See `landingGovernor.ts`.                                                                 |
 | Governed-tier **front-softening**         | Prescribed against a broken pipeline (var-timing demotion plus the opening skips). With those cured, the softened curve became the "different transition" the user could feel against the authored curve. Check the pipeline underneath before reaching for a curve change.                                                       |
 
-## 6. Who resolves a flight — "never a double resolution"
+## 6. Who resolves a transition — "never a double resolution"
 
-A flight's navigation task (`TaskManager`) is resolved by exactly ONE live path; every
+A transition's navigation task (`TaskManager`) is resolved by exactly ONE live path; every
 other path is a backstop that is a no-op once the task settled (`resolveTask` ignores
 non-current ids, and every resolver captures `flooredTaskId` at arm time so a stale
-resolver can never cut a NEWER flight).
+resolver can never cut a NEWER transition).
 
 1. **`animationend`** — the always-wired resolver, attached from the first transitional
    render. It also accepts each head tier's suffixed keyframe name
-   (`matchesFlightAnimationName`) — a miss there does not just skip a resolve, it
-   strands the flight until the watchdog replays it. While the hold pauses the animation
+   (`matchesTransitionAnimationName`) — a miss there does not just skip a resolve, it
+   strands the transition until the watchdog replays it. While the hold pauses the animation
    it cannot fire.
 2. **Perceptual cut** — a clean completion: detaches `animationend`, then
    `resolvePresented`. Stood down on the governed touch tiers, where presentation does

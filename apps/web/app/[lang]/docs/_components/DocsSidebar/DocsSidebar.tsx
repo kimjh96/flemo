@@ -1,12 +1,13 @@
-import DocsNav from "../DocsNav";
+"use client";
 
-// The persistent docs sidebar (desktop). It lives OUTSIDE the content <Slot>, so
-// it stays put while only the page area transitions. Hidden on mobile, where the
-// same nav opens as a sheet from the page (see DocsNavSheet).
+import DocsNavList from "../DocsNavList";
+
+// The desktop sidebar, outside the docs Router's <Slot>: it holds still while
+// pages move. Hidden on a phone, where the list opens as a sheet instead.
 function DocsSidebar() {
   return (
-    <aside className="hidden w-64 shrink-0 overflow-y-auto border-r border-[var(--color-border-light)] px-4 pt-24 pb-12 md:block">
-      <DocsNav />
+    <aside className="no-scrollbar hidden h-full w-[248px] shrink-0 overflow-y-auto border-r border-line pt-8 pr-4 pl-3 sm:pl-3 pb-12 md:block">
+      <DocsNavList />
     </aside>
   );
 }

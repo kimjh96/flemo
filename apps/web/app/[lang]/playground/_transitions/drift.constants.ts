@@ -7,7 +7,7 @@
 export const DRIFT_IN = 0.42;
 export const DRIFT_BACK = 0.32;
 
-// One curve for the whole flight. Both channels of `drift` move together, so
+// One curve for the whole transition. Both channels of `drift` move together, so
 // giving opacity and scale different easings would make the arriving screen
 // finish fading before it finished growing.
 export const DRIFT_EASE: [number, number, number, number] = [0.2, 0.8, 0.2, 1];

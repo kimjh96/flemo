@@ -4,7 +4,7 @@ import { createPartTransition } from "@flemo/react";
 
 import "./cardBody.types";
 
-// What the card's own contents do while the card is a box in flight.
+// What the card's own contents do while the card is a box running.
 //
 // They have to do something, because of how a morph grows:
 //
@@ -35,7 +35,7 @@ import "./cardBody.types";
 //
 // The clock is `aperture`'s, which is the only transition that carries this
 // case, so there is no table to keep in step: arrive in the last half of the
-// flight, leave in the first fifth of it.
+// transition, leave in the first fifth of it.
 const IN = 0.24;
 const IN_DELAY = 0.26;
 const OUT = 0.12;
@@ -50,7 +50,7 @@ const cardBody = createPartTransition({
   name: "card-body",
   initial: HIDDEN,
   // The arriving detail. Held back until the card has most of its size, then
-  // brought up over the rest of the flight. The clock rides on `idle` because
+  // brought up over the rest of the transition. The clock rides on `idle` because
   // that is the pose PUSHING-true and REPLACING-true animate TO; the rest rules
   // sharing the slot are poses only and ignore the timing.
   idle: {

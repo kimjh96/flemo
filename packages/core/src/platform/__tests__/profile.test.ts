@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { resolvePlatformProfile } from "@platform/profile";
-import { reportInFlightCadence, resetSteadySixtyForTests } from "@platform/steadySixtyCadence";
+import { reportInTransitionCadence, resetSteadySixtyForTests } from "@platform/steadySixtyCadence";
 
 // The platform profile is the ONE place a per-browser decision is made, so
 // these suites are the contract between core and every binding: an environment
@@ -96,8 +96,8 @@ describe("renderSettleGate", () => {
 
     setEnv({ blink: true, touch: false, dpr: 2 });
     expect(resolvePlatformProfile().renderSettleGate).toBe(false);
-    reportInFlightCadence(16.7);
-    reportInFlightCadence(16.7);
+    reportInTransitionCadence(16.7);
+    reportInTransitionCadence(16.7);
     expect(resolvePlatformProfile().renderSettleGate).toBe(true);
   });
 });
@@ -138,8 +138,8 @@ describe("the profile as a whole", () => {
   it("is resolved fresh on every call, so a verdict formed mid-session lands", () => {
     setEnv({ blink: true, touch: false, dpr: 2 });
     expect(resolvePlatformProfile().renderSettleGate).toBe(false);
-    reportInFlightCadence(16.7);
-    reportInFlightCadence(16.7);
+    reportInTransitionCadence(16.7);
+    reportInTransitionCadence(16.7);
     // No reset, no reload: the very next resolve sees it.
     expect(resolvePlatformProfile().renderSettleGate).toBe(true);
   });

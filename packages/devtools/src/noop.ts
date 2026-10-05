@@ -29,7 +29,7 @@
 import type { DevtoolsHudHandle, DevtoolsHudOptions } from "./hud";
 import type { DevtoolsPanelHandle, DevtoolsPanelOptions } from "./panel";
 import type { SwipeProbeHandle, SwipeProbeOptions } from "./swipeProbe";
-import type { FlemoReport, FlightRecorderHandle, FlightRecorderOptions } from "./types";
+import type { FlemoReport, TransitionRecorderHandle, TransitionRecorderOptions } from "./types";
 
 export * from "./anomalies";
 export * from "./blindSpots";
@@ -45,7 +45,7 @@ export * from "./verdict";
 // Duplicated rather than re-exported from recorder.ts, which would put the
 // recorder back in the graph and leave its removal to the optimizer.
 // `noop.test.ts` asserts the two stay equal.
-export const REPORT_SCHEMA_VERSION = "3";
+export const REPORT_SCHEMA_VERSION = "4";
 
 const INERT_NOTE =
   "@flemo/devtools resolved to its production entry: nothing was recorded. " +
@@ -90,7 +90,7 @@ const inertReport = (): FlemoReport => ({
   },
   preconditions: [],
   overrides: { active: {}, warnings: [INERT_NOTE] },
-  flights: [],
+  transitions: [],
   comparison: [],
   previousSession: null,
   anomalies: [INERT_NOTE],
@@ -98,7 +98,9 @@ const inertReport = (): FlemoReport => ({
   judgingProtocol: [INERT_NOTE]
 });
 
-export const attachFlightRecorder = (_options?: FlightRecorderOptions): FlightRecorderHandle => ({
+export const attachTransitionRecorder = (
+  _options?: TransitionRecorderOptions
+): TransitionRecorderHandle => ({
   detach: noop,
   report: inertReport,
   mark: () => null
@@ -134,19 +136,19 @@ export type {
   BucketSummary,
   EnvironmentFingerprint,
   FlemoReport,
-  FlightDriver,
-  FlightHolds,
-  FlightKind,
-  FlightParticipants,
-  FlightRecord,
-  FlightRecorderHandle,
-  FlightRecorderOptions,
-  FlightTimestamp,
+  TransitionDriver,
+  TransitionHolds,
+  TransitionKind,
+  TransitionParticipants,
+  TransitionRecord,
+  TransitionRecorderHandle,
+  TransitionRecorderOptions,
+  TransitionTimestamp,
   FramePhaseStats,
   FrameSampleStats,
   ImageActivity,
   InputEvidence,
-  LandingAudit,
+  EndAudit,
   LongTaskSpan,
   MorphActivity,
   MotionProgress,

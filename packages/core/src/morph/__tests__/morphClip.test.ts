@@ -5,9 +5,9 @@ import { clipTravel, visibleInset } from "@morph/morphClip";
 // WHAT THE SCROLLPORT WAS HIDING, measured per side as a fraction of the box.
 //
 // A cell scrolled to the list's edge is half covered by the chrome stacked
-// flush against that edge. The flight layer clips nothing, so without this
+// flush against that edge. The transition layer clips nothing, so without this
 // measurement the hidden half paints the instant the element is staged and
-// the flight carries it straight across the tab bar it was under.
+// the transition carries it straight across the tab bar it was under.
 
 const box = (
   parent: HTMLElement | null,
@@ -75,7 +75,7 @@ describe("visibleInset hostile paths", () => {
 
   it("declines when an ancestor's computed style cannot be read", () => {
     // A detached-ish or cross-realm node can make getComputedStyle throw; a
-    // clip measurement must never take the flight down with it.
+    // clip measurement must never take the transition down with it.
     const scroller = box(null, [0, 600, 400, 100], "auto");
     const cell = box(scroller, [20, 650, 80, 80]);
     const original = globalThis.getComputedStyle;

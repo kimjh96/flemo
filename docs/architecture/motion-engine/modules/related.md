@@ -3,7 +3,7 @@
 | Module | Responsibility |
 | --- | --- |
 | `screen/animStartAnchor.ts` | `animHoldKey`, `scheduleAnimHoldRelease`, decode readiness, render-settle gating, and `createAnimHoldCoordinator`. |
-| `screen/pendingNetwork.ts` | In-flight request accounting distinguishing loading from completed work without consumer declarations. |
+| `screen/pendingNetwork.ts` | Running request accounting distinguishing loading from completed work without consumer declarations. |
 | `transition/gestureScrub.ts` | Stages, scrubs, and settles paused gesture-driven animations for screens, bars, dim, and parts. |
 | `transition/variantMotion.ts` | `resolveVariantMotion`, the single source for variant `{from, to, via, duration, delay, ease}` values. |
 | `transition/resolveSwipeOptions.ts` | Resolves a transition's declared swipe and fills defaults so nothing downstream resolves them twice. |

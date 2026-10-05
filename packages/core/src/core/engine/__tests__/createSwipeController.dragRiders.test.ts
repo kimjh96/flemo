@@ -30,7 +30,7 @@ import type { PartTransitionName } from "@transition/partTransition/typing";
 // decorator that declared only a pose sat still while the screens followed the
 // finger. The controller drives those itself: every registered element that
 // declared no swipe hooks rides the gesture on the same two POPPING variants the
-// landing flight would run, because a swipe-back IS a pop.
+// landing transition would run, because a swipe-back IS a pop.
 
 const POSE_ONLY = "drag-rider-pose" as PartTransitionName;
 const AUTHOR_DRIVEN = "drag-rider-authored" as PartTransitionName;
@@ -531,7 +531,7 @@ describe("createSwipeController drag riders", () => {
   });
 
   it("collects a part this screen already has up in the layer", async () => {
-    // An interrupted flight can leave the covered screen's part staged when the
+    // An interrupted transition can leave the covered screen's part staged when the
     // finger goes down. It is out of the container the gesture walks, and a part
     // the gesture cannot see is one it cannot move: it would hang at its
     // pre-drag pose while everything else followed the finger.

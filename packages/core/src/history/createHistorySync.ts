@@ -76,7 +76,7 @@ export default function createHistorySync(deps: HistorySyncDeps): () => void {
 
   // Set when the binding disposes this sync (its Router unmounted). Traversal
   // tasks the sync already queued can still be sitting in the SHARED task
-  // queue behind an in-flight transition; when one of them finally runs
+  // queue behind an running transition; when one of them finally runs
   // against the dead Router it would start a transition whose screens no
   // longer exist, so its manual gate (animationend) never fires and the whole
   // app's navigation queue deadlocks — the "URL changes but nothing
@@ -92,7 +92,7 @@ export default function createHistorySync(deps: HistorySyncDeps): () => void {
   // to the browser's (far-ahead) live entry — every queued in-between event then
   // arrives "already passed" and its screen never shows. That was the "middle
   // transitions skipped on a rapid forward run" bug.
-  let inFlight = 0;
+  let inTransition = 0;
 
   // Queue one traversal for replay. Split from the popstate listener so the
   // convergence pass below can re-drive the browser's present entry through the
@@ -105,11 +105,11 @@ export default function createHistorySync(deps: HistorySyncDeps): () => void {
     const eventEpoch = stores.history.getState().truncationEpoch;
     const taskId = TaskManager.generateTaskId();
 
-    inFlight += 1;
+    inTransition += 1;
     try {
       await runTraversalTask(event, frame, eventEpoch, taskId);
     } finally {
-      inFlight -= 1;
+      inTransition -= 1;
     }
   };
 
@@ -297,13 +297,13 @@ export default function createHistorySync(deps: HistorySyncDeps): () => void {
       healTimer = null;
       if (disposed) return;
 
-      // Still settling: our own traversals are queued or replaying (inFlight —
+      // Still settling: our own traversals are queued or replaying (inTransition —
       // the global queue can read empty in the gap between one transition
       // resolving and the next parking, so it alone is NOT enough), a
       // transition is running, or a traversal just arrived. Not a stall —
       // the replay may still be working towards the live entry.
       if (
-        inFlight > 0 ||
+        inTransition > 0 ||
         TaskManager.pendingTaskIds.length > 0 ||
         clock() - lastEventAt < HEAL_QUIET_MS
       ) {

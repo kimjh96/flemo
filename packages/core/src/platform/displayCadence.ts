@@ -1,13 +1,13 @@
 // The session's learned display cadence, in milliseconds per frame.
 //
-// One number, learned from the engine's in-flight rAF probe (see
+// One number, learned from the engine's running rAF probe (see
 // armDisplayIntervalProbe) and read by the routing that must know whether the
 // panel is genuinely high-refresh:
 // - the compiled tier's landing governor on touch Blink (see
 //   landingGovernor.ts) engages only below COMPILED_TIER_MAX_INTERVAL_MS;
 // - the governed-head keyframe selection reads the same threshold.
 //
-// It must be learned IN FLIGHT, not at idle: an adaptive panel (ProMotion)
+// It must be learned RUNNING, not at idle: an adaptive panel (ProMotion)
 // idles at 60Hz and ramps to 120Hz the moment a compositor animation runs, so
 // a load-time probe reads 16.7ms on the very machine that presents at 8.3ms
 // (measured: real Chrome, idle rAF 16.7ms median on a 120Hz panel). See

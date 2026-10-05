@@ -35,8 +35,8 @@ const px = (value: number) => `${Math.round(value * 100) / 100}px`;
 // hair off puts the leading on the other side of a half-pixel and the whole
 // line moves a pixel. Device-read on a consumer's phone, at a landing: the same
 // element, the same family, a size reported as 11.00 at both ends, and a
-// leading of 17px on the flight's last frame against 16px at rest, with nothing
-// inline and no parent changing. 11 x 1.5 is 16.5, and the flight was standing
+// leading of 17px on the transition's last frame against 16px at rest, with nothing
+// inline and no parent changing. 11 x 1.5 is 16.5, and the transition was standing
 // on the wrong side of it.
 //
 // Printed at the precision the value actually has, both ends resolve the same.
@@ -111,7 +111,7 @@ export interface MorphTravel {
    * seconds are baked into the keyframes as a flat stop instead: the animation
    * is running and still, a late first frame lands inside the lead-in, and the
    * curve plays from 0. The screens have ridden it this way since the head was
-   * invented; this is the flight riding it the same way.
+   * invented; this is the transition riding it the same way.
    *
    * Painted frames off a consumer's phone, 60fps: the first frame the box was
    * drawn on was already 67% of the way through its travel. The computed value
@@ -128,7 +128,7 @@ export interface MorphKeyframeSet {
   /** The `animation` shorthand to put on the element. */
   animation: string;
   /**
-   * The animation whose end LANDS the flight — the geometry one where there is
+   * The animation whose end LANDS the transition — the geometry one where there is
    * one, the corner where the corner is all that changes.
    */
   geometryName: string;
@@ -156,7 +156,7 @@ export interface MorphKeyframeSet {
    */
   size: { width: string; height: string } | null;
   /**
-   * The width the box is HELD at for the whole flight, or null.
+   * The width the box is HELD at for the whole transition, or null.
    *
    * The viewport x of a far edge both ends agree on, when there is one.
    *
@@ -199,7 +199,7 @@ export interface MorphKeyframeSet {
    * The `animation` shorthand a shadow carrier wears, or null where there is no
    * shadow to cast or the box was not revealed.
    *
-   * The carrier is an empty box that travels the same rects under the flying
+   * The carrier is an empty box that travels the same rects under the moving
    * element and wears its `box-shadow`, because the reveal's clip takes the
    * element's own with it. The animation carries the box as well as the shadow,
    * so the caller has only to place the carrier and hand it this (see
@@ -217,10 +217,10 @@ export interface MorphKeyframeSet {
  * one that must never leave it. The cross-fade and the corner ride alongside on
  * their own clocks, which is also what lets them have their own windows: the
  * fade has to be over while the two sides are still on top of each other, the
- * corner has to track the scale for the whole flight.
+ * corner has to track the scale for the whole transition.
  *
  * Two endpoints and the authored easing, because the element is staged in the
- * FLIGHT LAYER: it is not inside a screen any more, so there is no screen
+ * TRANSITION LAYER: it is not inside a screen any more, so there is no screen
  * motion left to compose with and nothing to sample.
  */
 export const buildMorphKeyframes = (input: {
@@ -272,7 +272,7 @@ export const buildMorphKeyframes = (input: {
   /** Type morphs by growing, not by being scaled: px at each end. */
   fontSize?: { from: number; to: number } | null;
   /**
-   * The line-height as a STAIRCASE, holding the leading still for the flight.
+   * The line-height as a STAIRCASE, holding the leading still for the transition.
    *
    * Supersedes `lineHeight` where it is given: the two cannot both author the
    * property, and the staircase is the one that keeps the glyphs from stepping
@@ -287,7 +287,7 @@ export const buildMorphKeyframes = (input: {
    * A held leading still leaves the BASELINE stepping, because it sits an
    * ascent below the inline box's top and the ascent is on the same grid. The
    * two terms are both grid-locked, so nothing done to the line-height can make
-   * their sum smooth. The box under them is not grid-locked, so the flight
+   * their sum smooth. The box under them is not grid-locked, so the transition
    * sends the box the OTHER way by the same amount and the glyphs come out
    * still: the box travels to `top + ascent` and a transform takes the ascent
    * straight back off, exactly at both ends and within half a pixel between.
@@ -302,7 +302,7 @@ export const buildMorphKeyframes = (input: {
    *
    * Paid on the same channel as the ascent's cancellation and with the same
    * shape: the whole amount at the departure, nothing at the landing, so what
-   * the flight travels is unchanged and only its first frame moves.
+   * the transition travels is unchanged and only its first frame moves.
    */
   leadStart?: number | null;
   /**
@@ -357,7 +357,7 @@ export const buildMorphKeyframes = (input: {
     /** Seconds to hold the from-pose before the fade runs, on top of `travel.start`. */
     delay?: number;
     /**
-     * The curve, where the flight's own is not the right one.
+     * The curve, where the transition's own is not the right one.
      *
      * A HAND-OVER IS A STEP, NOT A RAMP. Two opacity ramps crossing never
      * compose back to what they replaced: at the midpoint of a 1-to-0 against a
@@ -381,15 +381,15 @@ export const buildMorphKeyframes = (input: {
    * Keep this set on the main thread even where its geometry is a transform the
    * compositor could have run.
    *
-   * A flight is one composition, and its parts are placed relative to each
-   * other. The moment one of them travels by its box — which is every flight
+   * A transition is one composition, and its parts are placed relative to each
+   * other. The moment one of them travels by its box — which is every transition
    * where the element GROWS rather than being scaled — the frames it can be
    * drawn on are the main thread's, and a part that keeps advancing without it
    * separates from it by however far behind that thread is. A ghost is the
    * clearest case: it is a copy of the departure whose only job is to sit on
    * the element it dissolves into, and one that leads prints the card twice.
    *
-   * So the flight decides once, and every part it emits abides by it. Ignored
+   * So the transition decides once, and every part it emits abides by it. Ignored
    * where the geometry is already layout-bound, which needs no help.
    */
   pinned?: boolean;
@@ -441,16 +441,16 @@ export const buildMorphKeyframes = (input: {
   const clock = `${span.toFixed(3)}s`;
   const start = (travel.start - head).toFixed(3);
   /** Two-stop keyframes, with the flat lead-in in front where there is one. */
-  // A FLIGHT HAS TO ARRIVE BEFORE IT LANDS.
+  // A TRANSITION HAS TO ARRIVE BEFORE IT LANDS.
   //
-  // The last frame a flight is painted on is not its 100%: the animation ends
+  // The last frame a transition is painted on is not its 100%: the animation ends
   // between that frame and the next, so the last thing on glass is the curve a
   // fraction short of its destination. For a box that is a sub-pixel nobody can
   // see. For TYPE it is a whole pixel, because a face's ascent is quantised and
   // a size a thousandth short of its resting value snaps to the grid line
   // above: device-read at a landing, the last painted frame carried a size of
   // 11.0006px against a resting 11.0000, and the words sat 1.03px high until
-  // the flight let go.
+  // the transition let go.
   //
   // So the destination is reached ONE FRAME EARLY and held there. The last
   // frame on glass is then the resting state itself and the landing changes
@@ -474,10 +474,10 @@ export const buildMorphKeyframes = (input: {
    * stop found at 65% of the curve was emitted at 65% of the TIMELINE, which is
    * 65% of the curve plus most of a frame. Every boundary therefore rendered
    * before the channel that cancels it, so the glyphs dropped the step on one
-   * frame and were lifted back on the next, ten times in a 0.7s flight, with the
+   * frame and were lifted back on the next, ten times in a 0.7s transition, with the
    * lag growing from nothing at the start to a full frame at the end. Measured
    * on the composition bench: the glyphs moved up to 0.97px that the travel did
-   * not explain, on half the frames of the flight, alternating in sign, which is
+   * not explain, on half the frames of the transition, alternating in sign, which is
    * the rattle reported through the whole convergence rather than at its end.
    *
    * Mapping a stop onto `[headPct, arrived]` — the window the size actually
@@ -517,7 +517,7 @@ export const buildMorphKeyframes = (input: {
     fromParts.push(from);
     toParts.push(to);
   };
-  // Which animation's end LANDS the flight. Normally the geometry one, but a
+  // Which animation's end LANDS the transition. Normally the geometry one, but a
   // side whose only change is its corner emits no geometry keyframe at all —
   // and a landing waiting on an animation that was never created waits for the
   // backstop instead, a quarter-second after the motion finished.
@@ -530,7 +530,7 @@ export const buildMorphKeyframes = (input: {
   // A box travel and a pose's translate are both translations on the same
   // clock, so they add up, and adding them up is what lets the ascent's
   // cancellation ride along on the same property (see morphPose). It is why
-  // this works for a pair that FLIES and a pair that RIDES its container alike:
+  // this works for a pair that MOVES and a pair that RIDES its container alike:
   // the first has a box and no pose, the second a pose and no box, and neither
   // is a special case here.
   //
@@ -575,7 +575,7 @@ export const buildMorphKeyframes = (input: {
   // text can re-wrap into its new shape. It is also a full layout and a fresh
   // raster of that subtree on every frame, and WebKit re-snaps the backing to
   // the device grid each time, so the contents are carried a device pixel back
-  // and forth for the whole flight whether they needed to move or not.
+  // and forth for the whole transition whether they needed to move or not.
   //
   // TRIED AND FALSIFIED, in this order, all four on a consumer's phone: letting
   // the size animate for real; stepping it so it changes five times instead of
@@ -586,13 +586,13 @@ export const buildMorphKeyframes = (input: {
   // the size stopped it dead on every run.
   //
   // Which is the answer, because the per-frame layout was buying NOTHING here.
-  // Measured across a flight, every descendant of the pill held one position
+  // Measured across a transition, every descendant of the pill held one position
   // for all of its frames and only the box's own near edge moved: the contents
   // are right-aligned, the box grows leftward, and what grows is empty space.
   //
-  // So the flight asks, rather than guesses: `contentsHold` lays the arrival
+  // So the transition asks, rather than guesses: `contentsHold` lays the arrival
   // out at both of its sizes and compares where every child and every line of
-  // text falls from the corner the flight anchors on (see morphContents). Where
+  // text falls from the corner the transition anchors on (see morphContents). Where
   // they agree, the
   // box is laid out ONCE at the size that contains both ends and the near edge
   // is cut back with a clip — the same picture, drawn once. Where they disagree
@@ -608,7 +608,7 @@ export const buildMorphKeyframes = (input: {
       ? (() => {
           // The box is laid out at the size that CONTAINS both ends, and each
           // end is that box with the growth cut back off it. The cut is on the
-          // edges opposite the corner the flight is anchored on, because that
+          // edges opposite the corner the transition is anchored on, because that
           // is the corner the box grows away from: a right-held box grows
           // leftward, everything else grows right and down from where it sits.
           const width = Math.max(box.from.width, box.to.width);
@@ -665,7 +665,7 @@ export const buildMorphKeyframes = (input: {
   // composes two — a measured travel with an author's flourish stacked on it —
   // concatenation is a matrix product that five numbers cannot always express,
   // so that set stays literal rather than being approximated. It is then still
-  // accelerated, and this is recorded rather than hidden: a flight that reaches
+  // accelerated, and this is recorded rather than hidden: a transition that reaches
   // it has a part that can lead the rest.
   const pinnable = pinned && !layoutBound && solo;
   // Whatever the move channel took, the transform does not repeat. `translate`
@@ -726,7 +726,7 @@ export const buildMorphKeyframes = (input: {
     pushSize(`    clip-path: ${insetCss(clip.from)};`, `    clip-path: ${insetCss(clip.to)};`);
   else if (reveal) {
     // ROUND, or the reveal is a square cut across a rounded box: the left
-    // corner disappears for the whole flight and what grows reads as a plain
+    // corner disappears for the whole transition and what grows reads as a plain
     // rectangle sitting over the pill rather than the pill itself.
     // And the corner TRAVELS where the box's own does: a clip held at the
     // arrival's corner while the box interpolates from the departure's rounds
@@ -738,11 +738,11 @@ export const buildMorphKeyframes = (input: {
       `    clip-path: inset(${reveal.from}${round(corners.from)});`,
       `    clip-path: inset(${reveal.to}${round(corners.to)});`
     );
-    // THE IMAGE IS DRAWN TO THE BOX THE FLIGHT IS AT.
+    // THE IMAGE IS DRAWN TO THE BOX THE TRANSITION IS AT.
     //
     // The revealed element is laid out at the size that contains both ends, so
     // an image laid out against it is the LARGER end's picture with a corner of
-    // it showing. Sized to the end the flight is at and pinned to the corner
+    // it showing. Sized to the end the transition is at and pinned to the corner
     // the clip is anchored on, it is the picture the box would have painted at
     // that size. A background is a paint, so this buys the whole reveal without
     // the layout per frame that refusing it would have cost.
@@ -795,10 +795,10 @@ export const buildMorphKeyframes = (input: {
 
   if (staircase) {
     const leadName = `flemo-morph-${id}-lead`;
-    // A STOP AT THE VERY END IS A STEP THE LANDING TAKES, NOT THE FLIGHT.
+    // A STOP AT THE VERY END IS A STEP THE LANDING TAKES, NOT THE TRANSITION.
     //
     // Each stop is held by `steps(1, end)` until the next one, so a final stop
-    // sitting at 100% is never painted while the flight runs: the value before
+    // sitting at 100% is never painted while the transition runs: the value before
     // it stands on glass right up to the last frame and the arrival's own value
     // appears for the first time at the instant the animation lets go. The
     // staircase exists to stop the leading stepping, and that placement moves
@@ -808,7 +808,7 @@ export const buildMorphKeyframes = (input: {
     // words dropped 1.03px on the landing frame.
     //
     // So the last stop is brought forward by a frame. The arrival's leading is
-    // then on glass before the flight ends, and the landing changes nothing.
+    // then on glass before the transition ends, and the landing changes nothing.
     const lastFrame = span > 0 ? Math.max(0, 100 - (100 * (1 / 60)) / span) : 100;
     const stops = staircase.map((stop, index) =>
       index === staircase.length - 1
@@ -825,7 +825,7 @@ export const buildMorphKeyframes = (input: {
       )
       .join("\n");
     rules.push(`@keyframes ${leadName} {\n${blocks}\n}`);
-    // Linear, because the stops already carry the flight's easing in WHERE they
+    // Linear, because the stops already carry the transition's easing in WHERE they
     // sit; easing between them again would move them.
     animations.push(`${leadName} ${clock} linear ${start}s both`);
   }
@@ -848,7 +848,7 @@ export const buildMorphKeyframes = (input: {
     // from its registered 0 up to that first stop across the head, so for the
     // length of the lead-in the ascent the move channel added is NOT cancelled,
     // and the line sits a whole ascent low and climbs into place. Device-read on
-    // a text morph: the title began ~13px below where it was flying from and
+    // a text morph: the title began ~13px below where it was moving from and
     // slid up over the head. A 0% stop holding the first ascent, stepped like
     // the rest, makes the cancellation whole from the first frame.
     const headHold =
@@ -898,14 +898,14 @@ export const buildMorphKeyframes = (input: {
     return channel.property !== "background-size" && channel.property !== "background-position";
   });
 
-  // THE CARRIER'S SHADOW, on the flight's own clock.
+  // THE CARRIER'S SHADOW, on the transition's own clock.
   //
-  // A BOX, NOT A FILTER. A `drop-shadow` around the flying element does follow
+  // A BOX, NOT A FILTER. A `drop-shadow` around the moving element does follow
   // the clip, but it is an approximation twice over: it has no spread, and a
   // stack of them is applied in SEQUENCE, so the second is cast from the first's
   // blurred output rather than from the box. Device-measured through a push, the
   // shadow under the card thinned from a tint of 27.6 at rest to 17 for the
-  // whole flight and snapped back on landing, which is a shadow that pops. It
+  // whole transition and snapped back on landing, which is a shadow that pops. It
   // also asks for a Gaussian blur of the whole card on every frame.
   //
   // An empty box wearing the SAME `box-shadow`, travelling the same rects
@@ -936,9 +936,9 @@ export const buildMorphKeyframes = (input: {
     const to = painted.map((channel) => `    ${channel.property}: ${channel.to};`).join("\n");
     rules.push(held(paintName, from, to));
     animations.push(`${paintName} ${clock} ${easing} ${start}s both`);
-    // It runs the flight's full length, so it is a sound clock for a side whose
+    // It runs the transition's full length, so it is a sound clock for a side whose
     // only change is a colour or a corner. The fade is not: it is over while
-    // the two sides are still on top of each other, which is most of a flight
+    // the two sides are still on top of each other, which is most of a transition
     // too early to land on.
     clockName ??= paintName;
   }
@@ -960,7 +960,7 @@ export const buildMorphKeyframes = (input: {
     // pair animated both registered properties with nothing reading them, and
     // the whole cancellation was dead on exactly the pairs a container
     // transform is made of. Measured on the poster grid: its title began every
-    // flight a pixel above the line it was flying from.
+    // transition a pixel above the line it was moving from.
     translate: moving ? PINNED_TRAVEL : null,
     size: sized ? { width: PINNED_BOX, height: PINNED_BOX_HEIGHT } : null,
     heldEdge: moving && rightHeld && box ? onRuler(box.to.x + box.to.width) : null,
@@ -979,12 +979,12 @@ export const buildMorphKeyframes = (input: {
 
 /**
  * The CAMERA: the transform that takes a screen from resting to "zoomed onto
- * this element", for a flight that carries its screen.
+ * this element", for a transition that carries its screen.
  *
  * One uniform scale and one translate.
  *
  * THE CAMERA IS NOT AN ANIMATION OF ITS OWN. It is defined as exactly the zoom
- * that carries the element from one end of the flight to the other, and the two
+ * that carries the element from one end of the transition to the other, and the two
  * are emitted on one clock: same duration, same delay, same easing, released
  * together. Measured, they agree to a thousandth of a frame at every sample.
  *
@@ -993,7 +993,7 @@ export const buildMorphKeyframes = (input: {
  * so the camera advances every vsync whatever the page is doing; the element
  * travels by its box, which no compositor can interpolate, so it advances only
  * on frames the main thread manages to produce. Isolated on both engines: with
- * the main thread blocked mid-flight, a transform twin of a box travel ran 146px
+ * the main thread blocked mid-transition, a transform twin of a box travel ran 146px
  * (Blink) and 167px (WebKit) ahead of it before the box moved at all. That gap
  * is the whole defect — a card trailing the grid it is supposed to be opening
  * out of, reported from iOS Safari as the camera being a beat ahead of the card.
@@ -1017,7 +1017,7 @@ export const buildMorphKeyframes = (input: {
  * accelerated: there is then nothing main-thread bound for it to wait for.
  *
  * The scale comes from WIDTH alone. The element's own box changes aspect across
- * the flight, so no single uniform scale can match both axes, and width is the
+ * the transition, so no single uniform scale can match both axes, and width is the
  * axis a column grid is built on: at the end of the zoom the tapped cell is
  * exactly as wide as the screen, which is what puts everything else off the
  * edges.
@@ -1025,7 +1025,7 @@ export const buildMorphKeyframes = (input: {
  * The animation is emitted as LONGHANDS, never the `animation` shorthand: the
  * shorthand would also write `animation-play-state`, and that longhand belongs
  * to the compiled hold — the camera has to pause and release with its screen
- * like everything else in the flight.
+ * like everything else in the transition.
  */
 export const buildCameraKeyframes = (input: {
   id: string;
@@ -1038,7 +1038,7 @@ export const buildCameraKeyframes = (input: {
   settling: boolean;
   duration: number;
   start: number;
-  /** The flight's flat lead-in, baked here too: the camera is one of its parts. */
+  /** The transition's flat lead-in, baked here too: the camera is one of its parts. */
   head?: number;
   ease: AnimationOptions["ease"];
   selector: string;
@@ -1071,7 +1071,7 @@ export const buildCameraKeyframes = (input: {
   const ty = to.y - origin.y - scale * (from.y - origin.y);
   // The camera is a pose like any other: a translate and one uniform scale. Said
   // that way it pins through exactly the same registered properties every other
-  // participant in the flight does.
+  // participant in the transition does.
   const uniform = Math.round(scale * 10000) / 10000;
   const zoomed: MorphPose = { x: tx, y: ty, scaleX: uniform, scaleY: uniform, rotate: 0 };
   const stop = (atRest: boolean) => {

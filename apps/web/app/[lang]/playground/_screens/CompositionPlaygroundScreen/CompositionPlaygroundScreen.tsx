@@ -11,51 +11,52 @@ function CompositionPlaygroundScreen() {
   const isKo = useShellLang() === "ko";
 
   return (
-    <Screen hideStatusBar hideSystemNavigationBar backgroundColor="transparent">
-      <div className="h-full overflow-y-auto">
-        <div className="mx-auto grid min-h-full w-full max-w-[1180px] items-center gap-10 px-6 pt-24 pb-16 lg:grid-cols-[minmax(0,1fr)_auto] lg:pt-28">
+    <Screen hideStatusBar hideSystemNavigationBar backgroundColor="var(--bg)">
+      <div className="h-full overflow-y-auto pt-14">
+        <div className="mx-auto grid min-h-full w-full max-w-[1280px] items-center gap-12 px-4 py-12 sm:px-6 lg:grid-cols-[minmax(0,1fr)_auto]">
           <section className="order-2 lg:order-1">
-            <p className="text-xs font-extrabold tracking-[0.18em] text-indigo-500 uppercase">
+            <p className="label flex items-center gap-2 text-fg-subtle">
+              <span aria-hidden="true" className="h-px w-4 bg-accent" />
               Agent composition benchmark
             </p>
-            <h1 className="mt-3 text-[clamp(1.9rem,4vw,3rem)] leading-[1.04] font-black tracking-[-0.045em] text-[var(--color-text-primary)]">
-              {isKo ? "구조와 모션을 한 번에 검증하기" : "Verify structure and motion together"}
+            <h1 className="mt-4 max-w-[18ch] text-h1 text-fg">
+              {isKo ? "구조와 모션을 한 화면에서 확인하기" : "Verify structure and motion together"}
             </h1>
-            <p className="mt-5 max-w-[52ch] text-[15px] leading-relaxed text-[var(--color-text-secondary)]">
+            <p className="mt-5 max-w-[52ch] text-lead text-fg-muted">
               {isKo
-                ? "루트 공유 헤더의 타이틀과 좌측 액션은 화면 전환과 스와이프를 따라가고, 안쪽 memory Router는 자기 영역만 바꿔요. 두 스택과 Morph 소유권이 한 장면에 들어 있어요."
-                : "The root shared header's title and left action follow navigation and swipe, while the inner memory Router changes only its own region. Two stacks and Morph ownership share one scene."}
+                ? "루트 공유 헤더의 제목과 왼쪽 버튼은 화면 전환과 스와이프를 따라 움직이고, 안쪽 memory Router는 자기 영역만 바꿔요. 스택 두 개와 각 Router의 Morph가 한 화면에 함께 있어요."
+                : "The root shared header's title and left button follow navigation and swipe, while the inner memory Router changes only its own area. Two stacks, each with its own Morphs, share one screen."}
             </p>
-            <ol className="mt-7 grid gap-3 text-sm text-[var(--color-text-secondary)]">
+            <ol className="mt-8 grid gap-3 border-l border-line pl-5 text-sm text-fg-muted">
               <li>
-                <strong className="text-[var(--color-text-primary)]">1.</strong>{" "}
+                <strong className="font-mono font-medium text-accent">1.</strong>{" "}
                 {isKo
-                  ? "Local filters를 열어 루트 헤더가 그대로인지 봅니다."
+                  ? "Local filters를 열고 루트 헤더가 그대로 있는지 확인해요."
                   : "Open Local filters and confirm the root header stays still."}
               </li>
               <li>
-                <strong className="text-[var(--color-text-primary)]">2.</strong>{" "}
+                <strong className="font-mono font-medium text-accent">2.</strong>{" "}
                 {isKo
-                  ? "로컬 뒤로가기 뒤 보라색 카드를 열어 root Morph와 헤더 교대를 봅니다."
-                  : "Go local-back, then open the purple card to watch the root Morph and header handoff."}
+                  ? "Local back으로 돌아간 뒤 보라색 카드를 열고, 루트 Morph와 헤더 제목이 함께 바뀌는지 확인해요."
+                  : "Press Local back, then open the purple card and watch the root Morph and the header title change together."}
               </li>
               <li>
-                <strong className="text-[var(--color-text-primary)]">3.</strong>{" "}
+                <strong className="font-mono font-medium text-accent">3.</strong>{" "}
                 {isKo
-                  ? "안쪽 화면에서 Command layer를 열어 루트 공유 헤더까지 덮는지 봅니다."
+                  ? "안쪽 화면에서 Command layer를 열고 루트 공유 헤더까지 덮는지 확인해요."
                   : "Open Command layer inside the nested screen and confirm it covers the root shared header."}
               </li>
               <li>
-                <strong className="text-[var(--color-text-primary)]">4.</strong>{" "}
+                <strong className="font-mono font-medium text-accent">4.</strong>{" "}
                 {isKo
-                  ? "왼쪽 가장자리에서 천천히 끌어 취소하고, 다시 끌어 커밋합니다."
-                  : "Drag slowly from the left edge, cancel once, then commit."}
+                  ? "왼쪽 가장자리에서 천천히 스와이프하다가 한 번 취소하고, 다시 스와이프해서 뒤로 가기를 확정해요."
+                  : "Swipe slowly from the left edge and cancel once, then swipe again and let it go back."}
               </li>
             </ol>
-            <p className="mt-6 max-w-[48ch] rounded-2xl border border-amber-500/20 bg-amber-500/8 p-4 text-xs leading-relaxed text-amber-700 dark:text-amber-200">
+            <p className="mt-8 max-w-[52ch] rounded-lg border border-line bg-bg-subtle p-4 text-xs leading-relaxed text-fg-muted">
               {isKo
-                ? "시각 판정은 실제 기기에서 DevTools와 화면 캡처를 끈 상태로 먼저 해주세요. 개발 빌드에서는 그 뒤 window.flemo.report()로 잔여 상태와 anomaly를 확인합니다."
-                : "Judge visually on a real device with DevTools and capture closed. In a development build, inspect window.flemo.report() afterward for residue and anomalies."}
+                ? "먼저 실제 기기에서 DevTools와 화면 녹화를 끈 상태로 눈으로 확인해 주세요. 그다음 개발 빌드에서 window.flemo.report()를 실행해 남은 상태와 이상 징후가 없는지 확인해요."
+                : "Check by eye first, on a real device with DevTools and screen recording closed. Then, in a development build, run window.flemo.report() to look for leftover state and problems."}
             </p>
           </section>
 

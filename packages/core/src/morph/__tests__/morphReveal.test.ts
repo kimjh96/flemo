@@ -7,7 +7,7 @@ import { revealHolds, revealRules, type RevealStyle } from "@morph/morphReveal";
 //
 // A box whose contents hold is laid out once at the larger end and cut back
 // with clip-path. The playground's featured card lost its shadow for a whole
-// flight that way and spread its gradient over the larger end. Naming those two
+// transition that way and spread its gradient over the larger end. Naming those two
 // left a border, an outline, a mask and every other property waiting, so the
 // runtime now allows the reveal only when every computed property is known to
 // be harmless or at its initial value, and refuses anything it does not know.
@@ -24,7 +24,7 @@ const styleOf = (values: Record<string, string>): RevealStyle => {
 /** Tailwind's four empty ring layers, present on every element with a shadow utility. */
 const RINGS = Array(4).fill("rgba(0, 0, 0, 0) 0px 0px 0px 0px").join(", ");
 
-/** What a plain clipped card computes to under Tailwind's preflight, read off Chrome. */
+/** What a plain clipped card computes to under Tailwind's pretransition, read off Chrome. */
 const PLAIN = {
   "overflow-x": "hidden",
   "overflow-y": "hidden",
@@ -132,7 +132,7 @@ describe("revealHolds", () => {
 
   it("holds the departure's carried paint to the same rules", () => {
     // The departure reaches the arrival only through the paint table, and a
-    // value it carries in paints mid-flight even where the arrival has none.
+    // value it carries in paints mid-transition even where the arrival has none.
     const box = mount();
     const departs = (paint: Record<string, string>) => revealHolds(box, styleOf(PLAIN), paint);
     expect(
@@ -145,7 +145,7 @@ describe("revealHolds", () => {
       })
     ).toBe(true);
     // A shadow is carried now, so it is the departure's INSET one that refuses:
-    // the paint channel animates it on the flying element, where the revealed
+    // the paint channel animates it on the moving element, where the revealed
     // border box is the larger end and no carrier reaches inside it.
     expect(departs({ "box-shadow": "rgba(0, 0, 0, 0.2) 0px 4px 12px 0px" })).toBe(true);
     expect(departs({ "box-shadow": "rgba(0, 0, 0, 0.2) 0px 4px 12px 0px inset" })).toBe(false);
@@ -310,7 +310,7 @@ describe("revealHolds", () => {
   it("builds the initial-value probe once per document and colour", () => {
     // Reading a full computed style off a throwaway element is the expensive
     // half of the rule, and it happens on the navigation frame. It is answered
-    // from the document's own cache from the second flight onwards.
+    // from the document's own cache from the second transition onwards.
     const made = vi.spyOn(document, "createElement");
     revealHolds(mount(), styleOf(PLAIN), {});
     const first = made.mock.calls.filter(([tag]) => tag === "div").length;

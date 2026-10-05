@@ -116,7 +116,7 @@ describe("ScreenMotion pop pair release", () => {
     // Two frames: the paint anchor elapses for BOTH screens. The top (no
     // images) is now ready — before the pair barrier it released right here,
     // ~100ms before its partner. It must keep holding for the revealed
-    // screen's in-flight decode.
+    // screen's running decode.
     await flushFrames(0);
     await flushFrames(16);
     await flushMicrotasks();

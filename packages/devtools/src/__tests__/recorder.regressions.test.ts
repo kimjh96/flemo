@@ -1,8 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { attachFlightRecorder } from "../recorder";
+import { attachTransitionRecorder } from "../recorder";
 
-import type { FlightRecorderHandle } from "../types";
+import type { TransitionRecorderHandle } from "../types";
 
 // The regression net: one test per defect class the 2026-08 campaign actually
 // shipped a fix for. These are the reasons the recorder exists — if one of
@@ -20,7 +20,7 @@ const frames = async (count: number) => {
 };
 const settle = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
 
-let handle: FlightRecorderHandle | null = null;
+let handle: TransitionRecorderHandle | null = null;
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -39,7 +39,7 @@ const mountScreen = () => {
   return screen;
 };
 
-/** A compiled flight: the engine's own CSSAnimation drives the pose. */
+/** A compiled transition: the engine's own CSSAnimation drives the pose. */
 const stubCompiledAnimation = (screen: HTMLElement, clock: { time: number; state: string }) => {
   (screen as unknown as { getAnimations: () => unknown[] }).getAnimations = () => [
     {
@@ -54,7 +54,7 @@ const stubCompiledAnimation = (screen: HTMLElement, clock: { time: number; state
   ];
 };
 
-const openFlight = async (screen: HTMLElement, hold = "park") => {
+const openTransition = async (screen: HTMLElement, hold = "park") => {
   screen.setAttribute("data-flemo-anim-hold", hold);
   screen.setAttribute("data-flemo-status", "PUSHING");
   screen.setAttribute("data-flemo-active", "true");
@@ -73,55 +73,55 @@ const land = async (screen: HTMLElement) => {
 };
 
 describe("regression net: motion that stops while the frames keep coming", () => {
-  it("flags a hold re-asserted over a running flight (the release race)", async () => {
+  it("flags a hold re-asserted over a running transition (the release race)", async () => {
     const screen = mountScreen();
     const clock = { time: 0, state: "running" };
     stubCompiledAnimation(screen, clock);
-    handle = attachFlightRecorder();
+    handle = attachTransitionRecorder();
     await settle();
 
-    await openFlight(screen);
+    await openTransition(screen);
     await release(screen);
     await frames(2);
     // An interleaved commit writes the stale paused hold attribute back over
-    // the running flight — the 2026-08-18 race that froze motion ~250ms.
+    // the running transition — the 2026-08-18 race that froze motion ~250ms.
     screen.setAttribute("data-flemo-anim-hold", "park");
     await settle();
     await frames(2);
     await land(screen);
 
-    const flight = handle.report().flights[0];
-    expect(flight.motion.holdReassertedAtMs).not.toBeNull();
-    expect(flight.anomalies.some((entry) => entry.includes("hold re-asserted"))).toBe(true);
+    const transition = handle.report().transitions[0];
+    expect(transition.motion.holdReassertedAtMs).not.toBeNull();
+    expect(transition.anomalies.some((entry) => entry.includes("hold re-asserted"))).toBe(true);
   });
 
   it("flags a stalled pose even while every frame arrives on time", async () => {
     const screen = mountScreen();
     const clock = { time: 0, state: "running" };
     stubCompiledAnimation(screen, clock);
-    handle = attachFlightRecorder();
+    handle = attachTransitionRecorder();
     await settle();
 
-    await openFlight(screen);
+    await openTransition(screen);
     await release(screen);
     // The clock never advances: frames keep arriving, the screen does not move.
     // Real time passes between rAF callbacks, so the stall run accumulates.
     await frames(8);
     await land(screen);
 
-    const flight = handle.report().flights[0];
-    expect(flight.motion.stalledFrames).toBeGreaterThan(0);
-    expect(flight.motion.longestStallMs).toBeGreaterThan(0);
+    const transition = handle.report().transitions[0];
+    expect(transition.motion.stalledFrames).toBeGreaterThan(0);
+    expect(transition.motion.longestStallMs).toBeGreaterThan(0);
   });
 
   it("counts an advancing clock as motion, and reports no stall", async () => {
     const screen = mountScreen();
     const clock = { time: 0, state: "running" };
     stubCompiledAnimation(screen, clock);
-    handle = attachFlightRecorder();
+    handle = attachTransitionRecorder();
     await settle();
 
-    await openFlight(screen);
+    await openTransition(screen);
     await release(screen);
     for (let i = 0; i < 6; i += 1) {
       clock.time += 16.7;
@@ -129,28 +129,28 @@ describe("regression net: motion that stops while the frames keep coming", () =>
     }
     await land(screen);
 
-    const flight = handle.report().flights[0];
-    expect(flight.motion.sampledFrames).toBeGreaterThan(0);
-    expect(flight.motion.stalledFrames).toBe(0);
-    expect(flight.anomalies.some((entry) => entry.includes("motion stalled"))).toBe(false);
+    const transition = handle.report().transitions[0];
+    expect(transition.motion.sampledFrames).toBeGreaterThan(0);
+    expect(transition.motion.stalledFrames).toBe(0);
+    expect(transition.anomalies.some((entry) => entry.includes("motion stalled"))).toBe(false);
   });
 
   it("flags a compiled animation that reports playState=paused after release", async () => {
     const screen = mountScreen();
     const clock = { time: 0, state: "running" };
     stubCompiledAnimation(screen, clock);
-    handle = attachFlightRecorder();
+    handle = attachTransitionRecorder();
     await settle();
 
-    await openFlight(screen);
+    await openTransition(screen);
     await release(screen);
     clock.state = "paused";
     await frames(3);
     await land(screen);
 
-    const flight = handle.report().flights[0];
-    expect(flight.motion.pausedAfterRelease).toBe(true);
-    expect(flight.anomalies.some((entry) => entry.includes("playState=paused"))).toBe(true);
+    const transition = handle.report().transitions[0];
+    expect(transition.motion.pausedAfterRelease).toBe(true);
+    expect(transition.anomalies.some((entry) => entry.includes("playState=paused"))).toBe(true);
   });
 });
 
@@ -159,14 +159,14 @@ describe("regression net: progress accounting details", () => {
     const screen = mountScreen();
     const clock = { time: 0, state: "running" };
     stubCompiledAnimation(screen, clock);
-    handle = attachFlightRecorder();
+    handle = attachTransitionRecorder();
     await settle();
 
-    await openFlight(screen);
+    await openTransition(screen);
     await release(screen);
     // A long freeze…
     await frames(5);
-    const afterLongStall = handle.report().flights[0].motion.longestStallMs;
+    const afterLongStall = handle.report().transitions[0].motion.longestStallMs;
     // …then one moving frame, then a single frozen frame: the short run must
     // not overwrite the long one an agent is trying to read.
     clock.time += 16.7;
@@ -174,9 +174,9 @@ describe("regression net: progress accounting details", () => {
     await frames(1);
     await land(screen);
 
-    const flight = handle.report().flights[0];
+    const transition = handle.report().transitions[0];
     expect(afterLongStall).toBeGreaterThan(0);
-    expect(flight.motion.longestStallMs).toBe(afterLongStall);
+    expect(transition.motion.longestStallMs).toBe(afterLongStall);
   });
 
   it("reads the player's inline pose on a screen that also carries a compiled clock", async () => {
@@ -186,10 +186,10 @@ describe("regression net: progress accounting details", () => {
     // The mixed signature: a flemo CSSAnimation is attached AND the player
     // has staked the inline style, which is how a handoff presents.
     screen.style.animation = "none";
-    handle = attachFlightRecorder();
+    handle = attachTransitionRecorder();
     await settle();
 
-    await openFlight(screen);
+    await openTransition(screen);
     await release(screen);
     for (let i = 0; i < 4; i += 1) {
       screen.style.transform = `translateX(${i * 12}px)`;
@@ -197,26 +197,26 @@ describe("regression net: progress accounting details", () => {
     }
     await land(screen);
 
-    const flight = handle.report().flights[0];
-    expect(flight.driver).toBe("mixed");
-    expect(flight.motion.stalledFrames).toBe(0);
+    const transition = handle.report().transitions[0];
+    expect(transition.driver).toBe("mixed");
+    expect(transition.motion.stalledFrames).toBe(0);
   });
 });
 
 describe("regression net: the driver must still be classified", () => {
-  it("classifies a flight whose animation was paused when first sampled", async () => {
+  it("classifies a transition whose animation was paused when first sampled", async () => {
     const screen = mountScreen();
     // The engine poses the screen BEFORE releasing it, so the very first
-    // sample of a normal compiled flight catches a paused animation. A
+    // sample of a normal compiled transition catches a paused animation. A
     // sampler that caches that handle and stops looking would then report
     // driver "unknown" for an ordinary POP — browser-observed, which is why
     // this test exists.
     const clock = { time: 0, state: "paused" };
     stubCompiledAnimation(screen, clock);
-    handle = attachFlightRecorder();
+    handle = attachTransitionRecorder();
     await settle();
 
-    await openFlight(screen);
+    await openTransition(screen);
     await frames(2);
     clock.state = "running";
     await release(screen);
@@ -226,19 +226,21 @@ describe("regression net: the driver must still be classified", () => {
     }
     await land(screen);
 
-    const flight = handle.report().flights[0];
-    expect(flight.driver).toBe("compiled");
-    expect(flight.anomalies.some((entry) => entry.includes("could not be classified"))).toBe(false);
+    const transition = handle.report().transitions[0];
+    expect(transition.driver).toBe("compiled");
+    expect(transition.anomalies.some((entry) => entry.includes("could not be classified"))).toBe(
+      false
+    );
   });
 });
 
-describe("regression net: holds that outlive their flight", () => {
+describe("regression net: holds that outlive their transition", () => {
   it("flags image and arrival hold markers still on the page at rest", async () => {
     const screen = mountScreen();
-    handle = attachFlightRecorder();
+    handle = attachTransitionRecorder();
     await settle();
 
-    await openFlight(screen);
+    await openTransition(screen);
     await release(screen);
     // Orphans: the hold released its owner but the markers stayed — the class
     // that left ~130 avatars permanently blank.
@@ -249,22 +251,22 @@ describe("regression net: holds that outlive their flight", () => {
     screen.append(orphanImg, orphanArrival);
     await land(screen);
 
-    const flight = handle.report().flights[0];
-    expect(flight.landing.orphanedHolds).toHaveLength(2);
-    expect(flight.anomalies.some((entry) => entry.includes("hold markers left"))).toBe(true);
+    const transition = handle.report().transitions[0];
+    expect(transition.endAudit.orphanedHolds).toHaveLength(2);
+    expect(transition.anomalies.some((entry) => entry.includes("hold markers left"))).toBe(true);
   });
 
   it("stays quiet when the holds released cleanly", async () => {
     const screen = mountScreen();
-    handle = attachFlightRecorder();
+    handle = attachTransitionRecorder();
     await settle();
 
-    await openFlight(screen);
+    await openTransition(screen);
     await release(screen);
     await land(screen);
 
-    const flight = handle.report().flights[0];
-    expect(flight.landing.orphanedHolds).toEqual([]);
+    const transition = handle.report().transitions[0];
+    expect(transition.endAudit.orphanedHolds).toEqual([]);
   });
 });
 
@@ -276,13 +278,13 @@ describe("regression net: images decoding onto the moving layer", () => {
     return img;
   };
 
-  it("flags an unheld image that finished loading mid-flight", async () => {
+  it("flags an unheld image that finished loading mid-transition", async () => {
     const screen = mountScreen();
     const img = addImage(screen, false);
-    handle = attachFlightRecorder();
+    handle = attachTransitionRecorder();
     await settle();
 
-    await openFlight(screen);
+    await openTransition(screen);
     await release(screen);
     await frames(2);
     // The avatar resolves ON the sliding layer, with no hold parking it:
@@ -290,57 +292,57 @@ describe("regression net: images decoding onto the moving layer", () => {
     Object.defineProperty(img, "complete", { value: true, configurable: true });
     await land(screen);
 
-    const flight = handle.report().flights[0];
-    expect(flight.images.loadingAtStart).toBe(1);
-    expect(flight.images.completedDuringFlight).toBe(1);
-    expect(flight.images.heldDuringFlight).toBe(0);
-    expect(flight.anomalies.some((entry) => entry.includes("without a hold"))).toBe(true);
+    const transition = handle.report().transitions[0];
+    expect(transition.images.loadingAtStart).toBe(1);
+    expect(transition.images.completedDuringTransition).toBe(1);
+    expect(transition.images.heldDuringTransition).toBe(0);
+    expect(transition.anomalies.some((entry) => entry.includes("without a hold"))).toBe(true);
   });
 
   it("stays quiet when the engine held the loading image", async () => {
     const screen = mountScreen();
     const img = addImage(screen, false);
     img.setAttribute("data-flemo-img-hold", "");
-    handle = attachFlightRecorder();
+    handle = attachTransitionRecorder();
     await settle();
 
-    await openFlight(screen);
+    await openTransition(screen);
     await release(screen);
     await frames(2);
     Object.defineProperty(img, "complete", { value: true, configurable: true });
     img.removeAttribute("data-flemo-img-hold");
     await land(screen);
 
-    const flight = handle.report().flights[0];
-    expect(flight.images.heldDuringFlight).toBe(1);
-    expect(flight.anomalies.some((entry) => entry.includes("without a hold"))).toBe(false);
+    const transition = handle.report().transitions[0];
+    expect(transition.images.heldDuringTransition).toBe(1);
+    expect(transition.anomalies.some((entry) => entry.includes("without a hold"))).toBe(false);
   });
 });
 
-describe("regression net: a report taken mid-flight still carries the new sections", () => {
-  it("reports motion and image state for a flight that has not landed yet", async () => {
+describe("regression net: a report taken mid-transition still carries the new sections", () => {
+  it("reports motion and image state for a transition that has not landed yet", async () => {
     const screen = mountScreen();
     const img = document.createElement("img");
     Object.defineProperty(img, "complete", { value: false, configurable: true });
     screen.appendChild(img);
     const clock = { time: 0, state: "running" };
     stubCompiledAnimation(screen, clock);
-    handle = attachFlightRecorder();
+    handle = attachTransitionRecorder();
     await settle();
 
-    await openFlight(screen);
+    await openTransition(screen);
     await release(screen);
     await frames(2);
     Object.defineProperty(img, "complete", { value: true, configurable: true });
 
     // Still transitional: the provisional record must carry the same shape as
     // a closed one, or an agent reading a report mid-navigation sees nothing.
-    const flight = handle.report().flights[0];
-    expect(flight.id).toContain("(in flight)");
-    expect(flight.images.loadingAtStart).toBe(1);
-    expect(flight.images.completedDuringFlight).toBe(1);
-    expect(flight.motion.sampledFrames).toBeGreaterThan(0);
-    expect(flight.landing.orphanedHolds).toEqual([]);
+    const transition = handle.report().transitions[0];
+    expect(transition.id).toContain("(running)");
+    expect(transition.images.loadingAtStart).toBe(1);
+    expect(transition.images.completedDuringTransition).toBe(1);
+    expect(transition.motion.sampledFrames).toBeGreaterThan(0);
+    expect(transition.endAudit.orphanedHolds).toEqual([]);
   });
 });
 
@@ -361,26 +363,26 @@ describe("regression net: image accounting is per image, not per count", () => {
     // two counts gives 1 - 1 = 0 and reports nothing — the bug.
     addImage(screen, false, true);
     const b = addImage(screen, false);
-    handle = attachFlightRecorder();
+    handle = attachTransitionRecorder();
     await settle();
 
-    await openFlight(screen);
+    await openTransition(screen);
     await release(screen);
     await frames(2);
     Object.defineProperty(b, "complete", { value: true, configurable: true });
     await land(screen);
 
-    const flight = handle.report().flights[0];
-    expect(flight.images.completedUnheld).toBe(1);
-    expect(flight.anomalies.some((entry) => entry.includes("without a hold"))).toBe(true);
+    const transition = handle.report().transitions[0];
+    expect(transition.images.completedUnheld).toBe(1);
+    expect(transition.anomalies.some((entry) => entry.includes("without a hold"))).toBe(true);
   });
 
-  it("tracks an image inserted mid-flight by a data commit", async () => {
+  it("tracks an image inserted mid-transition by a data commit", async () => {
     const screen = mountScreen();
-    handle = attachFlightRecorder();
+    handle = attachTransitionRecorder();
     await settle();
 
-    await openFlight(screen);
+    await openTransition(screen);
     await release(screen);
     await frames(1);
     // The commit the arrival hold exists for: content lands mid-navigation.
@@ -390,23 +392,23 @@ describe("regression net: image accounting is per image, not per count", () => {
     Object.defineProperty(late, "complete", { value: true, configurable: true });
     await land(screen);
 
-    const flight = handle.report().flights[0];
-    expect(flight.images.addedDuringFlight).toBe(1);
-    expect(flight.images.completedUnheld).toBe(1);
+    const transition = handle.report().transitions[0];
+    expect(transition.images.addedDuringTransition).toBe(1);
+    expect(transition.images.completedUnheld).toBe(1);
   });
 
-  it("tracks images inside a screen that joins after the flight opened", async () => {
+  it("tracks images inside a screen that joins after the transition opened", async () => {
     const first = mountScreen();
-    handle = attachFlightRecorder();
+    handle = attachTransitionRecorder();
     await settle();
 
-    await openFlight(first);
+    await openTransition(first);
     await release(first);
     await frames(1);
 
     // React prepares an entering screen off-DOM and appends the complete
     // subtree in one commit. The childList callback sees this node before
-    // evaluate() has unioned it into the flight participants.
+    // evaluate() has unioned it into the transition participants.
     const joined = document.createElement("div");
     joined.setAttribute("data-flemo-screen", "");
     joined.setAttribute("data-flemo-status", "PUSHING");
@@ -422,18 +424,18 @@ describe("regression net: image accounting is per image, not per count", () => {
     await settle();
     await frames(4);
 
-    const flight = handle.report().flights[0];
-    expect(flight.participants.screens).toBe(2);
-    expect(flight.images.addedDuringFlight).toBe(1);
-    expect(flight.images.completedUnheld).toBe(1);
+    const transition = handle.report().transitions[0];
+    expect(transition.participants.screens).toBe(2);
+    expect(transition.images.addedDuringTransition).toBe(1);
+    expect(transition.images.completedUnheld).toBe(1);
   });
 
-  it("counts a mid-flight arrival the engine parked as held", async () => {
+  it("counts a mid-transition arrival the engine parked as held", async () => {
     const screen = mountScreen();
-    handle = attachFlightRecorder();
+    handle = attachTransitionRecorder();
     await settle();
 
-    await openFlight(screen);
+    await openTransition(screen);
     await release(screen);
     await frames(1);
     const late = addImage(screen, false);
@@ -443,35 +445,35 @@ describe("regression net: image accounting is per image, not per count", () => {
     Object.defineProperty(late, "complete", { value: true, configurable: true });
     await land(screen);
 
-    const flight = handle.report().flights[0];
-    expect(flight.images.heldDuringFlight).toBe(1);
-    expect(flight.images.completedUnheld).toBe(0);
-    expect(flight.anomalies.some((entry) => entry.includes("without a hold"))).toBe(false);
+    const transition = handle.report().transitions[0];
+    expect(transition.images.heldDuringTransition).toBe(1);
+    expect(transition.images.completedUnheld).toBe(0);
+    expect(transition.anomalies.some((entry) => entry.includes("without a hold"))).toBe(false);
   });
 });
 
-describe("regression net: mid-flight tracking stays cheap and total", () => {
+describe("regression net: mid-transition tracking stays cheap and total", () => {
   it("ignores non-element additions", async () => {
     const screen = mountScreen();
-    handle = attachFlightRecorder();
+    handle = attachTransitionRecorder();
     await settle();
 
-    await openFlight(screen);
+    await openTransition(screen);
     await release(screen);
     screen.appendChild(document.createTextNode("a data commit's text"));
     await settle();
     await frames(1);
     await land(screen);
 
-    expect(handle.report().flights[0].images.addedDuringFlight).toBe(0);
+    expect(handle.report().transitions[0].images.addedDuringTransition).toBe(0);
   });
 
-  it("caps how many images one flight will track", async () => {
+  it("caps how many images one transition will track", async () => {
     const screen = mountScreen();
-    handle = attachFlightRecorder();
+    handle = attachTransitionRecorder();
     await settle();
 
-    await openFlight(screen);
+    await openTransition(screen);
     await release(screen);
     // A list commit can append hundreds at once; the recorder must not turn
     // into the cost it is measuring.
@@ -486,19 +488,19 @@ describe("regression net: mid-flight tracking stays cheap and total", () => {
     await frames(1);
     await land(screen);
 
-    expect(handle.report().flights[0].images.addedDuringFlight).toBe(200);
+    expect(handle.report().transitions[0].images.addedDuringTransition).toBe(200);
   });
 });
 
-describe("regression net: an orphan must belong to the flight it is reported on", () => {
-  it("does not blame a flight for the next one's working holds", async () => {
+describe("regression net: an orphan must belong to the transition it is reported on", () => {
+  it("does not blame a transition for the next one's working holds", async () => {
     const screen = mountScreen();
-    handle = attachFlightRecorder();
+    handle = attachTransitionRecorder();
     await settle();
 
-    await openFlight(screen);
+    await openTransition(screen);
     await release(screen);
-    // The first flight lands, and a back-to-back navigation opens before the
+    // The first transition lands, and a back-to-back navigation opens before the
     // +2rAF audit runs — with legitimate hold markers of its own.
     screen.setAttribute("data-flemo-status", "COMPLETED");
     await settle();
@@ -509,14 +511,14 @@ describe("regression net: an orphan must belong to the flight it is reported on"
     await settle();
     await frames(4);
 
-    const first = handle.report().flights[0];
-    expect(first.landing.orphanedHolds).toEqual([]);
+    const first = handle.report().transitions[0];
+    expect(first.endAudit.orphanedHolds).toEqual([]);
   });
 });
 
 describe("regression net: the judging protocol travels with the report", () => {
   it("states the DevTools-closed, no-capture, real-input preconditions", () => {
-    handle = attachFlightRecorder();
+    handle = attachTransitionRecorder();
     const report = handle.report();
 
     expect(report.judgingProtocol.length).toBeGreaterThanOrEqual(4);

@@ -12,7 +12,7 @@ import type { MorphTransitionName, TransitionName } from "@flemo/react";
 //
 //   zoom.ts
 //     "PAIR IT WITH A STILL SCREEN TRANSITION. The camera supersedes that
-//      screen's own transform for the flight, so `none` or an opacity-only
+//      screen's own transform for the transition, so `none` or an opacity-only
 //      transition composes; a slide is replaced rather than combined."
 //
 // Offering a free cross product would put combinations on the page that the
@@ -23,13 +23,13 @@ export interface BenchCase {
   // What the control shows, and what the case is called in the comments.
   id: string;
   transition: TransitionName;
-  // Which morph the ARTWORK flies as: the built-in `shared`, which is what the
+  // Which morph the ARTWORK moves as: the built-in `shared`, which is what the
   // deleted playground used for the same gradient.
   morph: MorphTransitionName;
-  // Which morph the CARD flies as, where there is a card. Null everywhere but
+  // Which morph the CARD moves as, where there is a card. Null everywhere but
   // the container transform, where it is the built-in `zoom`: the card's ghost
   // (crossFade 0.55) is what covers the arriving page's narrow-width layout for
-  // the first half of the flight, and its `carry` is the camera. The deleted
+  // the first half of the transition, and its `carry` is the camera. The deleted
   // playground ran on exactly this, with no part transitions inside the card.
   cardMorph: MorphTransitionName | null;
 }

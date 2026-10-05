@@ -82,13 +82,13 @@ describe("the observable half of the judging protocol", () => {
     expect(cadence.detail).toContain("above 60Hz");
   });
 
-  it("reads a starved page as something else owning the machine", () => {
+  it("reads a starved page as something else using the machine", () => {
     const cadence = check(
       derive({ environment: environment({ rafCadence: { medianGapMs: 120, sampleCount: 20 } }) }),
       "display-cadence"
     );
     expect(cadence.status).toBe("violated");
-    expect(cadence.detail).toContain("owns this machine");
+    expect(cadence.detail).toContain("is using this machine");
   });
 
   it("admits it does not know the cadence when it could not be sampled", () => {

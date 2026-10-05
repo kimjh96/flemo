@@ -5,17 +5,20 @@ import createTransition from "@transition/createTransition";
 import { transitionMap } from "@transition/transition";
 
 import createTransitionEngine from "@core/engine/createTransitionEngine";
-import { beginFlightWindow, resetFlightWindowForTests } from "@core/engine/flightWindow";
 import {
   holdScopeLayer,
   LAYER_SETTLE_MS,
   releaseScopeLayerAfterSettle
 } from "@core/engine/layerSettleHold";
+import {
+  beginTransitionWindow,
+  resetTransitionWindowForTests
+} from "@core/engine/transitionWindow";
 import createPartTransition from "@transition/partTransition/createPartTransition";
 import { partTransitionMap } from "@transition/partTransition/partTransition";
 
 // The deferred compositor-layer demotion (layerSettleHold.ts): the compiled
-// rules' will-change is pinned inline for the flight so the COMPLETED flip's
+// rules' will-change is pinned inline for the transition so the COMPLETED flip's
 // rule un-match cannot demote-and-repaint the layer on the convergence
 // frames; the layer releases on its own clock, LAYER_SETTLE_MS past rest.
 
@@ -40,7 +43,7 @@ describe("layerSettleHold", () => {
     const scope = document.createElement("div");
 
     // Sole owner: dropping the last stake restores the element immediately —
-    // an animation-less flight must not inherit the previous variant's layer.
+    // an animation-less transition must not inherit the previous variant's layer.
     const solo = Symbol("solo");
     holdScopeLayer(scope, cupertino(), true, solo);
     expect(scope.style.willChange).not.toBe("");
@@ -102,39 +105,39 @@ describe("layerSettleHold", () => {
     expect(scope.style.willChange).toBe("");
   });
 
-  it("a demotion firing into an active flight re-queues for the flight's rest", () => {
+  it("a demotion firing into an active transition re-queues for the transition's rest", () => {
     const scope = document.createElement("div");
     holdScopeLayer(scope, cupertino());
     releaseScopeLayerAfterSettle(scope);
-    // A quick chained pop opens its flight window before the push's settle
-    // clock elapses — the demote repaint must NOT land mid-flight.
-    const release = beginFlightWindow();
+    // A quick chained pop opens its transition window before the push's settle
+    // clock elapses — the demote repaint must NOT land mid-transition.
+    const release = beginTransitionWindow();
     vi.advanceTimersByTime(LAYER_SETTLE_MS + 1);
     expect(scope.style.willChange).toBe("transform");
-    // The flight rests: the settle clock runs again from here.
+    // The transition rests: the settle clock runs again from here.
     release();
     expect(scope.style.willChange).toBe("transform");
     vi.advanceTimersByTime(LAYER_SETTLE_MS - 1);
     expect(scope.style.willChange).toBe("transform");
     vi.advanceTimersByTime(1);
     expect(scope.style.willChange).toBe("");
-    resetFlightWindowForTests();
+    resetTransitionWindowForTests();
   });
 
-  it("a re-hold during the flight-idle wait voids the queued demotion", () => {
+  it("a re-hold during the transition-idle wait voids the queued demotion", () => {
     const scope = document.createElement("div");
     holdScopeLayer(scope, cupertino());
     releaseScopeLayerAfterSettle(scope);
-    const release = beginFlightWindow();
-    vi.advanceTimersByTime(LAYER_SETTLE_MS + 1); // fires into the flight, queues on idle
-    holdScopeLayer(scope, cupertino()); // the flight re-holds this element
+    const release = beginTransitionWindow();
+    vi.advanceTimersByTime(LAYER_SETTLE_MS + 1); // fires into the transition, queues on idle
+    holdScopeLayer(scope, cupertino()); // the transition re-holds this element
     release();
     vi.advanceTimersByTime(LAYER_SETTLE_MS * 3);
     expect(scope.style.willChange).toBe("transform"); // still held — no stale demotion
     releaseScopeLayerAfterSettle(scope);
     vi.advanceTimersByTime(LAYER_SETTLE_MS);
     expect(scope.style.willChange).toBe("");
-    resetFlightWindowForTests();
+    resetTransitionWindowForTests();
   });
 
   it("release on an unstamped scope is a no-op", () => {
@@ -202,7 +205,7 @@ describe("layerSettleHold", () => {
     releaseScopeLayerAfterSettle(scope);
     // A rehold whose variant animates NOTHING (properties empty) previously
     // early-returned, leaving push's contain:layout stuck on the element for
-    // the whole next flight. It must restore the element now.
+    // the whole next transition. It must restore the element now.
     const still = createTransition({
       name: "layer-hold-still-2" as never,
       initial: {},
@@ -217,10 +220,10 @@ describe("layerSettleHold", () => {
     expect(scope.style.contain).toBe("");
   });
 
-  it("COMPOSES with the element's OWN inline will-change/contain during the flight", () => {
+  it("COMPOSES with the element's OWN inline will-change/contain during the transition", () => {
     const scope = document.createElement("div");
     // Consumer authored these on the same element flemo promotes. Their
-    // semantics must SURVIVE the flight (paint keeps clipping overflow, the
+    // semantics must SURVIVE the transition (paint keeps clipping overflow, the
     // filter promotion stays), not be replaced for its span.
     scope.style.willChange = "filter";
     scope.style.contain = "paint";
@@ -304,7 +307,7 @@ describe("layerSettleHold", () => {
     holdScopeLayer(bar, cupertino(), false, A);
     holdScopeLayer(bar, cupertino(), false, B);
     expect(bar.style.willChange).toBe("transform");
-    // Owner A releases; B is still flying → the layer must survive the window.
+    // Owner A releases; B is still moving → the layer must survive the window.
     releaseScopeLayerAfterSettle(bar, A);
     vi.advanceTimersByTime(LAYER_SETTLE_MS * 2);
     expect(bar.style.willChange).toBe("transform");
@@ -355,7 +358,7 @@ describe("layerSettleHold", () => {
     expect(bar.style.willChange).toBe("filter");
     expect(bar.style.contain).toBe("");
     vi.advanceTimersByTime(LAYER_SETTLE_MS * 2);
-    expect(bar.style.willChange).toBe("filter"); // B still flying, no demote
+    expect(bar.style.willChange).toBe("filter"); // B still moving, no demote
 
     // B releases → last owner → settle demote.
     releaseScopeLayerAfterSettle(bar, B);
@@ -372,7 +375,7 @@ describe("layerSettleHold", () => {
     const routerB = Symbol("engine-B");
     holdScopeLayer(bar, cupertino(), false, routerA);
     holdScopeLayer(bar, cupertino(), false, routerB);
-    releaseScopeLayerAfterSettle(bar, routerA); // A's flight ends first
+    releaseScopeLayerAfterSettle(bar, routerA); // A's transition ends first
     vi.advanceTimersByTime(LAYER_SETTLE_MS * 2);
     expect(bar.style.willChange).toBe("transform"); // B still holds it
     releaseScopeLayerAfterSettle(bar, routerB);
@@ -427,9 +430,9 @@ describe("engine wiring", () => {
     drive(engine, scope, "COMPLETED", true);
     expect(scope.style.willChange).toBe("transform");
     // jsdom + fake timers never run the landing's composed release (it rides
-    // the real rAF clock), so close the flight window the way the landing
+    // the real rAF clock), so close the transition window the way the landing
     // does before advancing the settle clock.
-    resetFlightWindowForTests();
+    resetTransitionWindowForTests();
     vi.advanceTimersByTime(LAYER_SETTLE_MS);
     expect(scope.style.willChange).toBe("");
     expect(scope.style.contain).toBe("");
@@ -448,7 +451,7 @@ describe("engine wiring", () => {
 
     drive(engine, scope, "COMPLETED", false);
     expect(scope.style.willChange).toBe("transform");
-    resetFlightWindowForTests();
+    resetTransitionWindowForTests();
     vi.advanceTimersByTime(LAYER_SETTLE_MS);
     expect(scope.style.willChange).toBe("");
     scope.remove();
@@ -475,7 +478,7 @@ describe("engine wiring", () => {
     drive(engine, scope, "COMPLETED", false, { decorator, bars: [ridingBar, idleBar, null] });
     expect(decorator.style.willChange).toBe("opacity");
     expect(ridingBar.style.willChange).toBe("transform");
-    resetFlightWindowForTests();
+    resetTransitionWindowForTests();
     vi.advanceTimersByTime(LAYER_SETTLE_MS);
     expect(decorator.style.willChange).toBe("");
     expect(ridingBar.style.willChange).toBe("");
@@ -521,7 +524,7 @@ describe("engine wiring", () => {
     drive(engine, scope, "COMPLETED", false);
     expect(part.style.willChange).toBe("");
     expect(scope.style.willChange).not.toBe("");
-    resetFlightWindowForTests();
+    resetTransitionWindowForTests();
     vi.advanceTimersByTime(LAYER_SETTLE_MS);
     expect(part.style.willChange).toBe("");
     expect(scope.style.willChange).toBe("");

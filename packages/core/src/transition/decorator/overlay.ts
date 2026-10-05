@@ -5,14 +5,14 @@ import createDecorator from "@transition/decorator/createDecorator";
 // iOS dim over the covered screen (react-navigation's forHorizontalIOS
 // measures 0.07, Ionic's ios.transition uses 0.1; UIKit's own
 // _UIParallaxDimmingView sits in that band). The linear ramp keeps the
-// perceived dim even across the flight, and the keyframe stays
+// perceived dim even across the transition, and the keyframe stays
 // single-property: `opacity` is compositor-friendly on every browser, while
 // animating `background-color` on a transformed ancestor has historically
 // tripped color-space interpolation quirks in iOS Safari.
 const DIM_COLOR = "rgba(0, 0, 0, 0.1)";
 
 // NO DURATIONS, on purpose. Every variant below runs on the clock of whichever
-// transition names this decorator (resolveDecoratorClock), so the dim resolves
+// transition names this decorator (resolveDecoratorTiming), so the dim resolves
 // in lockstep with the screen slide underneath it and there is no
 // animation-vs-hold-by-fill window for the rest-rule handoff to race against.
 // That is a function of duration and fill, not of the curve.
@@ -30,13 +30,13 @@ const DIM_COLOR = "rgba(0, 0, 0, 0.1)";
 // linear-perceived-ramp design (see the DIM_COLOR note above). A curve is not
 // inherited and never will be.
 /**
- * The dim over a covered screen, registered as `"overlay"` and named by
+ * The dim over a covered screen, registered as `"overlay"` and set by
  * `cupertino`.
  *
  * A decorator is reached only through a transition's `decoratorName`, never
- * from an element. This one authors no durations on purpose: every variant runs
- * on the clock of whichever transition names it, so the dim resolves in
- * lockstep with the slide underneath it at any length.
+ * from an element. This one authors no durations on purpose: every variant uses
+ * the timing of whichever transition sets it, so the dim finishes together
+ * with the slide behind it at any length.
  */
 const overlay = createDecorator({
   name: "overlay",
@@ -76,8 +76,8 @@ const overlay = createDecorator({
   //
   // This used to drive its own drag: `onSwipe` wrote `1 - progress / 100`, so
   // the dim was linear in the SCREEN'S POSITION under a finger while the
-  // flight ran it on the clock above. Measured on a cupertino pop with the
-  // screen three quarters across, the flight has this dim at 0.62 and the drag
+  // transition ran it on the clock above. Measured on a cupertino pop with the
+  // screen three quarters across, the transition has this dim at 0.62 and the drag
   // had it at 0.245. That is the same hand-over reading two different ways
   // depending on whether a finger or a status started it, and it also
   // contradicted the ramp this decorator is designed as: even over the
@@ -85,7 +85,7 @@ const overlay = createDecorator({
   // front-loaded curve.
   //
   // The declarative rider does it now, and does the whole of it: the gesture is
-  // read through the screen's own curve to find where in the flight that
+  // read through the screen's own curve to find where in the transition that
   // position is, this decorator's own curve runs over the result (see
   // `riderSwipe`), the side it belongs to picks which of the two screens it
   // follows, and both release legs are staged with the drag rather than
@@ -93,7 +93,7 @@ const overlay = createDecorator({
   // path they opted out of provides, which is exactly what the authoring guide
   // says about writing hooks to enable tracking.
   //
-  // The same measurement after: 0.9121 against the flight's 0.9121, 0.7908
+  // The same measurement after: 0.9121 against the transition's 0.9121, 0.7908
   // against 0.7906, 0.6197 against 0.6195.
   options: {}
 });

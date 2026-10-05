@@ -20,7 +20,7 @@ import { morphTransitionMap } from "@transition/morphTransition/morphTransition"
 //
 // Both of these compile, typecheck, animate, and look wrong. They are the two
 // this repository actually made on its own playground: an `exit` pose that
-// keeps the departure on glass for the whole flight, and a camera paired with
+// keeps the departure on glass for the whole transition, and a camera paired with
 // a screen that also moves. Neither had anything to fail, so both shipped for
 // a day and were found by eye.
 const morph = (exit: TransitionTarget) =>
@@ -61,10 +61,10 @@ const screenOn = (transition: string, active: boolean) => {
   return screen;
 };
 
-// One flight of a camera morph under the named screen transition, which is the
+// One transition of a camera morph under the named screen transition, which is the
 // only way to reach the check: `screenMoves` is read from the DEFINITION the
 // owner's attribute names, not from the element.
-const flyCamera = (transitionName: string) => {
+const moveCamera = (transitionName: string) => {
   const store = createNavigateStore();
   const layer = document.createElement("div");
   document.body.appendChild(layer);
@@ -95,7 +95,9 @@ describe("morph authoring warnings", () => {
     const error = vi.spyOn(console, "error").mockImplementation(() => {});
     const release = registerTransitionDefinitions([], [], [], [morph({ opacity: 1 })]);
     expect(error).toHaveBeenCalledTimes(1);
-    expect(String(error.mock.calls[0]?.[0])).toContain("leaves its departure visible");
+    expect(String(error.mock.calls[0]?.[0])).toContain(
+      "keeps the element on the old screen visible"
+    );
     release();
   });
 
@@ -123,14 +125,14 @@ describe("morph authoring warnings", () => {
       carry: "screen"
     });
 
-    flyCamera("cupertino");
+    moveCamera("cupertino");
 
     const lines = error.mock.calls.map((call) => String(call[0]));
-    expect(lines.some((line) => line.includes("carries a camera"))).toBe(true);
+    expect(lines.some((line) => line.includes('sets `carry: "screen"`'))).toBe(true);
     expect(lines.some((line) => line.includes('"cupertino" moves the screen itself'))).toBe(true);
   });
 
-  it("says it once for the pair, however many flights run", () => {
+  it("says it once for the pair, however many transitions run", () => {
     const error = vi.spyOn(console, "error").mockImplementation(() => {});
     transitionMap.set("cupertino", cupertino);
     morphTransitionMap.set("camera-probe", {
@@ -139,17 +141,17 @@ describe("morph authoring warnings", () => {
       carry: "screen"
     });
 
-    flyCamera("cupertino");
-    flyCamera("cupertino");
+    moveCamera("cupertino");
+    moveCamera("cupertino");
 
-    expect(error.mock.calls.filter((call) => String(call[0]).includes("carries a camera"))).toEqual(
-      [expect.anything()]
-    );
+    expect(
+      error.mock.calls.filter((call) => String(call[0]).includes('sets `carry: "screen"`'))
+    ).toEqual([expect.anything()]);
   });
 
   it("stays quiet for the still transition a camera is meant to be paired with", () => {
     // `none` is the pairing `zoom`'s own comment prescribes: the camera IS the
-    // screen's motion for the flight, so there is nothing to supersede.
+    // screen's motion for the transition, so there is nothing to supersede.
     const error = vi.spyOn(console, "error").mockImplementation(() => {});
     transitionMap.set("none", none);
     morphTransitionMap.set("camera-probe", {
@@ -158,10 +160,10 @@ describe("morph authoring warnings", () => {
       carry: "screen"
     });
 
-    flyCamera("none");
+    moveCamera("none");
 
     expect(error.mock.calls.map((call) => String(call[0])).join(" ")).not.toContain(
-      "carries a camera"
+      'sets `carry: "screen"`'
     );
   });
 });

@@ -4,29 +4,29 @@ import { TRANSITIONAL_STATUS_VALUES } from "@navigate/store";
 // Chrome's Graphite rasterizer (Dawn → Metal/Vulkan) compiles its GPU
 // pipelines LAZILY: the first draw that needs a given variant — a composited
 // texture under an animating transform, a translucent quad blending over it —
-// pays the compilation right there. A flight is exactly the first draw of
+// pays the compilation right there. A transition is exactly the first draw of
 // those variants, so on a cold pipeline cache the compile lands INSIDE the
 // motion (traced on the consumer machine, real Chrome: two
 // `DawnPlatformImpl::RunWorkerTask` bursts blocking the GPU main thread for
-// ~110ms and ~88ms, freezing the flight at 30-77% and 90-95% progress — the
+// ~110ms and ~88ms, freezing the transition at 30-77% and 90-95% progress — the
 // second burst is squarely the deceleration segment, and Chrome tags the
 // dropped frames `affects_smoothness`). The cache is per browser profile and
 // per binary version, so the stall recurs after every Chrome update, on every
 // fresh profile, and on GPU-process restarts — always exactly once, which is
 // why it evades observation: by the time a Performance recording is armed,
-// the session's first flight has already compiled the pipelines and every
-// recorded flight is clean. Safari never shows it (no Dawn).
+// the session's first transition has already compiled the pipelines and every
+// recorded transition is clean. Safari never shows it (no Dawn).
 //
 // Waking the FRAME PIPELINE — clock and power states — is a different job and
 // does not front-load these compiles: a solid probe never exercises the
-// pipeline variants a real flight draws. This module does: once per page, at
-// idle, it mounts an imperceptible host (2% opacity) carrying the flight's
+// pipeline variants a real transition draws. This module does: once per page, at
+// idle, it mounts an imperceptible host (2% opacity) carrying the transition's
 // draw shapes — a
 // textured layer WITH TEXT under a transform animation, and a translucent
 // quad under an opacity animation — runs them for a few frames, and removes
-// everything. Dawn compiles while the app is idle; the first flight then
+// everything. Dawn compiles while the app is idle; the first transition then
 // draws over warm pipelines end to end (verified by trace: the injected
-// prewarm removed every in-flight compile burst on a cold profile).
+// prewarm removed every running compile burst on a cold profile).
 
 import { attrValueSelector, GPU_PREWARM_ATTR, STATUS_ATTR } from "@dom/attributes";
 import { detectBlinkEngine } from "@platform/engineProbes";
@@ -42,11 +42,11 @@ export const PREWARM_SPAN_MS = 450;
 
 // Idle scheduling. The prewarm is Blink-only (see the engine gate below), and
 // Blink always ships requestIdleCallback, so the probe runs at genuine idle.
-// A flight keeps the main thread busy, so rIC cannot fire "at idle" DURING a
+// A transition keeps the main thread busy, so rIC cannot fire "at idle" DURING a
 // navigation — it would only fire at the TIMEOUT, so the timeout is set past
-// a typical flight (a cupertino push is ~700ms): an early tap's motion
+// a typical transition (a cupertino push is ~700ms): an early tap's motion
 // completes before the timeout forces the run, keeping the compile burst out
-// of the flight. The fallback delay covers the (Blink-improbable) no-rIC
+// of the transition. The fallback delay covers the (Blink-improbable) no-rIC
 // build; it is unreachable behind the gate on a real Chromium.
 const IDLE_TIMEOUT_MS = 2000;
 const FALLBACK_DELAY_MS = 1200;
@@ -104,13 +104,13 @@ export default function ensureGpuPipelinePrewarm(): () => void {
   if (state === "cold") {
     state = "scheduled";
 
-    // A flemo transition in flight right now owns the main thread; running the
+    // A flemo transition running right now owns the main thread; running the
     // probe would collide its Dawn pipeline compile with the very motion the
     // prewarm exists to keep clean. requestIdleCallback fires in the short
-    // idle gaps BETWEEN a flight's animation frames too, and its timeout can
-    // force a run mid-flight — so run() re-checks here and reschedules until a
-    // genuinely idle moment (no active flight). A perpetually-navigating page
-    // never idles, but then the real flights warm the pipelines anyway, so
+    // idle gaps BETWEEN a transition's animation frames too, and its timeout can
+    // force a run mid-transition — so run() re-checks here and reschedules until a
+    // genuinely idle moment (no active transition). A perpetually-navigating page
+    // never idles, but then the real transitions warm the pipelines anyway, so
     // deferring indefinitely loses nothing.
     //
     // ACCEPTED trade-off, deliberately NOT handled: a navigation that starts
@@ -138,7 +138,7 @@ export default function ensureGpuPipelinePrewarm(): () => void {
 
     const run = () => {
       if (isNavigationActive()) {
-        schedule(); // a flight is running — try again at the next idle
+        schedule(); // a transition is running — try again at the next idle
         return;
       }
       pendingSchedule = null;
@@ -153,9 +153,9 @@ export default function ensureGpuPipelinePrewarm(): () => void {
       const translucent = document.createElement("div");
       translucent.setAttribute("style", TRANSLUCENT_LAYER_STYLE);
       // WIDENED SCENE (2026-08-18): a cold-profile trace still showed
-      // 120-150ms GPU-channel raster tasks landing inside the FIRST flight
+      // 120-150ms GPU-channel raster tasks landing inside the FIRST transition
       // (pre-release and at the landing reveal) with the two-layer probe
-      // above — the real flights draw variants it never exercised. The
+      // above — the real transitions draw variants it never exercised. The
       // additions mirror the actual app surface: a decoded IMAGE texture
       // under a circular (border-radius + overflow) clip, a gradient, CJK
       // glyph runs, hairline borders and a soft shadow — each of these is a

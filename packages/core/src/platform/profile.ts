@@ -21,8 +21,8 @@ import { steadySixtyDesktopProfile } from "@platform/steadySixtyCadence";
 //
 // NOT CACHED, deliberately. Every field re-reads its probes live, because the
 // terms are not all constant for a session: the steady-60 verdict below only
-// forms after two measured flights. Resolve it per decision (per render, per
-// flight); never hoist one to module scope.
+// forms after two measured transitions. Resolve it per decision (per render, per
+// transition); never hoist one to module scope.
 //
 // There is no override channel. Every decision here is derived from the
 // environment alone — the `flemo:*` session keys that used to force each of
@@ -33,17 +33,18 @@ export interface PlatformProfile {
   /**
    * This engine presents its compiled screen animations FROM THE MAIN THREAD
    * (WebKit) rather than off the compositor (Blink). Everything about
-   * protecting a flight's opening follows from this one fact: where the clock
-   * is stamped on the main thread, a heavy commit between the stamp and the
-   * first paint is aged away rather than ridden through.
+   * protecting a transition's opening follows from this one fact: where the
+   * animation's start time is set on the main thread, a heavy commit between
+   * that start and the first rendered frame uses up the opening frames instead
+   * of being absorbed by the compositor.
    */
   readonly mainThreadPresented: boolean;
 
   /**
-   * Flip the hold attribute straight onto the DOM inside the readiness rAF
-   * instead of routing the release through a state commit. A rAF callback and
-   * its own frame's rendering update are atomic, so clock-start and first paint
-   * become simultaneous by construction.
+   * Write the hold attribute's release straight onto the DOM inside the
+   * readiness rAF instead of routing it through a state commit. A rAF callback
+   * and its own frame's rendering update are atomic, so the animation's start
+   * and its first rendered frame happen together by construction.
    *
    * Device-verified on three populations; see the resolver below. An
    * authored `driver: "native"` transition takes it too — pass
@@ -52,39 +53,40 @@ export interface PlatformProfile {
   readonly atomicReleaseFlip: boolean;
 
   /**
-   * Hand the release's reconcile to the NEXT frame rather than flushing it
-   * synchronously, so it stops competing with the flight's first present.
-   * Only meaningful where the flip already released the hold — without the
-   * flip, the state commit IS the release.
+   * Move the release's reconcile to the NEXT frame rather than flushing it
+   * synchronously, so it stops competing with the transition's first rendered
+   * frame. Only meaningful where the direct DOM write already released the
+   * hold. Without that write, the state commit IS the release.
    */
   readonly deferReleaseCommit: boolean;
 
   /**
-   * Hold the release until the entering screen's mount render quiesces, so a
-   * heavy screen's own commit storm cannot eat the opening frames.
+   * Delay the release until the new screen's mount render goes quiet, so a
+   * heavy screen's own burst of commits cannot use up the opening frames.
    */
   readonly renderSettleGate: boolean;
 
   /**
-   * Park a push's entering screen ON TOP at near-zero opacity (so the browser
-   * genuinely paints its tiles during the hold) rather than beneath its cover.
+   * Place a push's new screen ON TOP at near-zero opacity (so the browser
+   * actually renders its tiles while it waits) rather than behind the screen
+   * that covers it.
    */
   readonly parkOver: boolean;
 
   /**
    * Rewrite oversized `<img>` sources to decoded-to-scale blobs off the main
-   * thread. Auto on legacy Android Blink only — it touches consumer content,
-   * so it must never run where the paint is already cheap.
+   * thread. Auto on legacy Android Blink only: it touches consumer content,
+   * so it must never run where rendering is already cheap.
    */
   readonly imageDecodeOffload: boolean;
 }
 
 export interface PlatformProfileInput {
   /**
-   * The transition being flown authored `driver: "native"` — an explicit opt-in
-   * to clock surgery, which carries the atomic release flip with it. The
-   * binding knows this and core does not, so it is the one input the profile
-   * takes.
+   * The running transition authored `driver: "native"`, an explicit opt-in
+   * to direct control of animation timing, which turns on the atomic release
+   * write (`atomicReleaseFlip`) too. The binding knows this and core does not,
+   * so it is the one input the profile takes.
    */
   readonly authoredNativeDriver?: boolean;
 }
@@ -98,7 +100,7 @@ export interface PlatformProfileInput {
 const isTouchBlink = (): boolean => detectBlinkEngine() && navigator.maxTouchPoints > 0;
 
 /**
- * The render-settle entry gate, as its own predicate — the flight routing asks
+ * The render-settle entry gate, as its own predicate — the transition routing asks
  * for it directly (a PUSH only forces the compiled tier behind the gate), and
  * the profile publishes it as `renderSettleGate`. One definition, because the
  * two drifted apart once already: the ARMING widened in the react binding while
@@ -131,7 +133,7 @@ const isTouchBlink = (): boolean => detectBlinkEngine() && navigator.maxTouchPoi
  * screen's mount blocked the main thread for 103-135ms while the animation's
  * clock ran, so the FIRST presented frame already stood at 48-77% progress; the
  * release commit then re-anchored the animation and it replayed from zero — a
- * jump followed by a rewind, both visible. The same flight on Chromium was
+ * jump followed by a rewind, both visible. The same transition on Chromium was
  * clean, which is why it read as Safari-only.
  *
  * The gate is adaptive, which is why this is safe to arm widely: with no
@@ -153,13 +155,13 @@ export const resolvePlatformProfile = (input: PlatformProfileInput = {}): Platfo
     //
     // Desktop macOS Safari (isDesktopMacWebKit) routes compiled and presents
     // from the main thread — the exact combination the flip was built for. The
-    // flip's known failure mode is a player-routed flight, which that session
-    // cannot hit: gate 3 pins it to the compiled tier for every flight.
+    // flip's known failure mode is a player-routed transition, which that session
+    // cannot hit: gate 3 pins it to the compiled tier for every transition.
     atomicReleaseFlip:
       mainThreadPresented &&
       (input.authoredNativeDriver === true || touchWebKit || isDesktopMacWebKit()),
     // Device timelines (iPhone, 2026-08-20) show a dropped frame AT THE RELEASE
-    // on 11 of 18 stock PUSH flights and 0 of 17 POPs — the asymmetry a
+    // on 11 of 18 stock PUSH transitions and 0 of 17 POPs — the asymmetry a
     // mount-heavy entering commit predicts. The compiled clock starts on the
     // release frame's style change and WebKit presents it from the main thread,
     // so React's reconcile of that same update competes with the first present.

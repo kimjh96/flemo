@@ -5,7 +5,7 @@
 //
 // The object is opened the way the prompt describes it: the featured cover, the
 // highlighted tile, the featured place card is what the reviewer taps, and it
-// has to arrive as the other screen's hero. So the flight this criterion judges
+// has to arrive as the other screen's hero. So the transition this criterion judges
 // is the one the object itself starts.
 //
 // Three separable failures, one probe:
@@ -22,10 +22,10 @@
 //   that smears. A paired text morph animates its size; a scaled one is the
 //   defect.
 //
-//   RESIDUE. The flight layer is empty at rest. Anything left in it after the
-//   landing is a flight that never finished.
+//   RESIDUE. The transition layer is empty at rest. Anything left in it after the
+//   landing is a transition that never finished.
 
-import { sampleFlight, settled, target } from "../drive.mjs";
+import { sampleTransition, settled, target } from "../drive.mjs";
 
 export const id = "shared-identity";
 
@@ -40,7 +40,7 @@ export const needs = ["shared-object"];
 // written on an ancestor's opacity, and the runtime keeps a MORPH's place in
 // its own screen with a stand-in that is hidden rather than transparent. Read
 // by opacity alone, that stand-in is a second full-ink copy of the title on
-// every frame of every flight, which is a defect the page is not committing.
+// every frame of every transition, which is a defect the page is not committing.
 const probe = () => {
   const ink = (node) => {
     let value = 1;
@@ -58,9 +58,9 @@ const probe = () => {
     for (const element of document.querySelectorAll("body *")) {
       if (element.children.length > 0) continue;
       if ((element.textContent ?? "").replace(/\s+/g, " ").trim() !== wanted) continue;
-      // Only what the flight itself is carrying: an element in a layer, or in a
+      // Only what the transition itself is carrying: an element in a layer, or in a
       // screen that is currently moving. A title resting in some other, idle
-      // screen is not this flight's doubling.
+      // screen is not this transition's doubling.
       const moving =
         element.closest("[data-flemo-morph-layer], [data-flemo-part-layer]") !== null ||
         ["PUSHING", "POPPING", "REPLACING"].includes(
@@ -69,7 +69,7 @@ const probe = () => {
       if (!moving) continue;
       // A copy nobody can see cannot look soft, and the runtime carries one on
       // purpose: the ghost rides the arrival's box on a transform, so its own
-      // dimmed copy of the title is scaled on every correct flight. Softness is
+      // dimmed copy of the title is scaled on every correct transition. Softness is
       // therefore only ever asked of what is actually being painted.
       if (ink(element) <= 0.5) continue;
       painted += 1;
@@ -103,7 +103,7 @@ const probe = () => {
   return {
     painted,
     scaled,
-    flying: document.querySelectorAll("[data-flemo-morph-layer] > *").length
+    moving: document.querySelectorAll("[data-flemo-morph-layer] > *").length
   };
 };
 
@@ -127,7 +127,7 @@ export const run = async ({ page, map }) => {
     window.__evalTitle = text;
   }, title);
 
-  const samples = await sampleFlight(page, probe, {
+  const samples = await sampleTransition(page, probe, {
     trigger: async () => (await target(page, map, "shared-object")).click()
   });
   await settled(page);
@@ -135,8 +135,8 @@ export const run = async ({ page, map }) => {
   const failures = [];
   if (paired === null) failures.push("the shared object is not a paired Morph");
 
-  const flew = samples.filter((sample) => (sample.value?.flying ?? 0) > 0);
-  if (flew.length === 0) failures.push("the object was never staged in the flight layer");
+  const moved = samples.filter((sample) => (sample.value?.moving ?? 0) > 0);
+  if (moved.length === 0) failures.push("the object was never staged in the transition layer");
 
   const doubled = samples.filter((sample) => (sample.value?.painted ?? 0) > 1);
   if (doubled.length > 0) {
@@ -146,12 +146,12 @@ export const run = async ({ page, map }) => {
   const soft = samples.flatMap((sample) => sample.value?.scaled ?? []);
   if (soft.length > 0) failures.push(`the title travelled under a scale (${soft[0]})`);
 
-  const residue = samples.at(-1)?.value?.flying ?? 0;
-  if (residue > 0) failures.push(`${residue} element(s) left in the flight layer`);
+  const residue = samples.at(-1)?.value?.moving ?? 0;
+  if (residue > 0) failures.push(`${residue} element(s) left in the transition layer`);
 
   return {
     pass: failures.length === 0,
     failures,
-    detail: { title, paired, frames: samples.length, flightFrames: flew.length }
+    detail: { title, paired, frames: samples.length, transitionFrames: moved.length }
   };
 };

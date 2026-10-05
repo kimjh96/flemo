@@ -9,21 +9,21 @@
 //
 // A smooth line minus a staircase is a sawtooth. Device-reported on desktop
 // Chrome, on the playground's title: the rendered half-leading ran
-// 2 -> 1.5 -> 1 -> 1.5 across one flight, three steps of half a pixel each. The
+// 2 -> 1.5 -> 1 -> 1.5 across one transition, three steps of half a pixel each. The
 // last of them lands in the ease's long tail, which is why it reads as the type
 // settling and then being nudged down a moment later, and the earlier ones read
 // as a tremor. They are one defect seen twice.
 //
 // The cure is to make the line-height climb the same staircase, so the
 // half-leading is a constant and there is no boundary left to cross. That needs
-// the face height at every size the flight passes through, and measuring those
+// the face height at every size the transition passes through, and measuring those
 // is exactly what cannot be afforded: a layout probe per size costs 14ms for
-// forty of them on the frame a flight starts.
+// forty of them on the frame a transition starts.
 //
 // It does not have to be measured with LAYOUT. A canvas reports the same
 // font's metrics with none, and Blink's are the very ones the line box is built
 // from: bisected against the layout's own height, every step boundary in a
-// flight's range agreed to the last digit. So the canvas is the oracle, and the
+// transition's range agreed to the last digit. So the canvas is the oracle, and the
 // only question is how few times it has to be asked.
 //
 // WHAT A STEP IS WORTH is not the same everywhere. The engine snaps each half
@@ -38,16 +38,16 @@
 //
 // Two ratios off one call at a large size place each boundary to about a
 // hundredth of a pixel of font size, which is close enough to be wrong: at the
-// end of a flight the ease crawls, and a hundredth of font size was measured to
+// end of a transition the ease crawls, and a hundredth of font size was measured to
 // be a whole frame wide there. So the ratios are used to AIM, and a short
 // bisection on the canvas lands each boundary exactly. Six or so calls a
-// boundary, once per face and size pair, inside the hold that a flight's setup
+// boundary, once per face and size pair, inside the hold that a transition's setup
 // already runs in.
 //
 // WebKit's line box does not round at all, and there the prediction misses at
 // every size (0 of 41) -- which is the check standing in for a browser sniff.
 // A face whose prediction cannot reproduce what was actually measured at both
-// ends of the flight gets no correction, and the behaviour is what it is today.
+// ends of the transition gets no correction, and the behaviour is what it is today.
 
 /** The two ratios a face's height is built from, per em. */
 export interface FaceRatios {
@@ -59,7 +59,7 @@ export interface FaceRatios {
 // metrics come back ROUNDED, so the ratio is only as precise as the size it was
 // divided by. At 1000px they are good to a two-thousandth of an em, which puts
 // a step boundary within about a hundredth of a pixel of font size — and that
-// was measured to be a whole frame wide at the end of a flight, where the ease
+// was measured to be a whole frame wide at the end of a transition, where the ease
 // crawls. At 10000px the boundary lands inside a tenth of a frame.
 //
 // Not higher: engines clamp the font size, and a clamped probe divided by the
@@ -139,7 +139,7 @@ const measureRatios = (
     if (em < PLAUSIBLE.low || em > PLAUSIBLE.high) return null;
     return ratios;
     /* v8 ignore next 4 -- a malformed font shorthand throws on assignment; the
-       guard keeps a flight from failing on a face it simply cannot correct. */
+       guard keeps a transition from failing on a face it simply cannot correct. */
   } catch {
     ratioCache.set(key, null);
     return null;
@@ -174,7 +174,7 @@ export interface FaceParts {
  * The face's ascent and descent at one size, as the font reports them.
  *
  * The same numbers the line box is built from, got without laying anything out.
- * The BASELINE sits at the ascent below the inline box's top, so a flight that
+ * The BASELINE sits at the ascent below the inline box's top, so a transition that
  * holds its half-leading still is only half done: the ascent is on the same
  * grid and steps just as often (see morphLine).
  */
@@ -244,7 +244,7 @@ export const faceHeight = (
  * Arithmetic only, and deliberately: each half of the height steps where
  * `size * ratio` crosses a half of the grid, which gives the candidates. Where
  * each one really falls is not settled here, because the thing that has to be
- * exact is the TIME the flight meets it, and only the caller knows the curve
+ * exact is the TIME the transition meets it, and only the caller knows the curve
  * that maps one to the other (see morphLine).
  */
 export const faceAims = (from: number, to: number, ratios: FaceRatios, scale: number): number[] => {

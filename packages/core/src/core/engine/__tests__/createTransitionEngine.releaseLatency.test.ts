@@ -8,7 +8,7 @@ import { transitionMap } from "@transition/transition";
 import createTransitionEngine from "@core/engine/createTransitionEngine";
 import { learnedReleaseLatencyMs, resetReleaseLatencyForTests } from "@platform/releaseLatency";
 
-// A flight's head is decided from the release latency this session has seen.
+// A transition's head is decided from the release latency this session has seen.
 // The engine's effect runs at the staging commit (hold on) and again at the
 // release, and a sample taken at the staging run measured a paused, parked
 // frame: short enough that the release run dropped the head the staging run

@@ -23,8 +23,8 @@ export function navButton(page: Page, label: string): Locator {
 }
 
 // Wait until no screen is mid-transition before the next tap: the engine
-// ignores a push while a navigation is in flight, and the player honestly
-// carries a flight past any fixed pause on a stalled CI runner (wall
+// ignores a push while a navigation is running, and the player honestly
+// carries a transition past any fixed pause on a stalled CI runner (wall
 // completion = authored span + stall excess, so a constant settle can't
 // bound it). The trailing grace covers the COMPLETED commit that unlocks
 // the task queue.

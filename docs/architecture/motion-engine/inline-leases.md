@@ -3,8 +3,8 @@
 `transition/animateInline.ts` tracks every flemo inline CSS write in a WeakMap as `property → { original, owners: Set<symbol> }`.
 
 - Call `trackInlineWrite(el, property, owner)` before writing. The first lease captures the current inline value as `original`; later writes retain that capture and add owners.
-- `clearInlineAnimation(el, properties?, owner?)` restores the captured original rather than deleting it, preserving consumer values such as `animation-delay: 0.2s`. Owner-scoped clearing removes only that owner's stake and restores after the final owner leaves. Ownerless clearing is the force form used by COMPLETED, where the flight is over by definition. Without a property list, it releases all leased properties; an empty lease map triggers fallback stripping of `transform` and `opacity`.
-- Multiple owners let a swipe settle and an engine flight co-write shared bars. A single owner would let the first finisher snap the element away from the other. Inline `transition` uses a separate single-value `transitionWriters` tag.
+- `clearInlineAnimation(el, properties?, owner?)` restores the captured original rather than deleting it, preserving consumer values such as `animation-delay: 0.2s`. Owner-scoped clearing removes only that owner's stake and restores after the final owner leaves. Ownerless clearing is the force form used by COMPLETED, where the transition is over by definition. Without a property list, it releases all leased properties; an empty lease map triggers fallback stripping of `transform` and `opacity`.
+- Multiple owners let a swipe settle and an engine transition co-write shared bars. A single owner would let the first finisher snap the element away from the other. Inline `transition` uses a separate single-value `transitionWriters` tag.
 
 ## PR #259 invariant
 

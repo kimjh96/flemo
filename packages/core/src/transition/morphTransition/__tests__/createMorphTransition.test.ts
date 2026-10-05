@@ -9,7 +9,7 @@ import { MORPH_FROM_VARIANT } from "@transition/morphTransition/typing";
 const value = (opacity: number) => ({ value: { opacity }, options: { duration: 0.4 } });
 
 describe("createMorphTransition", () => {
-  it("puts the two SIDES of a flight on the active/inactive axis", () => {
+  it("puts the two SIDES of a transition on the active/inactive axis", () => {
     // Not two moments of one element: a morph's `enter` and `exit` are the
     // arriving element and the one it is replacing, animating at the same time.
     const morph = createMorphTransition({
@@ -88,7 +88,7 @@ describe("the shared preset", () => {
     expect(morphTransitionMap.get("shared")).toBe(shared);
   });
 
-  it("authors no duration, so it inherits the flying screen's", () => {
+  it("authors no duration, so it inherits the moving screen's", () => {
     // The one decision that keeps a morph from needing a transition of its own.
     expect(shared.variants["PUSHING-true"].options.duration).toBeUndefined();
     expect(shared.variants["PUSHING-false"].options.duration).toBeUndefined();
@@ -98,8 +98,8 @@ describe("the shared preset", () => {
     // dissolve, for sides whose contents differ enough to want it.
     expect(shared.initial.opacity).toBeUndefined();
     // The window belongs to the GHOST — the copy of what is being replaced,
-    // carried inside the flight and dissolved away on top of the real element.
-    // Over HALF the flight: what the copy holds is the departure's unpaired
+    // carried inside the transition and dissolved away on top of the real element.
+    // Over HALF the transition: what the copy holds is the departure's unpaired
     // content (a paired descendant is already invisible in it), and that
     // content leaving in three frames is what made a pop read as a cut rather
     // than as the reverse of the push.

@@ -6,14 +6,14 @@ import { PART_NAME_ATTR } from "@dom/attributes";
  * A morph's box animates so that the subtree can lay itself out at every size
  * on the way, which is what makes the artwork and the paired type GROW. A
  * `<Part>` is the opposite declaration: it is the content that is NOT paired,
- * that the flight hides and brings back on its own clock, precisely because it
+ * that the transition hides and brings back on its own clock, precisely because it
  * has no business being laid out at a cell's width.
  *
  * It was laid out there anyway. The part's own box still rode the growing box,
  * so a page of copy inside a card re-wrapped the whole way up, and the part is
  * brought back before the box has finished growing. Measured on the reference
  * detail, frame by frame: the body copy stood at 147.88px tall for the first
- * twenty frames of the flight, dropped a line to 126.75px on the twenty-first,
+ * twenty frames of the transition, dropped a line to 126.75px on the twenty-first,
  * and the facts list and the buy button under it jumped 23.55px up the screen
  * in that one frame, with the copy already at full opacity.
  *

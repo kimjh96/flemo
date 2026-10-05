@@ -9,7 +9,7 @@ import {
 afterEach(() => resetReleaseLatencyForTests());
 
 describe("learnedReleaseLatencyMs", () => {
-  it("knows nothing until a flight has been measured", () => {
+  it("knows nothing until a transition has been measured", () => {
     // Null is not zero: the first navigation of a status is the one most
     // likely to be slow, so an unmeasured status has to be covered.
     expect(learnedReleaseLatencyMs("PUSHING")).toBeNull();
@@ -25,7 +25,7 @@ describe("learnedReleaseLatencyMs", () => {
     expect(learnedReleaseLatencyMs("PUSHING")).toBe(40);
   });
 
-  it("falls towards a better one slowly, so a run of cheap flights cannot uncover an expensive one", () => {
+  it("falls towards a better one slowly, so a run of cheap transitions cannot uncover an expensive one", () => {
     reportReleaseLatencyMs("PUSHING", 40);
     reportReleaseLatencyMs("PUSHING", 5);
     const once = learnedReleaseLatencyMs("PUSHING")!;

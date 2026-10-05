@@ -156,7 +156,7 @@ describe("createTransitionEngine cancel-resume liveness", () => {
 
   // ── Resume math ─────────────────────────────────────────────────────────
 
-  it("cancel mid-flight rejoins the clock with a negative inline animation-delay", () => {
+  it("cancel mid-transition rejoins the clock with a negative inline animation-delay", () => {
     const scope = newDiv();
     const dispose = driveActive(scope);
 
@@ -280,7 +280,7 @@ describe("createTransitionEngine cancel-resume liveness", () => {
 
     // Deadline = span 150 + 250 = 400ms; re-arm window another 400ms.
     vi.advanceTimersByTime(399);
-    // A mid-flight cancel (no animationstart observed → plain restart) resumes
+    // A mid-transition cancel (no animationstart observed → plain restart) resumes
     // but MUST NOT re-arm the watchdog.
     scope.dispatchEvent(cancelEvent(ACTIVE(CROSSFADE)));
     expect(resolveSpy).not.toHaveBeenCalled();
@@ -472,7 +472,7 @@ describe("createTransitionEngine cancel-resume liveness", () => {
     // A consumer authored its own delay on the same element.
     scope.style.animationDelay = "0.2s";
 
-    // Drive a flight and cancel 50ms into the active phase so the recovery
+    // Drive a transition and cancel 50ms into the active phase so the recovery
     // leases the consumer's 0.2s, then writes its negative rejoin delay.
     const dispose = driveActive(scope);
     scope.dispatchEvent(cancelEvent(ACTIVE(CROSSFADE), 0.05));
@@ -496,7 +496,7 @@ describe("createTransitionEngine cancel-resume liveness", () => {
 
   it("COMPLETED leaves a consumer's inline animation longhands untouched", () => {
     const scope = newDiv();
-    // Consumer values flemo never wrote (no flight touched these longhands).
+    // Consumer values flemo never wrote (no transition touched these longhands).
     scope.style.animationDelay = "0.3s";
     scope.style.animationTimingFunction = "steps(4)";
     createTransitionEngine(deps).driveScreenLifecycle({
@@ -669,10 +669,10 @@ describe("createTransitionEngine cancel-resume liveness", () => {
 });
 
 // A cancel whose element is already running another animation of the same
-// flight was a SWAP (a head tier's keyframes replaced by the bare ones, or the
+// transition was a SWAP (a head tier's keyframes replaced by the bare ones, or the
 // recovery's own restart), not a loss. Blink dispatches the restart's cancel on
 // the next frame, and reading it as a loss restarted again every frame until
-// the budget ran out and the flight was resolved 80ms in.
+// the budget ran out and the transition was resolved 80ms in.
 describe("createTransitionEngine cancel-resume stands down for a swap", () => {
   let resolveSpy: ReturnType<typeof vi.spyOn>;
 
@@ -725,7 +725,7 @@ describe("createTransitionEngine cancel-resume stands down for a swap", () => {
     scope.getAnimations = () => animations;
     const dispose = drive(scope);
 
-    // A real loss: nothing of the flight is left on the element.
+    // A real loss: nothing of the transition is left on the element.
     scope.dispatchEvent(cancelEvent(ACTIVE(CROSSFADE), 0.06));
     expect(scope.style.animationDelay).toBe("-0.06s");
 
@@ -738,7 +738,7 @@ describe("createTransitionEngine cancel-resume stands down for a swap", () => {
     dispose();
   });
 
-  it("still recovers when what is left is another flight's, idle, or finished", () => {
+  it("still recovers when what is left is another transition's, idle, or finished", () => {
     const scope = newDiv();
     scope.getAnimations = () => [
       running("flemo-screen-other-REPLACING-true"),

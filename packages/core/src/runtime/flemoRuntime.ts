@@ -6,7 +6,7 @@ import { resolvePlatformProfile } from "@platform/profile";
 // THE AMBIENT RUNTIME.
 //
 // Two things flemo does that belong to the APP, not to any one screen or
-// flight: keeping the GPU's pipelines compiled, and keeping oversized image
+// transition: keeping the GPU's pipelines compiled, and keeping oversized image
 // decodes off the main thread. Neither is triggered by a navigation — they are
 // the state the app sits in so that the first navigation is not the one that
 // pays.

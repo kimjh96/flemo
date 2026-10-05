@@ -77,10 +77,10 @@ const DEFECTS = [
     expect: /console/
   },
   {
-    id: "flight-residue",
+    id: "transition-residue",
     criterion: cleanup,
     // A copy the runtime would have taken away on landing, kept in the layer:
-    // the shape a flight that never lands leaves behind.
+    // the shape a transition that never lands leaves behind.
     script: () => {
       const layer = document.querySelector("[data-flemo-morph-layer]");
       const left = document.createElement("div");
@@ -117,9 +117,9 @@ const DEFECTS = [
     id: "header-shell-moves",
     criterion: sharedChrome,
     // A header that travels with the screen instead of standing still. Written
-    // as a running animation so the box differs between the frames a flight is
+    // as a running animation so the box differs between the frames a transition is
     // sampled on, which is what "keeps stable geometry" denies.
-    // Only while a flight is in the air, so the header still stands still at
+    // Only while a transition is in the air, so the header still stands still at
     // rest and stays clickable: a permanently moving control is a harness
     // problem, not the defect under test.
     css: `@keyframes flemo-eval-shift { from { transform: none; } to { transform: translateX(40px); } }
@@ -156,7 +156,7 @@ const DEFECTS = [
   {
     id: "drag-runs-its-own-phase",
     criterion: spatialPhase,
-    // The field pinned while a finger is down and left to the flight otherwise:
+    // The field pinned while a finger is down and left to the transition otherwise:
     // both motions read well on their own and disagree with each other, which
     // is the whole point of comparing them in space.
     script: (selectors) => {
@@ -199,8 +199,8 @@ const runOnce = async (criterion, defect) => {
   if (defect?.titleCss)
     await page.addStyleTag({ content: defect.titleCss(selectors.title.selector) });
   if (defect?.script) await page.evaluate(defect.script, selectors);
-  // Cleanup reads the state a run is left in, so it needs a flight to have
-  // happened; the criteria that drive their own flight ignore this.
+  // Cleanup reads the state a run is left in, so it needs a transition to have
+  // happened; the criteria that drive their own transition ignore this.
   if (criterion === cleanup) {
     await page.locator('[data-flemo-morph-name], [data-eval="shared-object"]').first().click();
     await page.waitForTimeout(1200);

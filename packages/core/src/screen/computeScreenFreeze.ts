@@ -5,7 +5,7 @@ import type { NavigateStatus } from "@navigate/store";
 // Measurement motive (2026-08, Mac Safari glass): the POP-returning screen
 // pays a layer creation + first raster, because its freeze (display:none)
 // destroys the layer regardless of any will-change, so the wake recreates it
-// at flight start. The cost that kept it from shipping is one extra live
+// at transition start. The cost that kept it from shipping is one extra live
 // full-screen subtree at rest, per screen, forever.
 
 export interface ScreenFreezeInput {
@@ -29,7 +29,7 @@ export interface ScreenFreezeInput {
 //   storm ended): whole-app flicker and jank at depth.
 // - "deferred": the JUST-COVERED direct prev at rest. Its freeze is the one
 //   commit that would land on the convergence frames the eye still watches
-//   (measured: ~0.2 dropped frames per flight), so the binding defers it
+//   (measured: ~0.2 dropped frames per transition), so the binding defers it
 //   into a quiet window.
 // - "live": a participant (the active screen, a transitioning prev, the
 //   replace-flip guard) — must not freeze, and a frozen screen reaching this

@@ -5,24 +5,24 @@ import { waitForNavIdle } from "./helpers/flemo";
 // A TRANSITION WITH NO CLOCK STILL CARRIES ITS SHARED ELEMENT.
 //
 // `none` is an instant replace, and an author who paired a `<Morph>` with it
-// wanted the element to fly and the screens not to. The push always did. The
+// wanted the element to move and the screens not to. The push always did. The
 // POP did not: the departing screen is taken out inside the frame it was held
-// in, and the layer mirroring that hold kept the flight paused at time zero
+// in, and the layer mirroring that hold kept the transition paused at time zero
 // for its whole length before cutting the element home. Every transition with
 // a clock hid it, because a screen with a clock outlives its own release.
 //
-// Watched as travel rather than as attributes: the defect left the flight
+// Watched as travel rather than as attributes: the defect left the transition
 // staged, named and animated, and every one of those read correct.
 const STAGE = "a, button, [role=tab]";
 
-/** The flying element's box, sampled for the length of a flight. */
+/** The moving element's box, sampled for the length of a transition. */
 const travel = async (page: import("@playwright/test").Page, act: () => Promise<void>) => {
   await page.evaluate(() => {
     const sizes: number[] = [];
     (window as unknown as { __t: number[] }).__t = sizes;
     const read = () => {
-      const flying = document.querySelector('[data-flemo-morph="enter"]');
-      if (flying) sizes.push(Math.round(flying.getBoundingClientRect().width));
+      const moving = document.querySelector('[data-flemo-morph="enter"]');
+      if (moving) sizes.push(Math.round(moving.getBoundingClientRect().width));
       if (sizes.length < 40) requestAnimationFrame(read);
     };
     requestAnimationFrame(read);
@@ -33,7 +33,7 @@ const travel = async (page: import("@playwright/test").Page, act: () => Promise<
 };
 
 test.describe("a morph under the none transition", () => {
-  test("flies in both directions, not just on the way in", async ({ page }) => {
+  test("moves in both directions, not just on the way in", async ({ page }) => {
     await page.goto("/en/playground");
     await waitForNavIdle(page);
     await page.evaluate((selector) => {
@@ -66,7 +66,7 @@ test.describe("a morph under the none transition", () => {
       });
     });
     expect(popped.length).toBeGreaterThan(4);
-    // The same journey, the other way. A held flight reports one size for
+    // The same journey, the other way. A held transition reports one size for
     // every frame it is stuck at, which is what this counts.
     expect(Math.max(...popped)).toBeGreaterThan(Math.min(...popped) * 2);
     expect(new Set(popped).size).toBeGreaterThan(4);

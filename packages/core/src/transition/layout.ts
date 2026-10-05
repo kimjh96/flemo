@@ -10,7 +10,7 @@ import createTransition from "@transition/createTransition";
 //
 // So: on a push the arriving screen fades in OVER a stationary one; on a pop
 // the dismissing screen fades out and the one underneath simply holds. The
-// fade is front-loaded (it is nearly over by a third of the flight) so the
+// fade is front-loaded (it is nearly over by a third of the transition) so the
 // window where anything shows through is short, while the shared element above
 // keeps travelling for the whole duration.
 // 0.4s, not the 0.3s it used to run. The screen's own fade is over in the first
@@ -38,12 +38,12 @@ const pull = (dragY: number): number => {
  * The still 0.4s cross-navigation for shared-element work, registered as
  * `"layout"`.
  *
- * ONE screen moves at a time and it is always the one arriving or leaving:
- * on a push the arriving screen fades in over a stationary one, and on a pop
- * the dismissing screen fades out while the screen underneath holds. The fade
- * is front-loaded and nearly over by a third of the flight, leaving the rest
- * to a `Morph` travelling above. It names no decorator: a 0.7s dim over a
- * 0.4s move lifts off a screen that stopped moving 300ms earlier.
+ * ONE screen moves at a time and it is always the new or the closing one:
+ * on a push the new screen fades in over a stationary one, and on a pop
+ * the closing screen fades out while the previous screen behind it stays still.
+ * The fade is front-loaded and nearly over by a third of the transition, leaving
+ * the rest to a `Morph` moving above. It sets no decorator: a 0.7s dim over a
+ * 0.4s move would fade off a screen that stopped moving 300ms earlier.
  */
 const layout = createTransition({
   name: "layout",
@@ -97,7 +97,7 @@ const layout = createTransition({
     //
     // It used to be a timing one as well, and that half is gone: a decorator
     // now runs on the clock of whichever transition names it
-    // (resolveDecoratorClock), so `overlay` here would be a 0.4s dim rather
+    // (resolveDecoratorTiming), so `overlay` here would be a 0.4s dim rather
     // than the 0.7s one that was sized for cupertino. What that cost when the
     // durations were authored on the decorator, measured on a pop: the
     // dismissing screen was fully gone at 335ms while the screen underneath

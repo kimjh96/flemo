@@ -4,7 +4,7 @@
 // without changing either navigation stack."
 //
 // The trap this criterion is built around: a scope's own content cannot outrank
-// a flight or the chrome above it, so an overlay written as a positioned div
+// a transition or the chrome above it, so an overlay written as a positioned div
 // inside the panel is painted UNDER the app header no matter what z-index it
 // carries. The only way to see that is to ask the page what is actually on top
 // at the header's own coordinates, which is what a hit test is. Reading the

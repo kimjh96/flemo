@@ -1,6 +1,6 @@
 // A LINE THAT DOES NOT BREAK ON THE WAY.
 //
-// A flight animates the element's box, and the element in flight is the
+// A transition animates the element's box, and the element running is the
 // ARRIVAL's tree. So the words are laid out at every width between the two ends
 // under the ARRIVAL's line-breaking rules — which are not the departure's, and
 // which nothing chose for the widths in between.
@@ -22,7 +22,7 @@
 //
 // It applies only where both ends are a single line of text (see
 // `MorphSnapshot.singleLine`), because clipping anything else would hide
-// content the flight is supposed to be carrying.
+// content the transition is supposed to be carrying.
 
 import type { AnimationOptions } from "@transition/cssTypes";
 import { invertEasing, resolveEasing } from "@transition/cubicBezier";
@@ -44,7 +44,7 @@ export const LINE_HOLD = {
 } as const;
 
 /**
- * Hold the flying element to one line for the duration of a flight.
+ * Hold the moving element to one line for the duration of a transition.
  *
  * Written as inline style, which is what the landing restores wholesale — the
  * hold needs no undo of its own.
@@ -55,7 +55,7 @@ export const holdOneLine = (element: HTMLElement): void => {
   element.style.textOverflow = LINE_HOLD.textOverflow;
 };
 
-/** Whether a flight between these two ends should hold a single line. */
+/** Whether a transition between these two ends should hold a single line. */
 export const holdsOneLine = (from: boolean, to: boolean): boolean => from && to;
 
 // WHERE A LINE SITS IN ITS BOX, AND WHY AN INTERPOLATION MOVES IT.
@@ -63,25 +63,25 @@ export const holdsOneLine = (from: boolean, to: boolean): boolean => from && to;
 // The glyphs sit a HALF-LEADING below the top of their line box, and the
 // half-leading is `(line-height - the face's own height) / 2` — which both
 // engines render FLOORED to whole pixels. So the leading does not render
-// continuously: it renders in steps, and a flight that interpolates it steps
+// continuously: it renders in steps, and a transition that interpolates it steps
 // once for every pixel boundary it crosses.
 //
-// Mid-flight that is invisible, because everything else is moving. At the END
+// Mid-transition that is invisible, because everything else is moving. At the END
 // it is not, and a pair whose arrival half-leading lands exactly ON a boundary
 // steps there every time: an interpolation approaches its endpoint and only
-// holds it from the instant the flight ends, which is the instant the flight
+// holds it from the instant the transition ends, which is the instant the transition
 // lands — so the arrival's own value is never painted. Every frame renders one
 // floor down and the landing puts it back. Device-measured on an iPhone, on the
 // playground's meta line: 14px type in a 20px line box is a half-leading of
-// exactly 1.0, the flight rendered 0, and the glyphs dropped a pixel the moment
-// the flight was taken off. The heading beside it — 24px in 32px, a half-leading
-// of 1.5 — never moved, on the same flight.
+// exactly 1.0, the transition rendered 0, and the glyphs dropped a pixel the moment
+// the transition was taken off. The heading beside it — 24px in 32px, a half-leading
+// of 1.5 — never moved, on the same transition.
 //
 // The two ends' half-leadings are usually a hair apart (1.0 and 1.0 here); only
-// the boundary separates them. So the fix is not to change what the flight
+// the boundary separates them. So the fix is not to change what the transition
 // interpolates but WHERE, by adding the same leading to both ends: enough to
 // sit the whole travel in the middle of one pixel of half-leading, which then
-// renders as one steady value for the flight AND at rest. The line box grows by
+// renders as one steady value for the transition AND at rest. The line box grows by
 // that much and the glyphs by none of it — the floor absorbs it.
 // WHAT "A PIXEL" IS, MEASURED RATHER THAN ASSUMED.
 //
@@ -106,12 +106,12 @@ const onGrid = (value: number, quantum: number): number =>
 const SAME = 1e-3;
 
 /**
- * Extra leading, in px, for BOTH ends of a flight so the half-leading it
+ * Extra leading, in px, for BOTH ends of a transition so the half-leading it
  * renders never crosses a pixel boundary.
  *
  * Zero when either end cannot be measured, and zero when the travel is wider
  * than one pixel of half-leading — no offset fits it in one, and a step
- * somewhere is then the honest outcome. Mid-flight is where it belongs.
+ * somewhere is then the honest outcome. Mid-transition is where it belongs.
  */
 export interface LeadingEnd {
   lineHeight: number | null;
@@ -121,9 +121,9 @@ export interface LeadingEnd {
 }
 
 /**
- * The half-leading a flight owes at its START, in px.
+ * The half-leading a transition owes at its START, in px.
  *
- * The staircase holds ONE leading for the whole flight so the rendered
+ * The staircase holds ONE leading for the whole transition so the rendered
  * half-leading cannot step, and the one it holds is the ARRIVAL's, because that
  * is the value the landing has to restore. At the other end that makes the
  * first frame render a line-height the departure never had, and half of that
@@ -144,21 +144,21 @@ export const leadingOwed = (
   if (stops === null) return 0;
   if (from.lineHeight === null || from.textHeight === null) return 0;
   const rested = (from.lineHeight - from.textHeight) / 2;
-  const flown = (stops[0]!.lineHeight - from.textHeight) / 2;
+  const moved = (stops[0]!.lineHeight - from.textHeight) / 2;
   if (
     from.leadOffset === null ||
     to.leadOffset === null ||
     to.lineHeight === null ||
     to.textHeight === null
   )
-    return rested - flown;
+    return rested - moved;
   const quantum = quanta().find(
     (q) =>
       Math.abs(onGrid(rested, q) - from.leadOffset!) < SAME &&
       Math.abs(onGrid((to.lineHeight! - to.textHeight!) / 2, q) - to.leadOffset!) < SAME
   );
-  if (quantum === undefined) return rested - flown;
-  return onGrid(rested, quantum) - onGrid(flown, quantum);
+  if (quantum === undefined) return rested - moved;
+  return onGrid(rested, quantum) - onGrid(moved, quantum);
 };
 
 export const leadingBias = (from: LeadingEnd, to: LeadingEnd): number => {
@@ -187,11 +187,11 @@ export const leadingBias = (from: LeadingEnd, to: LeadingEnd): number => {
   const low = Math.min(ends[0], ends[1]);
   const high = Math.max(ends[0], ends[1]);
   // Wider than one step of the grid: no offset fits it inside one, so it steps
-  // somewhere whatever we do — and mid-flight, where everything else is moving,
+  // somewhere whatever we do — and mid-transition, where everything else is moving,
   // is where it belongs.
   if (high - low >= quantum) return 0;
   // The ARRIVAL's step is the one the landing renders, so that is the step the
-  // whole flight has to stay inside. Applied to the leading, which is twice the
+  // whole transition has to stay inside. Applied to the leading, which is twice the
   // half-leading.
   return (to.leadOffset + quantum / 2 - (low + high) / 2) * 2;
 };
@@ -200,21 +200,21 @@ export default holdOneLine;
 
 // A LINE-HEIGHT THAT CLIMBS THE SAME STAIRS THE FACE DOES.
 //
-// The bias above puts the two ENDS of a flight inside one step of the grid, and
+// The bias above puts the two ENDS of a transition inside one step of the grid, and
 // where the face height is continuous that is the whole story. Where it is
 // quantised (see morphFace) it is not: between the ends the half-leading is a
 // smooth line minus a staircase, which is a sawtooth, and it crosses whatever
-// grid the engine renders leading on several times per flight. Device-reported
+// grid the engine renders leading on several times per transition. Device-reported
 // on desktop Chrome as a tremor with a nudge at the end.
 //
 // So the line-height is emitted as its own staircase instead, holding the
-// half-leading at ONE value for the whole flight: the value the arrival rests
+// half-leading at ONE value for the whole transition: the value the arrival rests
 // at, which is what makes the landing exact. The departure's own leading may
 // differ by up to half a pixel, and that difference lands on the first frame,
 // under a ghost that is still fully opaque.
 //
 // Simulated against the layout's own face heights at 61 points across the
-// playground's title flight: eleven steps today, none with this.
+// playground's title transition: eleven steps today, none with this.
 
 export interface LeadingEndType {
   fontSize: number | null;
@@ -224,7 +224,7 @@ export interface LeadingEndType {
 }
 
 export interface LeadingStop {
-  /** Percent of the flight, 0 to 100. */
+  /** Percent of the transition, 0 to 100. */
   at: number;
   lineHeight: number;
   /**
@@ -233,12 +233,12 @@ export interface LeadingStop {
    * A held leading is only half the answer. The BASELINE sits an ascent below
    * the inline box's top, and the ascent is on the same grid the leading is, so
    * it steps just as often — device-measured at seventeen steps of half a pixel
-   * across one flight of forty-nine frames, which is a jump every third frame.
+   * across one transition of forty-nine frames, which is a jump every third frame.
    *
    * Neither term can be made smooth: both are on the grid, so their sum is too,
    * and a baseline that has nine and a half pixels of grid to climb must climb
    * it in steps. What CAN be smooth is the box under them, because a box's
-   * position is not on any grid — so the flight carries the ascent's staircase
+   * position is not on any grid — so the transition carries the ascent's staircase
    * BACKWARDS on the box and lets the two cancel (see `lift`).
    */
   ascent: number;
@@ -248,9 +248,9 @@ export interface LeadingStop {
 const EXACT = 1e-6;
 
 /**
- * How near a step has to be pinned, as a fraction of the flight.
+ * How near a step has to be pinned, as a fraction of the transition.
  *
- * A thousandth of a flight is under a millisecond of a half-second one, which
+ * A thousandth of a transition is under a millisecond of a half-second one, which
  * is a fifteenth of a frame: far too small for a frame to land inside the gap
  * between where the box thinks the ascent stepped and where it did.
  */
@@ -258,14 +258,14 @@ const TIME = 0.001;
 
 // The stairs a pair climbs never change while the face does not, and the
 // bisection that finds them is the only part of a type morph that is not
-// arithmetic. Measured at about 4ms for a first flight and nothing after it.
+// arithmetic. Measured at about 4ms for a first transition and nothing after it.
 const stopCache = new Map<string, LeadingStop[] | null>();
 
 /**
  * The line-height stops that hold a type morph's leading still, or null.
  *
  * Null wherever the correction cannot be justified: a face whose metrics cannot
- * be read, an end that was never measured, a flight whose type does not change
+ * be read, an end that was never measured, a transition whose type does not change
  * size, and — the one that matters — a prediction that does not reproduce what
  * the engine actually reported at BOTH ends. That last is what stands in for a
  * browser check: an engine that does not quantise its face heights fails it at
@@ -273,11 +273,11 @@ const stopCache = new Map<string, LeadingStop[] | null>();
  */
 // EVERY ONE OF THESE IS A PURE FUNCTION OF A FACE AND TWO SIZES.
 //
-// They are also the expensive half of building a flight: both search, and both
+// They are also the expensive half of building a transition: both search, and both
 // ask a canvas for a measurement at every step of the search. That work lands in
-// the FIRST frame of a flight, the one frame nothing has moved yet: measured on
+// the FIRST frame of a transition, the one frame nothing has moved yet: measured on
 // a consumer's app, that frame ran 81ms against 15ms for every frame after it,
-// and 21ms of it was here. The same card flies the same two sizes every time it
+// and 21ms of it was here. The same card moves the same two sizes every time it
 // is tapped, so the answer is worked out once and kept.
 const remembered = new Map<string, unknown>();
 
@@ -390,10 +390,10 @@ const buildStops = (
   // the boundary at 11.87, so the window bisected around the wrong place,
   // found nothing, and DROPPED the stop. A dropped stop does not disappear —
   // its whole step lands on the endpoint, one frame before the landing, where
-  // the eye reads it as the flight being nudged a pixel at the end. That was
+  // the eye reads it as the transition being nudged a pixel at the end. That was
   // the poster grid's meta line dropping a CSS pixel on every zoomed pop.
   //
-  // So the flight's whole span is searched instead: the face is monotone in
+  // So the transition's whole span is searched instead: the face is monotone in
   // size and the size monotone in time, so a segment whose two ends share a
   // face holds no boundary, and one whose ends differ is split until every
   // boundary is pinned to TIME. The canvas answers a handful more questions
@@ -404,7 +404,7 @@ const buildStops = (
     if (hi - lo <= TIME) {
       // One boundary (or several closer together than a fifteenth of a frame,
       // which no painted frame can land between): one stop, wearing the face
-      // the flight steps onto.
+      // the transition steps onto.
       stops.push({
         at: hi * 100,
         lineHeight: above.ascent + above.descent + leading,
@@ -428,7 +428,7 @@ const buildStops = (
   // a frame apart the baseline blips, and the eye reads a run of blips as a
   // shimmer. A fast-opening ease packs several boundaries into the first few
   // frames — device-read on the poster grid's title, thirteen steps with five
-  // inside the opening sixth of the flight, two of them four milliseconds
+  // inside the opening sixth of the transition, two of them four milliseconds
   // apart — so those frames each carry two or three steps and each step is its
   // own chance to blip. Thinning boundaries that fall closer together than a
   // frame keeps the staircase (the leading still never drifts more than the
@@ -437,7 +437,7 @@ const buildStops = (
   // kept: the last is the one whose omission dropped the meta line at the
   // landing.
   //
-  // A frame as a fraction of the flight is not known here (the duration lives
+  // A frame as a fraction of the transition is not known here (the duration lives
   // with the caller), so the floor is the shortest a shipped morph runs, ~0.25s
   // — one frame is a fifteenth of it — which keeps every step a real morph can
   // show one frame apart and merges only the ones no frame could separate.
@@ -453,7 +453,7 @@ const buildStops = (
   const kept = [stops[0]!, ...thinned];
 
   // The last stop is the arrival's own line-height by construction, so the
-  // landing restores exactly what the flight ended on.
+  // landing restores exactly what the transition ended on.
   kept.push({ at: 100, lineHeight: to.lineHeight, ascent: ends[1].ascent });
   return kept.length > 2 ? kept : null;
 };
@@ -471,7 +471,7 @@ const matches = (parts: FaceParts, measured: number): boolean =>
 // accumulates evenly across a run is cancelled by spreading its negative over
 // the gaps, which is exactly what `letter-spacing` is.
 //
-// Whether there is anything to cancel is the FACE's business, not the flight's.
+// Whether there is anything to cancel is the FACE's business, not the transition's.
 // Sweeping a nine-character title from 14px to 24px and fitting its width
 // against its size: Helvetica, Arial, Georgia, Times, Courier, Impact, Comic
 // Sans and Pretendard Variable all sit on the line to within 0.008px, and for
@@ -492,7 +492,7 @@ const matches = (parts: FaceParts, measured: number): boolean =>
 // stops instead of held — a hold leaves each step's whole height on the glass,
 // a ramp leaves only the curvature inside it. And the stops are placed evenly
 // in SIZE rather than in time, since the error lives in size and an eased
-// flight crosses most of its size in the first few frames. Sixteen stops:
+// transition crosses most of its size in the first few frames. Sixteen stops:
 // held and time-even the worst frame kept 0.44px of the 0.95px, ramped and
 // size-even it keeps 0.12px, at the same bytes.
 //
@@ -501,7 +501,7 @@ const matches = (parts: FaceParts, measured: number): boolean =>
 // width it should have rather than away from it.
 
 export interface TrackStop {
-  /** Percent of the flight, 0 to 100. */
+  /** Percent of the transition, 0 to 100. */
   at: number;
   /** The correction, in px, to add to every gap between the glyphs. */
   fix: number;
@@ -529,7 +529,7 @@ const TRACK_SAMPLES = 16;
  * it can do is cross grid lines, which is a staircase where there was none.
  *
  * That is not hypothetical. The poster grid's meta line is 0.03px off the line
- * across its whole flight, and correcting it moved that line from ZERO
+ * across its whole transition, and correcting it moved that line from ZERO
  * discontinuities to seven, because every grid crossing the ramp made was a
  * step the run had not been taking. The canvas model is only good to 0.015px
  * against layout anyway, so below this floor the correction is fitting noise.
@@ -596,7 +596,7 @@ const buildTrack = (
   const span = to - from;
   const stops: TrackStop[] = [];
   for (let i = 0; i <= TRACK_SAMPLES; i += 1) {
-    // Even in size, then asked back what time the flight is at that size.
+    // Even in size, then asked back what time the transition is at that size.
     const part = i / TRACK_SAMPLES;
     const size = from + span * part;
     const measured = runAdvance(text, size, font);

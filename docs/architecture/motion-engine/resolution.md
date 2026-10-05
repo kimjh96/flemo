@@ -1,6 +1,6 @@
 # Single-resolution contract
 
-Exactly one live path resolves a flight's `TaskManager` navigation task. `resolveTask` ignores noncurrent IDs. Every resolver captures `flooredTaskId` when armed so stale work cannot resolve a newer flight.
+Exactly one live path resolves a transition's `TaskManager` navigation task. `resolveTask` ignores noncurrent IDs. Every resolver captures `flooredTaskId` when armed so stale work cannot resolve a newer transition.
 
 1. Wire `animationend` from the first transitional render and accept the `-lpm` name. It cannot fire while hold pauses animation.
 2. The compiled perceptual cut detaches `animationend` before calling `resolvePresented`.

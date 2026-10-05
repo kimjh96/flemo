@@ -32,7 +32,7 @@ export interface ScreenLifecycleInput {
     // a ref, and the rule belongs with the protocol (see layerRiders.ts).
     screenContainer?: HTMLElement | null;
     // The Router scope's part layer (see @screen/partLayer): where this
-    // screen's matched shared-bar <Part> elements are staged for the flight so
+    // screen's matched shared-bar <Part> elements are staged for the transition so
     // they are not painted under the other screen's opaque surface. Resolved by
     // the binding because only a Router knows which box bounds its screens.
     // Omitted by a binding that renders no layer; staging is then skipped.
@@ -54,7 +54,7 @@ export interface TransitionEngine {
   // inputs change; the returned disposer detaches any pending listener (call
   // it before the next invocation and on teardown), mirroring a React effect.
   driveScreenLifecycle: (input: ScreenLifecycleInput) => () => void;
-  // Internal. Number of in-flight tasks currently holding an active-scope
+  // Internal. Number of running tasks currently holding an active-scope
   // cancel-resume budget entry. Exposed only for the leak-regression test that
   // asserts the bookkeeping never grows unbounded; not part of the binding
   // contract, and bindings must not depend on it.

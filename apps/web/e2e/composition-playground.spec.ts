@@ -130,7 +130,7 @@ test.describe("composition playground", () => {
     expect(errors).toEqual([]);
   });
 
-  test("flies the root-owned featured Morph in both directions", async ({ page }) => {
+  test("moves the root-owned featured Morph in both directions", async ({ page }) => {
     await page.goto("/en/playground/composition");
     await waitForNavIdle(page);
 
@@ -203,7 +203,7 @@ test.describe("composition playground", () => {
         // A session that wears the desktop flat head plays every participant
         // behind it, so the compiled duration is the authored one plus the
         // head. Read here rather than assumed: whether the head is worn is
-        // measured per session (see flightRouting's resolveHeadKit).
+        // measured per session (see transitionRouting's resolveHeadKit).
         deskHead: document.documentElement.hasAttribute("data-flemo-desk-head"),
         ghostHidesTitle,
         parts,
@@ -374,7 +374,7 @@ test.describe("composition playground", () => {
 
     // A programmatic pop and a swipe-back walk the same POPPING poses. Since
     // the swipe is indexed by the screen's spatial progress, the automatic
-    // flight must put both title copies at the same fraction of their path for
+    // transition must put both title copies at the same fraction of their path for
     // that screen position as well. Merely asserting a non-none transform did
     // not catch title easings that made the two interactions visibly disagree.
     const activeScreen = popFrame.screens.find(({ active }) => active === "true");

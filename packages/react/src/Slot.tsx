@@ -19,8 +19,8 @@ const CONTAINED_VIEWPORT = { contained: true };
  *
  * Put the `Route` declarations in a `Slot` and lay the rest of the page
  * (sidebar, header, footer) around it: only this region transitions between
- * routes, and everything outside it persists across every navigation. Chrome
- * that is literally identical on every route belongs out here rather than in a
+ * routes, and everything outside it persists across every navigation. A header
+ * or tab bar that is literally identical on every route belongs out here rather than in a
  * `Part`.
  *
  * It stays one Router, one history, and one `useNavigate`, so a sidebar

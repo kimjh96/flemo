@@ -19,36 +19,36 @@ export const DEFAULT_MORPH_TRANSITION_NAME = "shared";
 
 export type MorphTransitionOptions = {
   /**
-   * The share of the flight over which the GHOST dissolves — the copy of the
-   * element being replaced that the runtime carries inside the flight (0–1,
-   * default 0.55).
+   * The share of the transition over which the fading COPY disappears: the copy
+   * of the element being replaced that the runtime shows during the transition
+   * (0 to 1, default 0.55).
    *
-   * It is what makes a travel show the right thing at both ends: the flight
-   * begins as an exact copy of what was on glass and dissolves into the real
-   * arriving element while the box moves. Set it to 0 to carry no copy, which
-   * cuts straight to the arrival's content on the first frame.
+   * It is what makes the movement show the right thing at both ends: the
+   * transition begins as an exact copy of what the user saw and fades into the
+   * real element on the new screen while the box moves. Set it to 0 to show no
+   * copy, which switches straight to the new element's content on the first frame.
    *
-   * The arriving element stays opaque underneath throughout. Fading both would
-   * bleed the background through the pair by a(1 - a) — a luminance dip
-   * peaking at 25% in the middle of the hand-over.
+   * The element on the new screen stays opaque behind the copy throughout.
+   * Fading both would let the background show through the pair by a(1 - a), a
+   * luminance dip peaking at 25% in the middle of the change.
    *
-   * THE WINDOW IS WHAT THE DEPARTURE'S OWN CONTENT LEAVES OVER. This used to be
-   * 0.22 — three frames of a short flight — on the reasoning that holding the
-   * copy longer let the two layouts drift apart underneath it and print as
-   * doubled text. That reasoning was written when the copy painted everything,
+   * THE WINDOW IS HOW LONG THE OLD ELEMENT'S OWN CONTENT TAKES TO FADE. This used
+   * to be 0.22 (three frames of a short transition), on the reasoning that keeping
+   * the copy longer let the two layouts drift apart behind it and show as
+   * doubled text. That reasoning was written when the copy rendered everything,
    * including the paired elements. It does not now: a paired descendant is
-   * already invisible in the copy (the real one is morphing underneath it), so
-   * all the copy is holding is content with NO counterpart — a caption, a body
+   * already invisible in the copy (the real one is morphing behind it), so all
+   * the copy still shows is content with NO counterpart: a caption, a body
    * paragraph, a button that exists on one side only. Three frames is not that
-   * content leaving; it is that content being cut, which is exactly what a pop
-   * looked like next to the arrival it was supposed to reverse.
+   * content fading out; it is that content disappearing at once, which is exactly
+   * what a pop looked like next to the push it was supposed to reverse.
    */
   crossFade?: number;
   /**
-   * Interpolate `border-radius` across the flight (default true). Nothing is
+   * Interpolate `border-radius` across the transition (default true). Nothing is
    * scaled, so the two ends' own values are the whole story.
    *
-   * It rides the CONTENT animation, never the geometry one: a keyframe that
+   * It is part of the CONTENT animation, never the geometry one: a keyframe that
    * lists a property the compositor cannot animate drops that whole animation
    * to the main thread, and the geometry keyframe is the one that must never
    * leave the compositor.
@@ -57,22 +57,22 @@ export type MorphTransitionOptions = {
   /**
    * Move the whole screen with the element, not just the element (default off).
    *
-   * A plain morph flies ALONE: the element crosses while the screens do
+   * A plain morph moves ALONE: the element crosses while the screens do
    * whatever their own transition says, which is right when the element is one
-   * thing among many. It is wrong when the element IS the navigation — a grid
-   * cell opening into a full-screen view. There the eye reads the tap as
-   * "the camera moved to this card", and a grid that stays put underneath
+   * thing among many. It is wrong when the element IS the navigation, such as a
+   * grid cell opening into a full-screen view. There the eye reads the tap as
+   * "the view zoomed in on this card", and a grid that stays put behind it
    * reads as the card escaping from it.
    *
-   * `"screen"` gives the flight a camera: the screen the element is SMALL on
-   * (the grid — the departing screen on a push, the arriving one on a pop) is
+   * `"screen"` zooms the whole screen: the screen the element is SMALL on
+   * (the grid: the previous screen on a push, the new one on a pop) is
    * scaled and translated by exactly the zoom that takes the element from one
    * end to the other, so every other card moves as though the viewport had
    * pushed in on the tapped one. Material calls the pattern a container
    * transform; iOS 18 calls its version a zoom transition.
    *
-   * It SUPERSEDES that screen's own transform for the length of the flight —
-   * the camera IS the screen's motion here, and two authors of one transform
+   * It REPLACES that screen's own transform for the length of the transition.
+   * This zoom IS the screen's motion here, and two sources of one transform
    * is not a thing CSS can compose. Pair it with a transition that does not
    * move the screen itself (`none`, or an opacity-only one); a slide would be
    * replaced rather than combined.
@@ -84,7 +84,7 @@ export type MorphTransitionOptions = {
 // the status×active variant table — so an author who has written one flemo
 // transition has written them all. What differs is where the MOTION comes from:
 // the geometry (how far the element travels and how much it grows) is measured
-// per flight and composed by the runtime, so these targets describe everything
+// per transition and composed by the runtime, so these targets describe everything
 // ELSE — the fade, the tint, the radius, an optional transform flourish layered
 // on top of the travel.
 export interface MorphTransition extends Omit<BaseTransition, "name">, MorphTransitionOptions {
@@ -97,7 +97,7 @@ export interface MorphTransition extends Omit<BaseTransition, "name">, MorphTran
 // entering on POP resumes the pose it retreated to, so its from-value is the
 // PUSHING-false variant; a morph has no such continuity — the arriving element
 // mounts fresh (or wakes from a freeze) on every status, and the element left
-// behind is always at rest when the flight starts. So the arriving side always
+// behind is always at rest when the transition starts. So the arriving side always
 // begins at `initial` and the departing side always begins at rest, whichever
 // status brought them together.
 export const MORPH_FROM_VARIANT: Record<TransitionVariant, "initial" | "IDLE-true" | "self"> = {

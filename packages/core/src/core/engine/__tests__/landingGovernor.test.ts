@@ -9,7 +9,7 @@ import { governedEasingForMotion } from "@core/engine/landingGovernor";
 // velocity drops below one device pixel per frame inside the engagement
 // range, then sprints the remainder at exactly that velocity and rests early.
 // ONE animation, still compositor-driven (an overlaid second animation was
-// traced demoting the whole flight to the main thread: Animation
+// traced demoting the whole transition to the main thread: Animation
 // compositeFailed=64, kTargetHasIncompatibleAnimations).
 
 describe("governedEasingForMotion", () => {
@@ -72,7 +72,7 @@ describe("governedEasingForMotion", () => {
 });
 
 // Bail paths. Each is a deliberate conservatism — the governor reshapes the
-// ONE animation every channel of the flight rides, so anything it cannot
+// ONE animation every channel of the transition rides, so anything it cannot
 // reason about must leave the authored easing alone rather than guess.
 describe("governedEasingForMotion bails", () => {
   const box = { clientWidth: 1400, clientHeight: 800 } as unknown as HTMLElement;

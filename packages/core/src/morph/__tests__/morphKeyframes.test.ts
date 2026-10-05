@@ -18,10 +18,10 @@ describe("buildMorphKeyframes", () => {
   const rect = (x: number, width: number): MorphRect => ({ x, y: 10, width, height: 32 });
   const growing: MorphTravel = { ...travel, from: IDENTITY_POSE };
 
-  it("draws a revealed box's image to the size the FLIGHT is at, not the size it is laid out at", () => {
+  it("draws a revealed box's image to the size the TRANSITION is at, not the size it is laid out at", () => {
     // A revealed box is laid out at the larger end, so an image laid out
     // against it is the larger end's picture with a corner of it showing.
-    // Sized to the end the flight is at and pinned to the corner the clip is
+    // Sized to the end the transition is at and pinned to the corner the clip is
     // anchored on, it is the picture the box would have painted itself, and it
     // costs no layout because a background is a paint.
     const { rules } = buildMorphKeyframes({
@@ -86,7 +86,7 @@ describe("buildMorphKeyframes", () => {
     expect(rules.join("\n")).not.toContain("background-size");
   });
 
-  it("hands a revealed box's shadow to a carrier, on the flight's own clock", () => {
+  it("hands a revealed box's shadow to a carrier, on the transition's own clock", () => {
     // The reveal's clip takes everything painted outside the border box with
     // it, so the box's own shadow is never drawn and animating it is dead
     // weight. The carrier is a separate element, so its shadow needs an
@@ -146,7 +146,7 @@ describe("buildMorphKeyframes", () => {
 
   it("holds a box whose contents were MEASURED not to move, and clips it instead", () => {
     // The narrower end is a clip over the wider one: 80 of 160 is half the box,
-    // so the flight opens at a 50% left inset and closes at none. One layout,
+    // so the transition opens at a 50% left inset and closes at none. One layout,
     // one raster, and the same picture at every size on the way.
     const { rules } = buildMorphKeyframes({
       id: "9i",
@@ -263,9 +263,9 @@ describe("buildMorphKeyframes", () => {
     ).toBe(false);
   });
 
-  // ONE FLIGHT, ONE THREAD.
+  // ONE TRANSITION, ONE THREAD.
   //
-  // The parts of a flight are placed relative to each other, so a part the
+  // The parts of a transition are placed relative to each other, so a part the
   // compositor can run on its own advances on frames the element travelling by
   // its box never reached. Pinning is how a part gives that up.
   describe("pinned", () => {
@@ -367,7 +367,7 @@ describe("buildMorphKeyframes", () => {
       expect(animation).toContain("flemo-morph-1s-lead");
     });
 
-    it("runs linear, because the stops already carry the flight's curve", () => {
+    it("runs linear, because the stops already carry the transition's curve", () => {
       // They sit where the ease reaches each face height; easing between them
       // again would move them off it.
       expect(built().animation).toContain("flemo-morph-1s-lead 0.400s linear");
@@ -380,7 +380,7 @@ describe("buildMorphKeyframes", () => {
       // though: the destination is reached a frame early and held (`arrived`),
       // so a stop belongs in that window too. Mapped onto the whole timeline
       // instead, every stop fired AFTER the boundary it cancels, by more and
-      // more of a frame as the flight ran, and the glyphs dropped the step on
+      // more of a frame as the transition ran, and the glyphs dropped the step on
       // one frame and were lifted back on the next.
       const lead = built().rules.find((rule) => rule.includes("-lead"))!;
       const rise = buildMorphKeyframes({
@@ -402,7 +402,7 @@ describe("buildMorphKeyframes", () => {
         paint: []
       }).rules.find((rule) => rule.includes("-lift"))!;
 
-      // A 0.4s flight holds its destination from 95.8333%, so the stop at 40%
+      // A 0.4s transition holds its destination from 95.8333%, so the stop at 40%
       // of the travel sits at 40% of THAT, and the last stop sits on it.
       expect(lead).toContain("38.3333% {");
       expect(lead).toContain("95.8333% {");
@@ -439,7 +439,7 @@ describe("buildMorphKeyframes", () => {
     it("carries the ascent's staircase backwards on the box", () => {
       // A held leading still leaves the BASELINE stepping, because it sits an
       // ascent below the inline box and the ascent is on the same grid. The box
-      // is not on any grid, so the flight sends it the other way by exactly as
+      // is not on any grid, so the transition sends it the other way by exactly as
       // much and the glyphs come out still.
       const lifted = buildMorphKeyframes({
         id: "1u",
@@ -480,7 +480,7 @@ describe("buildMorphKeyframes", () => {
       // first stop sits at the head's END (`at(0)`), not its start. Without a 0%
       // stop the lift ramps up from zero across the head, so the ascent is
       // uncancelled for the length of the lead-in and the line sits a whole
-      // ascent low before the flight moves. A 0% stop equal to the first, still
+      // ascent low before the transition moves. A 0% stop equal to the first, still
       // stepped, makes the cancellation whole from the first frame.
       const lifted = buildMorphKeyframes({
         id: "1uh",
@@ -584,7 +584,7 @@ describe("buildMorphKeyframes", () => {
   it("gives the fade and the corner their own clocks", () => {
     // Different windows on purpose: the cross-fade has to be over while the two
     // sides still overlap, the corner has to track the scale for the whole
-    // flight. One animation could not do both.
+    // transition. One animation could not do both.
     const { rules, animation } = buildMorphKeyframes({
       id: "1i",
       travel,
@@ -610,7 +610,7 @@ describe("buildMorphKeyframes", () => {
 
     expect(rules).toHaveLength(1);
     // The destination is stated at its own stop AND held to the end: the last
-    // frame a flight is painted on is not its 100%, and for type a hair short
+    // frame a transition is painted on is not its 100%, and for type a hair short
     // of the resting size is a whole pixel of ascent (see `arrived`).
     expect(rules[0]).toContain("0% {");
     expect(rules[0]).toContain("%, 100% {");
@@ -677,7 +677,7 @@ describe("buildMorphKeyframes", () => {
     expect(rules.find((rule) => rule.includes("-lead"))).toContain("20.0000% {");
   });
 
-  it("collapses the landing to a bare 100% stop when the flight has no span", () => {
+  it("collapses the landing to a bare 100% stop when the transition has no span", () => {
     // With no duration and no head the span is zero, so `arrived` and the
     // staircase's last-frame both fall back to 100%: there is no frame to reach
     // the destination one early on, and the landing is a single 100% stop.
@@ -802,7 +802,7 @@ describe("the channels beside the travel", () => {
   it("drops a fade whose two ends declare nothing", () => {
     // A fade target that is empty on both sides would emit a keyframe pair with
     // no declarations in it — a rule the browser parses and then animates
-    // nothing with, on the clock the flight is watching.
+    // nothing with, on the clock the transition is watching.
     const { rules } = buildMorphKeyframes({
       id: "8i",
       travel,
@@ -833,7 +833,7 @@ describe("buildCameraKeyframes", () => {
   it("scales from the width alone, and writes longhands rather than the shorthand", () => {
     // The shorthand would also write `animation-play-state`, and that longhand
     // belongs to the compiled hold: the camera has to pause and release with
-    // its screen like everything else in the flight.
+    // its screen like everything else in the transition.
     const { rules, name } = camera({ x: 100, y: 200, width: 100, height: 100 });
 
     expect(name).toBe("flemo-morph-9i-camera");
@@ -846,8 +846,8 @@ describe("buildCameraKeyframes", () => {
     expect(camera({ x: 0, y: 0, width: 0, height: 100 }).rules[0]).toContain("scale(1)");
   });
 
-  it("bakes the flight's head into the camera as a flat lead-in", () => {
-    // The camera is one of the flight's parts and rides the head the same way:
+  it("bakes the transition's head into the camera as a flat lead-in", () => {
+    // The camera is one of the transition's parts and rides the head the same way:
     // a head of 0.1 on a 0.5s span holds the start pose flat through 20%.
     const { rules } = buildCameraKeyframes({
       id: "hc",
@@ -933,10 +933,10 @@ describe("buildCameraKeyframes", () => {
       expect(pinned.rules[0]).not.toContain("transform:");
     });
 
-    it("says the zoom as the pose every other part of the flight is said in", () => {
+    it("says the zoom as the pose every other part of the transition is said in", () => {
       // One uniform scale, so both axes carry it, and no rotation. Written
       // through the same five coordinates a ghost or a nested pair uses, which
-      // is what lets one registration serve the whole flight.
+      // is what lets one registration serve the whole transition.
       expect(pinned.rules[0]).toContain("--flemo-pose-sy: 4;");
       expect(pinned.rules[0]).toContain("--flemo-pose-r: 0deg;");
     });

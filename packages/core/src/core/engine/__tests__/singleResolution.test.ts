@@ -16,10 +16,10 @@ import { SKIP_ANIMATION_ATTR } from "@core/engine/types";
 
 // NEVER A DOUBLE RESOLUTION.
 //
-// Six paths can settle a flight's navigation task: `animationend`, the
+// Six paths can settle a transition's navigation task: `animationend`, the
 // perceptual completion cut, a cancel-resume terminal, the restart watchdog,
 // the liveness floor, and the task gate's backstop. Several of them DO fire for
-// one flight — that is deliberate, they are backstops and the engine does not
+// one transition — that is deliberate, they are backstops and the engine does not
 // try to disarm them all. What makes that safe is two properties, and this
 // suite pins both:
 //
@@ -31,7 +31,7 @@ import { SKIP_ANIMATION_ATTR } from "@core/engine/types";
 //      current when its timer happens to fire. That half is the ENGINE's, and
 //      it is what this suite pins.
 //
-// Property 2 is the one with teeth. Without it a stale flight's deferred chain
+// Property 2 is the one with teeth. Without it a stale transition's deferred chain
 // — the landing-clear rAFs, the choreography timer — lands FRAMES LATER on
 // whatever task is current by then, and CUTS that navigation instead. It was
 // device-measured once as a fast back's pop flipping COMPLETED at ~90ms with
@@ -83,7 +83,7 @@ const resolvedIds = (): string[] =>
  */
 let currentTaskId: string | null = null;
 
-const driveFlight = (taskId: string, status: NavigateStatus = "PUSHING") => {
+const driveTransition = (taskId: string, status: NavigateStatus = "PUSHING") => {
   currentTaskId = taskId;
   const engine = createTransitionEngine({
     getTransitionTaskId: () => currentTaskId,
@@ -118,70 +118,70 @@ afterEach(() => {
   transitionMap.delete(NAME as never);
 });
 
-describe("one flight names only its own task", () => {
+describe("one transition names only its own task", () => {
   it("through a clean animationend, and through every backstop after it", () => {
-    const { cleanup } = driveFlight("flight-a");
+    const { cleanup } = driveTransition("transition-a");
 
     scope.dispatchEvent(animationEnd(animationName("screen", NAME, "PUSHING-true")));
     vi.advanceTimersByTime(200);
     expect(resolvedIds().length).toBeGreaterThan(0);
     // Backstop windows run out: the floor, the watchdog, the gate.
     vi.advanceTimersByTime(10_000);
-    expect(new Set(resolvedIds())).toEqual(new Set(["flight-a"]));
+    expect(new Set(resolvedIds())).toEqual(new Set(["transition-a"]));
 
     cleanup();
   });
 
   it("through the liveness floor when no signal ever arrives", () => {
-    const { cleanup } = driveFlight("flight-b");
+    const { cleanup } = driveTransition("transition-b");
     vi.advanceTimersByTime(10_000);
-    expect(new Set(resolvedIds())).toEqual(new Set(["flight-b"]));
+    expect(new Set(resolvedIds())).toEqual(new Set(["transition-b"]));
     cleanup();
   });
 
   it("through a cancel storm the resume budget cannot absorb", () => {
-    const { cleanup } = driveFlight("flight-c");
+    const { cleanup } = driveTransition("transition-c");
     const name = animationName("screen", NAME, "PUSHING-true");
     for (let i = 0; i < 6; i += 1) {
       scope.dispatchEvent(animationCancel(name));
       vi.advanceTimersByTime(50);
     }
     vi.advanceTimersByTime(10_000);
-    expect(new Set(resolvedIds())).toEqual(new Set(["flight-c"]));
+    expect(new Set(resolvedIds())).toEqual(new Set(["transition-c"]));
     cleanup();
   });
 
   it("when animationend arrives AFTER a backstop already fired", () => {
-    const { cleanup } = driveFlight("flight-d");
+    const { cleanup } = driveTransition("transition-d");
     vi.advanceTimersByTime(10_000);
     scope.dispatchEvent(animationEnd(animationName("screen", NAME, "PUSHING-true")));
     vi.advanceTimersByTime(500);
-    expect(new Set(resolvedIds())).toEqual(new Set(["flight-d"]));
+    expect(new Set(resolvedIds())).toEqual(new Set(["transition-d"]));
     cleanup();
   });
 });
 
 describe("a resolver never settles a task it did not capture", () => {
-  it("a stale flight's backstops name their OWN id after the store has moved on", () => {
+  it("a stale transition's backstops name their OWN id after the store has moved on", () => {
     // The failure this guards: a resolver that asks the store for the current
     // id when its timer fires, instead of using the one it captured. Its
     // deferred chain then lands frames later on the NEXT navigation and cuts
     // it mid-motion — device-measured as a pop flipping COMPLETED at ~90ms
     // with no motion at all.
-    const first = driveFlight("flight-1");
+    const first = driveTransition("transition-1");
     vi.advanceTimersByTime(20);
 
-    // The navigation moves on while the first flight's deadlines are pending.
-    currentTaskId = "flight-2";
+    // The navigation moves on while the first transition's deadlines are pending.
+    currentTaskId = "transition-2";
     resolveSpy.mockClear();
 
-    // Run every one of the FIRST flight's windows out.
+    // Run every one of the FIRST transition's windows out.
     vi.advanceTimersByTime(10_000);
 
-    // Whatever fired, it named the flight it was armed for — never the one
+    // Whatever fired, it named the transition it was armed for — never the one
     // that happens to be current now.
-    expect(resolvedIds()).not.toContain("flight-2");
-    expect(new Set(resolvedIds())).toEqual(new Set(["flight-1"]));
+    expect(resolvedIds()).not.toContain("transition-2");
+    expect(new Set(resolvedIds())).toEqual(new Set(["transition-1"]));
 
     first.cleanup();
   });
@@ -210,13 +210,13 @@ describe("a resolver never settles a task it did not capture", () => {
 
   it("resolves nothing for a screen whose animation is skipped", () => {
     scope.setAttribute(SKIP_ANIMATION_ATTR, "true");
-    const { cleanup } = driveFlight("flight-skip");
+    const { cleanup } = driveTransition("transition-skip");
 
     vi.advanceTimersByTime(10_000);
     // A skipped screen has no motion to complete, so no path may claim one.
-    expect(resolvedIds().filter((id: string) => id === "flight-skip").length).toBeLessThanOrEqual(
-      1
-    );
+    expect(
+      resolvedIds().filter((id: string) => id === "transition-skip").length
+    ).toBeLessThanOrEqual(1);
 
     cleanup();
     scope.removeAttribute(SKIP_ANIMATION_ATTR);

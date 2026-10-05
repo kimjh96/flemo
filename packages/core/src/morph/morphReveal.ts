@@ -1,13 +1,13 @@
 // WHETHER A BOX CAN BE REVEALED INSTEAD OF LAID OUT.
 //
-// Where a flight's contents hold (see morphContents), its box is laid out ONCE
+// Where a transition's contents hold (see morphContents), its box is laid out ONCE
 // at the size that contains both ends and the near edge is cut back with a
 // clip. That is the same picture as the box actually growing only if nothing
 // the box paints depends on its size or reaches past its edge.
 //
 // A list of the things that DO was how this went wrong. It named the shadow
 // and the background image after the playground's card lost both for a whole
-// flight (measured: inset(0 0 47%) on every frame, the shadow interpolating
+// transition (measured: inset(0 0 47%) on every frame, the shadow interpolating
 // unseen underneath), and a border, an outline, a focus ring, a mask, an
 // authored clip-path, a scrollbar, a percentage corner, an ellipsis and a
 // pseudo-element were all still waiting behind it. Every one is a property a
@@ -18,7 +18,7 @@
 // harmless: known not to paint against the box, at a value known to paint
 // nothing, or at its initial value. A property this table has never heard of,
 // set to anything else, is a reason to lay the box out for real. A gap in the
-// table costs a layout per frame, which is the path every other flight takes;
+// table costs a layout per frame, which is the path every other transition takes;
 // it can never cost a wrong picture.
 
 import { shadowCarries } from "@morph/morphShadow";
@@ -99,7 +99,7 @@ const CORNERS = [
 ];
 
 // LAYOUT. Where the contents land is what the contents probe measured, and the
-// box's own size is the flight's; none of these paint anything themselves.
+// box's own size is the transition's; none of these paint anything themselves.
 rule(SAFE, [
   "display",
   "position",
@@ -427,7 +427,7 @@ rule(SAFE, [
   "interactivity"
 ]);
 
-// THE FLIGHT'S OWN: it writes these for its frames, or they only matter on a
+// THE TRANSITION'S OWN: it writes these for its frames, or they only matter on a
 // transform or a path ruled below.
 rule(SAFE, [
   "animation-composition",
@@ -505,12 +505,12 @@ rule(none, [
 // A background image and a shadow both paint against the box, and a reveal's
 // box is the larger end, so both were refused outright. Both were also the
 // commonest reason a card in the wild never got a reveal and paid a layout and
-// a fresh raster of its whole subtree on every frame of every flight. Measured
+// a fresh raster of its whole subtree on every frame of every transition. Measured
 // on the composition bench: the box's top edge rides a transform and moves in
 // fractions of a pixel, while its height rides LAYOUT and a laid-out border box
 // is painted on whole device pixels, so the bottom edge jumped half a pixel and
 // then held for up to four frames while the top edge glided. Fifteen of the
-// flight's forty-four frames painted the card at exactly the height of the one
+// transition's forty-four frames painted the card at exactly the height of the one
 // before. That ratchet against a gliding top edge is what a reader reports as a
 // rattle, and a reveal is what removes it, because a clip IS painted between
 // device pixels (measured: 179 of 179 steps on the grid when the height
@@ -518,12 +518,12 @@ rule(none, [
 //
 // So the engine carries them instead:
 //
-// - The IMAGE is drawn to the box the flight is at, not the box it is laid out
+// - The IMAGE is drawn to the box the transition is at, not the box it is laid out
 //   at, by animating `background-size` alongside the clip and pinning
 //   `background-position` to the corner the reveal is anchored on. It is a
 //   paint, so it costs no layout, and at every size it is the same picture the
 //   box would have painted itself (see `revealBackground` in morphKeyframes).
-// - The SHADOW moves onto a carrier around the flying element, which casts the
+// - The SHADOW moves onto a carrier around the moving element, which casts the
 //   shadow of whatever silhouette the clip leaves (see `wearShadow`). A filter
 //   ON the element cannot: filters are applied BEFORE the clip, so the clip
 //   takes the shadow with it. Device-measured, all three ways.
@@ -662,7 +662,7 @@ const proven = (
   // only where the carry draws what the box would have drawn itself.
   if (!carriesImage(read)) return false;
   if (!shadowCarries(read("box-shadow"))) return false;
-  // The departure's own shadow is animated ON THE FLYING ELEMENT by the paint
+  // The departure's own shadow is animated ON THE MOVING ELEMENT by the paint
   // channel, so an inset one there reaches the wrong rectangle too.
   if (!shadowCarries(departure["box-shadow"] ?? "")) return false;
 
@@ -705,7 +705,7 @@ const proven = (
  * only way its values reach the arrival (see morphPaint).
  *
  * A style that cannot be read is a style that cannot be proven, so it is laid
- * out for real rather than failing the flight.
+ * out for real rather than failing the transition.
  */
 export const revealHolds = (
   element: Element,

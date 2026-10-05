@@ -1,186 +1,142 @@
 "use client";
 
-import Link from "next/link";
+import { useStep } from "@flemo/react";
 
-import { useNavigate, usePathname, useStep } from "@flemo/react";
+import Icon from "@/components/Icon";
+import Kbd from "@/components/Kbd";
+import Logo from "@/components/Logo";
+import ThemeToggle from "@/components/ThemeToggle";
+import LanguageToggle from "@/app/[lang]/_components/LanguageToggle";
+import { useShellDict } from "@/app/[lang]/_providers/ShellIntlProvider";
+import useSiteNavigate, { type SectionPath } from "@/app/[lang]/_hooks/useSiteNavigate";
+import { GITHUB_URL } from "@/lib/i18n";
 
-import {
-  useShellDict,
-  useShellLang,
-  useToggleShellLang
-} from "@/app/[lang]/_providers/ShellIntlProvider";
-import LanguageToggle from "@/components/atoms/LanguageToggle";
-import Logo from "@/components/atoms/Logo";
-import ThemeToggle from "@/components/atoms/ThemeToggle";
+import { openDocsSearch } from "@/app/[lang]/docs/_components/DocsSearch";
 
-import { SHELL_ORDER, type ShellPath } from "./SiteHeader.constants";
-
-const GITHUB_URL = "https://github.com/kimjh96/flemo";
-
-// The shell's persistent chrome, outside the <Slot>. The nav highlights the
-// active path (from flemo's public usePathname) and each menu owns its entry
-// transition.
+// The persistent chrome, outside the shell's <Slot>: it stays mounted while the
+// region under it moves. Screens scroll beneath it, so it carries its own
+// translucent backdrop and a hairline that only reads once content is under it.
 function SiteHeader() {
-  const dict = useShellDict();
-  const lang = useShellLang();
-  const navigate = useNavigate();
-  const toggleLang = useToggleShellLang();
-  // Public API: the current pathname drives the nav highlight + direction.
-  const activePath = usePathname();
-  // The mobile menu is a flemo step (history-backed), so the Back button closes
-  // it. The header is chrome outside the <Slot> (no <Screen>), so useStep keeps
-  // the current path and reports the open state reactively.
+  const t = useShellDict();
+  const { section, goSection } = useSiteNavigate();
+  // The mobile menu is a flemo step, so the browser's Back button closes it.
   const { step, pushStep, popStep } = useStep<{ menu: boolean }>();
-  const mobileOpen = Boolean(step?.menu);
+  const menuOpen = Boolean(step?.menu);
 
-  // Prefix match so a composed sub-page (deep link / refresh) keeps its menu
-  // active: /docs/router -> Docs. Home stays exact.
-  const isActivePath = (path: ShellPath) =>
-    path === "/" ? activePath === "/" : activePath === path || activePath.startsWith(`${path}/`);
-
-  const toggleMobile = () => {
-    if (mobileOpen) popStep();
-    else pushStep({ menu: true });
-  };
-
-  const handleMobileLink = async (onClick: () => void) => {
-    // Close the menu (pop its step) before navigating, so the destination isn't
-    // stacked on top of the open menu entry.
-    if (mobileOpen) await popStep();
-    onClick();
-  };
-
-  const handleGithubClick = () => {
-    if (mobileOpen) popStep();
-  };
-  // Home and Showcase are ordered peers, so they share one directional handler
-  // (a shared-axis that slides left or right by nav order). Docs owns a fixed
-  // entry transition. Every handler is idempotent.
-  const goPeer = (target: ShellPath) => {
-    if (activePath === target) return;
-    const forward = SHELL_ORDER.indexOf(target) > SHELL_ORDER.indexOf(activePath as ShellPath);
-    navigate.push(
-      target,
-      {},
-      { transitionName: forward ? "shared-axis-forward" : "shared-axis-backward" }
-    );
-  };
-
-  const goHome = () => goPeer("/");
-  const goShowcase = () => goPeer("/showcase");
-  const goPlayground = () => goPeer("/playground");
-
-  const goDocs = () => {
-    if (activePath === "/docs") return;
-    navigate.push("/docs", {}, { transitionName: "docs-enter" });
-  };
-
-  const shellLinks: { label: string; path: ShellPath; onClick: () => void }[] = [
-    { label: dict.nav.home, path: "/", onClick: goHome },
-    { label: dict.nav.showcase, path: "/showcase", onClick: goShowcase },
-    { label: dict.nav.playground, path: "/playground", onClick: goPlayground },
-    { label: dict.nav.docs, path: "/docs", onClick: goDocs }
+  const links: { label: string; path: SectionPath }[] = [
+    { label: t.nav.docs, path: "/docs" },
+    { label: t.nav.playground, path: "/playground" },
+    { label: t.nav.showcase, path: "/showcase" }
   ];
 
+  const go = async (path: SectionPath) => {
+    // Close the menu (pop its step) first, so the destination is not stacked
+    // on top of the open menu entry.
+    if (menuOpen) await popStep();
+    goSection(path);
+  };
+
   return (
-    <header className="absolute inset-x-0 top-0 z-40 bg-[var(--color-bg)]/30 backdrop-blur-2xl">
-      <div className="mx-auto flex h-16 max-w-[1240px] items-center justify-between px-6">
+    <header className="absolute inset-x-0 top-0 z-40 border-b border-line/70 bg-bg/75 backdrop-blur-xl backdrop-saturate-150">
+      <div className="mx-auto flex h-14 max-w-[1280px] items-center gap-2 px-4 sm:px-6">
         <button
           type="button"
-          onClick={goHome}
-          className="flex cursor-pointer items-center gap-2 text-[17px] font-bold tracking-[-0.02em] text-[var(--color-text-primary)]"
+          onClick={() => go("/")}
+          aria-label={t.nav.home}
+          aria-current={section === "/" ? "page" : undefined}
+          className="-ml-1 flex items-center gap-2 rounded-md px-1 py-1 text-fg"
         >
           <Logo size={26} />
-          <span>flemo</span>
+          <span className="text-[1.0625rem] font-semibold tracking-[-0.03em]">flemo</span>
         </button>
-        <nav className="flex items-center gap-1">
-          <div className="hidden items-center gap-1 md:flex">
-            {shellLinks.map((link) => {
-              const active = isActivePath(link.path);
-              return (
-                <button
-                  key={link.path}
-                  type="button"
-                  onClick={link.onClick}
-                  aria-current={active ? "page" : undefined}
-                  className={`cursor-pointer rounded-full px-3 py-2 text-[14px] font-medium transition-colors ${
-                    active
-                      ? "text-[var(--color-text-primary)]"
-                      : "text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]"
-                  }`}
-                >
-                  {link.label}
-                </button>
-              );
-            })}
-            <Link
-              href={GITHUB_URL}
-              target="_blank"
-              rel="noreferrer"
-              className="rounded-full px-3 py-2 text-[14px] font-medium text-[var(--color-text-secondary)] transition-colors hover:text-[var(--color-text-primary)]"
-            >
-              {dict.nav.github}
-            </Link>
-          </div>
-          <ThemeToggle />
-          <LanguageToggle lang={lang} onToggle={toggleLang} />
-          <button
-            type="button"
-            aria-label="Menu"
-            aria-expanded={mobileOpen}
-            onClick={toggleMobile}
-            className="ml-1 grid size-9 cursor-pointer place-items-center rounded-full text-[var(--color-text-primary)] transition-colors hover:bg-[var(--color-layer)] md:hidden"
-          >
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-              <path
-                d={mobileOpen ? "M6 6l12 12M18 6 6 18" : "M4 7h16M4 12h16M4 17h16"}
-                stroke="currentColor"
-                strokeWidth="1.8"
-                strokeLinecap="round"
-              />
-            </svg>
-          </button>
-        </nav>
-      </div>
-      {/* Always mounted so open AND close animate; the header's frosted glass is
-          mirrored here for one continuous chrome surface. `inert` when closed
-          keeps it out of focus/interaction. */}
-      <div
-        inert={!mobileOpen}
-        className={`overflow-hidden border-white/10 bg-[var(--color-bg)]/30 backdrop-blur-2xl transition-all duration-300 ease-[cubic-bezier(0.33,1,0.68,1)] md:hidden ${
-          mobileOpen ? "max-h-[420px] border-t opacity-100" : "max-h-0 opacity-0"
-        }`}
-      >
-        <nav className="mx-auto flex max-w-[1240px] flex-col gap-0.5 px-4 py-3">
-          {shellLinks.map((link) => {
-            const active = isActivePath(link.path);
+
+        <nav className="ml-6 hidden items-center gap-0.5 md:flex">
+          {links.map((link) => {
+            const active = section === link.path;
             return (
               <button
                 key={link.path}
                 type="button"
-                onClick={() => handleMobileLink(link.onClick)}
+                onClick={() => go(link.path)}
                 aria-current={active ? "page" : undefined}
-                className={`cursor-pointer rounded-xl px-3 py-2.5 text-left text-[15px] font-medium transition-colors ${
-                  active
-                    ? "bg-[var(--color-primary)]/10 text-[var(--color-primary)]"
-                    : "text-[var(--color-text-secondary)] hover:bg-[var(--color-layer)] hover:text-[var(--color-text-primary)]"
+                className={`relative h-8 rounded-md px-3 text-sm transition-colors ${
+                  active ? "text-fg" : "text-fg-muted hover:text-fg"
                 }`}
               >
                 {link.label}
+                {active && (
+                  <span
+                    aria-hidden="true"
+                    className="absolute inset-x-3 -bottom-[13px] h-px bg-fg"
+                  />
+                )}
               </button>
             );
           })}
-          <Link
+        </nav>
+
+        <div className="ml-auto flex items-center gap-1">
+          <button
+            type="button"
+            onClick={openDocsSearch}
+            className="mr-1 hidden h-8 w-52 items-center gap-2 rounded-md border border-line bg-surface px-2.5 text-sm text-fg-subtle transition-colors hover:border-line-strong hover:text-fg-muted lg:flex"
+          >
+            <Icon name="search" size={14} />
+            <span className="flex-1 text-left">{t.nav.search}</span>
+            <Kbd>⌘K</Kbd>
+          </button>
+          <a
             href={GITHUB_URL}
             target="_blank"
             rel="noreferrer"
-            onClick={handleGithubClick}
-            className="rounded-xl px-3 py-2.5 text-[15px] font-medium text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-layer)] hover:text-[var(--color-text-primary)]"
+            aria-label={t.nav.github}
+            className="hidden size-8 items-center justify-center rounded-md text-fg-muted transition-colors hover:bg-surface-2 hover:text-fg sm:inline-flex"
           >
-            {dict.nav.github}
-          </Link>
-        </nav>
+            <Icon name="github" size={17} />
+          </a>
+          <ThemeToggle />
+          <LanguageToggle />
+          <button
+            type="button"
+            aria-label="Menu"
+            aria-expanded={menuOpen}
+            onClick={() => (menuOpen ? popStep() : pushStep({ menu: true }))}
+            className="ml-0.5 inline-flex size-8 items-center justify-center rounded-md text-fg transition-colors hover:bg-surface-2 md:hidden"
+          >
+            <Icon name={menuOpen ? "close" : "menu"} size={18} />
+          </button>
+        </div>
       </div>
+
+      {menuOpen && (
+        <div className="absolute inset-x-0 top-full h-[calc(100dvh-3.5rem)] border-t border-line bg-bg md:hidden">
+          <nav className="flex flex-col px-4 py-3">
+            {[{ label: t.nav.home, path: "/" as const }, ...links].map((link) => (
+              <button
+                key={link.path}
+                type="button"
+                onClick={() => go(link.path)}
+                aria-current={section === link.path ? "page" : undefined}
+                className={`flex h-14 items-center justify-between border-b border-line text-left text-h3 ${
+                  section === link.path ? "text-fg" : "text-fg-muted"
+                }`}
+              >
+                {link.label}
+                <Icon name="chevronRight" size={16} className="text-fg-subtle" />
+              </button>
+            ))}
+            <a
+              href={GITHUB_URL}
+              target="_blank"
+              rel="noreferrer"
+              className="flex h-14 items-center justify-between text-h3 text-fg-muted"
+            >
+              {t.nav.github}
+              <Icon name="arrowUpRight" size={16} className="text-fg-subtle" />
+            </a>
+          </nav>
+        </div>
+      )}
     </header>
   );
 }

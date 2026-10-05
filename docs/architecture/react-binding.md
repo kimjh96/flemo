@@ -17,10 +17,10 @@ Core's `resolvePlatformProfile()` supplies every browser-specific decision as a 
 
 `data-flemo-*` attributes form the DOM PROTOCOL, declared in core's `src/dom/attributes.ts`. Core's `dom/__tests__/attributes.test.ts` rejects raw attribute literals in core; this package's `screen/__tests__/domProtocol.test.tsx` rejects rendered attributes absent from core's table. Import constants for imperative reads/writes. JSX prop names remain literal because they cannot be symbols; the render test validates them.
 
-Engine internals are documented in `createTransitionEngine.ts` (`driveScreenLifecycle` describes the flight) and `diagnosticFlags.ts` (the flag registry table, checked against shipped readers by `documentedDefaults.test.ts`). The tracked engine architecture map, `packages/core/docs/motion-engine.md`, is tested against the code. The maintainer's untracked `docs/` campaign notes are excluded via .gitignore; shipped source cites none of them. The public surface consists only of `src/index.ts` re-exports.
+Engine internals are documented in `createTransitionEngine.ts` (`driveScreenLifecycle` describes the transition) and `diagnosticFlags.ts` (the flag registry table, checked against shipped readers by `documentedDefaults.test.ts`). The tracked engine architecture map, `packages/core/docs/motion-engine.md`, is tested against the code. The maintainer's untracked `docs/` campaign notes are excluded via .gitignore; shipped source cites none of them. The public surface consists only of `src/index.ts` re-exports.
 
 ## Implementation and validation rules
 
 - Path aliases: `@history`, `@navigate`, `@renderer`, `@screen`, `@stores`, `@transition`, `@utils`, `@Route`, `@Router`. Import core through named imports from `@flemo/core` only.
 - Compute anything the engine needs in the first paint of a state change during render, never in an effect: hold attributes, riding flags, and freeze tracking refs.
-- Tests live beside source in `__tests__/`. jsdom reports an empty platform and no touch, taking the ungoverned path with no head; see [flight routing](./driver-routing.md).
+- Tests live beside source in `__tests__/`. jsdom reports an empty platform and no touch, taking the ungoverned path with no head; see [transition routing](./driver-routing.md).

@@ -1,17 +1,17 @@
-export { attachFlightRecorder, REPORT_SCHEMA_VERSION } from "./recorder";
+export { attachTransitionRecorder, REPORT_SCHEMA_VERSION } from "./recorder";
 export type { FlemoGlobal } from "./recorder";
 
 export {
-  deriveFlightAnomalies,
+  deriveTransitionAnomalies,
   deriveReportAnomalies,
   LONG_GAP_MS,
   STALL_MS,
   STUCK_STATUS_MS,
   OPENING_WINDOW_LEAD_MS,
   OPENING_WINDOW_TAIL_MS,
-  MID_FLIGHT_TASK_MS
+  MID_TRANSITION_TASK_MS
 } from "./anomalies";
-export type { FlightAnomalyInput, ReportAnomalyInput } from "./anomalies";
+export type { TransitionAnomalyInput, ReportAnomalyInput } from "./anomalies";
 
 export { BLIND_SPOTS } from "./blindSpots";
 export { JUDGING_PROTOCOL } from "./judging";
@@ -73,19 +73,19 @@ export type {
   BucketSummary,
   EnvironmentFingerprint,
   FlemoReport,
-  FlightDriver,
-  FlightHolds,
-  FlightKind,
-  FlightParticipants,
-  FlightRecord,
-  FlightRecorderHandle,
-  FlightRecorderOptions,
-  FlightTimestamp,
+  TransitionDriver,
+  TransitionHolds,
+  TransitionKind,
+  TransitionParticipants,
+  TransitionRecord,
+  TransitionRecorderHandle,
+  TransitionRecorderOptions,
+  TransitionTimestamp,
   FramePhaseStats,
   FrameSampleStats,
   ImageActivity,
   InputEvidence,
-  LandingAudit,
+  EndAudit,
   LongTaskSpan,
   MorphActivity,
   MotionProgress,

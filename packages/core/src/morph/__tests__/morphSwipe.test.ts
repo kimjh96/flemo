@@ -10,14 +10,14 @@ import {
   TRANSITION_ATTR
 } from "@dom/attributes";
 
-import attachMorph, { heldFlights, stageHeldFlights } from "@morph/attachMorph";
+import attachMorph, { heldTransitions, stageHeldTransitions } from "@morph/attachMorph";
 import { registerMorphLayer } from "@morph/morphLayer";
 import { beginMorphSwipe } from "@morph/morphSwipe";
 
-// A DRAG-DRIVEN FLIGHT, tested at its seam.
+// A DRAG-DRIVEN TRANSITION, tested at its seam.
 //
 // jsdom runs no animations, so what this can assert is the contract the gesture
-// depends on: the flights are STAGED before any navigation exists, they are
+// depends on: the transitions are STAGED before any navigation exists, they are
 // held at zero rather than running, the scrub moves their clock, and the
 // release hands them back to the browser in the right direction. The values
 // come from the animations themselves — the module owns no clock of its own,
@@ -38,7 +38,7 @@ const setRect = (element: HTMLElement, x: number, y: number, width: number, heig
     }) as DOMRect;
 };
 
-// jsdom implements no Web Animations, so the flight's animations are stood in
+// jsdom implements no Web Animations, so the transition's animations are stood in
 // for: one fake per element, named the way the runtime names them, recording
 // what the gesture does to it.
 // The document timeline the release solves its start times against. jsdom has
@@ -74,7 +74,7 @@ class FakeAnimation {
   }
   // WAAPI: playing a FINISHED animation rewinds it to its start. That is the
   // behaviour that replayed a departure's cut when the gesture handed the
-  // flight back, so the fake has to have it or the test cannot see it.
+  // transition back, so the fake has to have it or the test cannot see it.
   duration = 700;
   play() {
     if (this.playState === "finished" || (this.currentTime ?? 0) >= this.duration) {
@@ -145,9 +145,9 @@ afterEach(() => {
   document.head.innerHTML = "";
 });
 
-// The runtime writes the flyer's animation through `style.animation =`, which
+// The runtime writes the mover's animation through `style.animation =`, which
 // does not go through setProperty in jsdom; register that one by hand.
-const captureFlyerAnimation = (element: HTMLElement) => {
+const captureMoverAnimation = (element: HTMLElement) => {
   const name = /flemo-morph-[\w-]+/.exec(element.style.animation)?.[0];
   if (name) animations.push(new FakeAnimation(name));
 };
@@ -228,7 +228,7 @@ describe("beginMorphSwipe", () => {
     return { hero, thumbnail, gallery };
   };
 
-  it("stages a flight while the navigation does not exist yet", () => {
+  it("stages a transition while the navigation does not exist yet", () => {
     const { thumbnail } = stage();
     // The store never goes transitional: a drag is not a navigation.
     expect(["IDLE", "COMPLETED"]).toContain(store.getState().status);
@@ -236,7 +236,7 @@ describe("beginMorphSwipe", () => {
     const swipe = beginMorphSwipe(store, "POPPING");
 
     expect(swipe.active).toBe(true);
-    // The element the swipe is returning TO is the one that flies.
+    // The element the swipe is returning TO is the one that moves.
     expect(layer.contains(thumbnail)).toBe(true);
     expect(thumbnail.getAttribute(MORPH_ATTR)).toBe("enter");
   });
@@ -246,7 +246,7 @@ describe("beginMorphSwipe", () => {
     // wakes the covered screen, so its <Morph> children re-register in the
     // commit that follows — after the gesture has already asked to stage. Only
     // the dismissing side exists at that moment, and it is never the one that
-    // flies, so the first pass legitimately stages nothing.
+    // moves, so the first pass legitimately stages nothing.
     const detail = makeScreen(true);
     const hero = makeMorph(detail, [0, 0, 400, 300]);
     attachMorph(hero, { layoutId: "photo-1", navigateStore: store });
@@ -275,7 +275,7 @@ describe("beginMorphSwipe", () => {
     expect(thumbnail.getAttribute(MORPH_ATTR)).toBe("enter");
   });
 
-  it("does not spend a frame re-staging when the first pass already flew", () => {
+  it("does not spend a frame re-staging when the first pass already moved", () => {
     stage();
     const raf = vi.spyOn(globalThis, "requestAnimationFrame");
 
@@ -286,9 +286,9 @@ describe("beginMorphSwipe", () => {
     raf.mockRestore();
   });
 
-  it("holds the flight at zero instead of letting it run", () => {
+  it("holds the transition at zero instead of letting it run", () => {
     const { thumbnail } = stage();
-    captureFlyerAnimation(thumbnail);
+    captureMoverAnimation(thumbnail);
     beginMorphSwipe(store, "POPPING");
 
     expect(animations.length).toBeGreaterThan(0);
@@ -298,9 +298,9 @@ describe("beginMorphSwipe", () => {
     }
   });
 
-  it("moves every animation of the flight on one clock", () => {
+  it("moves every animation of the transition on one clock", () => {
     const { thumbnail } = stage();
-    captureFlyerAnimation(thumbnail);
+    captureMoverAnimation(thumbnail);
     const swipe = beginMorphSwipe(store, "POPPING");
 
     swipe.scrub(0.5);
@@ -321,7 +321,7 @@ describe("beginMorphSwipe", () => {
 
   it("plays out on a commit and back on a cancel", () => {
     const { thumbnail } = stage();
-    captureFlyerAnimation(thumbnail);
+    captureMoverAnimation(thumbnail);
     const swipe = beginMorphSwipe(store, "POPPING");
     swipe.scrub(0.6);
     swipe.settle(true, 0.2);
@@ -332,8 +332,8 @@ describe("beginMorphSwipe", () => {
     }
   });
 
-  it("does not land a flight the finger is still holding", () => {
-    // The landing's safety net is armed for the FLIGHT's length, and a drag
+  it("does not land a transition the finger is still holding", () => {
+    // The landing's safety net is armed for the TRANSITION's length, and a drag
     // does not keep to it: hold one for longer than the animation would have
     // taken and the net fires, putting the element back in its screen halfway
     // through the gesture. On glass that is a shared element that shrinks with
@@ -341,11 +341,11 @@ describe("beginMorphSwipe", () => {
     vi.useFakeTimers();
     try {
       const { thumbnail } = stage();
-      captureFlyerAnimation(thumbnail);
+      captureMoverAnimation(thumbnail);
       const swipe = beginMorphSwipe(store, "POPPING");
       swipe.scrub(0.4);
 
-      // Well past the flight's own span plus the backstop's own margin.
+      // Well past the transition's own span plus the backstop's own margin.
       vi.advanceTimersByTime(10_000);
 
       expect(layer.contains(thumbnail)).toBe(true);
@@ -360,12 +360,12 @@ describe("beginMorphSwipe", () => {
   });
 
   it("does not replay a passenger that had already finished", () => {
-    // Not every animation of a flight runs its whole length: the cut on the
+    // Not every animation of a transition runs its whole length: the cut on the
     // element left behind is 17ms of a 700ms travel and is long done by the
-    // time a finger lets go. Handing the flight back must not rewind it —
+    // time a finger lets go. Handing the transition back must not rewind it —
     // replaying a cut brings the element it hid back for a frame.
     const { thumbnail } = stage();
-    captureFlyerAnimation(thumbnail);
+    captureMoverAnimation(thumbnail);
     const swipe = beginMorphSwipe(store, "POPPING");
     swipe.scrub(0.4);
 
@@ -380,38 +380,38 @@ describe("beginMorphSwipe", () => {
     expect(short.currentTime).toBe(17);
   });
 
-  it("does not let the navigation re-fly what the gesture already delivered", () => {
+  it("does not let the navigation re-move what the gesture already delivered", () => {
     // THE RACE A FLICK LOSES. The release settle is scaled to what is left, so
     // a gesture carried to the far edge lands its morph in about 120ms while
     // the navigation it committed stages at about 150ms — and by then nothing
-    // is flying, so the same element is staged again from its ORIGINAL rest
+    // is moving, so the same element is staged again from its ORIGINAL rest
     // pose and makes the whole trip a second time. Measured on the built
     // package: land at 149ms, a fresh start at 150ms, landing again 723ms later.
     const { thumbnail } = stage();
-    captureFlyerAnimation(thumbnail);
+    captureMoverAnimation(thumbnail);
     const swipe = beginMorphSwipe(store, "POPPING");
     swipe.scrub(0.9);
     swipe.settle(true, 0.05);
 
-    // The flight lands before the navigation gets there.
-    for (const flight of heldFlights(store)) flight.finish();
-    expect(heldFlights(store)).toHaveLength(0);
+    // The transition lands before the navigation gets there.
+    for (const transition of heldTransitions(store)) transition.finish();
+    expect(heldTransitions(store)).toHaveLength(0);
 
     // The navigation catches up and stages exactly as it always does.
     store.getState().setStatus("POPPING");
-    stageHeldFlights(store, "POPPING");
+    stageHeldTransitions(store, "POPPING");
 
-    expect(heldFlights(store)).toHaveLength(0);
+    expect(heldTransitions(store)).toHaveLength(0);
     expect(layer.contains(thumbnail)).toBe(false);
   });
 
-  it("still flies for the NEXT gesture after a delivery", () => {
+  it("still moves for the NEXT gesture after a delivery", () => {
     const { thumbnail } = stage();
-    captureFlyerAnimation(thumbnail);
+    captureMoverAnimation(thumbnail);
     const first = beginMorphSwipe(store, "POPPING");
     first.scrub(0.9);
     first.settle(true, 0.05);
-    for (const flight of heldFlights(store)) flight.finish();
+    for (const transition of heldTransitions(store)) transition.finish();
 
     // A delivery the navigation never came to collect must not suppress the
     // gesture after it.
@@ -420,15 +420,15 @@ describe("beginMorphSwipe", () => {
     expect(second.active).toBe(true);
   });
 
-  it("returns on the flight's own curve rather than replaying its opening", () => {
+  it("returns on the transition's own curve rather than replaying its opening", () => {
     const { thumbnail } = stage();
     const swipe = beginMorphSwipe(store, "POPPING");
-    // The runtime writes the flyer's animation as it stages the flight, so the
+    // The runtime writes the mover's animation as it stages the transition, so the
     // declaration only exists to be read from here; in a browser the leg is
     // taken at the hold, and here at the first move.
-    captureFlyerAnimation(thumbnail);
-    const flyer = animations[animations.length - 1]!;
-    const legs = declareTravel(flyer, thumbnail);
+    captureMoverAnimation(thumbnail);
+    const mover = animations[animations.length - 1]!;
+    const legs = declareTravel(mover, thumbnail);
 
     swipe.scrub(0.1);
 
@@ -441,39 +441,39 @@ describe("beginMorphSwipe", () => {
     swipe.settle(false, 0.2);
 
     // The finger's own animation stops where it is; the leg is what moves.
-    expect(flyer.playState).toBe("paused");
+    expect(mover.playState).toBe("paused");
     expect(legs[0]!.playbackRate).toBeGreaterThan(0);
     // A tenth of the way across leaves nine tenths to walk home, and the leg is
     // seeked to where that much is LEFT of the declared curve.
     expect(legs[0]!.currentTime).toBeGreaterThan(0);
     expect(legs[0]!.currentTime).toBeLessThan(700 * 0.6);
 
-    // The flight lands on the leg, and the leg goes with it: left holding its
+    // The transition lands on the leg, and the leg goes with it: left holding its
     // landed pose it would wear the layer's pose in the tree it came home to.
     legs[0]!.finish();
     expect(layer.contains(thumbnail)).toBe(false);
     expect(legs[0]!.cancelled).toBe(true);
   });
 
-  it("resumes the flight itself on a commit, so it lands on its own end", () => {
+  it("resumes the transition itself on a commit, so it lands on its own end", () => {
     const { thumbnail } = stage();
     const swipe = beginMorphSwipe(store, "POPPING");
-    captureFlyerAnimation(thumbnail);
-    const flyer = animations[animations.length - 1]!;
-    const legs = declareTravel(flyer, thumbnail);
+    captureMoverAnimation(thumbnail);
+    const mover = animations[animations.length - 1]!;
+    const legs = declareTravel(mover, thumbnail);
 
     swipe.scrub(0.6);
     swipe.settle(true, 0.2);
 
-    expect(flyer.playbackRate).toBeGreaterThan(0);
-    expect(flyer.playState).toBe("running");
+    expect(mover.playbackRate).toBeGreaterThan(0);
+    expect(mover.playState).toBe("running");
     // Nothing to run, and nothing left staged on the element either.
     expect(legs[0]!.cancelled).toBe(true);
   });
 
   it("brings the element home when the gesture is abandoned", () => {
     const { thumbnail } = stage();
-    captureFlyerAnimation(thumbnail);
+    captureMoverAnimation(thumbnail);
     const swipe = beginMorphSwipe(store, "POPPING");
     swipe.scrub(0.3);
     swipe.settle(false, 0.2);
@@ -482,7 +482,7 @@ describe("beginMorphSwipe", () => {
     expect(layer.contains(thumbnail)).toBe(true);
 
     // Backwards, an animation fires no `animationend` — the landing cannot wait
-    // for one, so the flight is finished explicitly when it reaches zero.
+    // for one, so the transition is finished explicitly when it reaches zero.
     for (const animation of [...animations]) animation.finish();
     expect(layer.contains(thumbnail)).toBe(false);
   });
@@ -506,7 +506,7 @@ const makeMorphIn = (parent: HTMLElement, rect: [number, number, number, number]
   return element;
 };
 
-describe("beginMorphSwipe with nothing to fly", () => {
+describe("beginMorphSwipe with nothing to move", () => {
   it("declines a gesture on a screen pair that shares no element", () => {
     // Most swipes are exactly this: two screens with nothing in common. The
     // handle still exists — the binding calls it on every drag — and every
@@ -552,7 +552,7 @@ describe("a released gesture", () => {
     // `pointercancel` both arrive for the same gesture — and a scrub after the
     // hand-back would pause an animation the browser is already playing out.
     const thumbnail = stageOne();
-    captureFlyerAnimation(thumbnail);
+    captureMoverAnimation(thumbnail);
     const swipe = beginMorphSwipe(store, "POPPING");
     swipe.settle(true, 0.2);
 
@@ -566,8 +566,8 @@ describe("a released gesture", () => {
 });
 
 describe("a browser with no animation API", () => {
-  it("stages the flight anyway rather than failing the gesture", () => {
-    // `document.getAnimations` is what the gesture reaches the flight's clocks
+  it("stages the transition anyway rather than failing the gesture", () => {
+    // `document.getAnimations` is what the gesture reaches the transition's clocks
     // through. Without it there is nothing to scrub, but the element is still
     // hoisted and must still be brought home.
     const detail = document.createElement("div");
@@ -603,11 +603,11 @@ describe("a browser with no animation API", () => {
   });
 });
 
-describe("a gesture in a direction with no flight in it", () => {
+describe("a gesture in a direction with no transition in it", () => {
   it("stages nothing for a status that animates neither side", () => {
     // The direction a gesture WOULD commit is passed in rather than read from
-    // the store. A caller that passes a resting status is asking for a flight
-    // that has no from-pose on either side, and the answer is no flight.
+    // the store. A caller that passes a resting status is asking for a transition
+    // that has no from-pose on either side, and the answer is no transition.
     const detail = makeScreenFor(true);
     const hero = makeMorphIn(detail, [0, 0, 400, 300]);
     attachMorph(hero, { layoutId: "photo-4", navigateStore: store });
@@ -624,7 +624,7 @@ describe("a gesture in a direction with no flight in it", () => {
 
   it("skips a registration whose element has left the document", () => {
     // A binding unregisters in an effect cleanup, which React can run after the
-    // node is already gone. Staging a flight from one would measure a rect that
+    // node is already gone. Staging a transition from one would measure a rect that
     // no longer exists.
     const gallery = makeScreenFor(false);
     const orphan = makeMorphIn(gallery, [20, 600, 80, 80]);
@@ -635,9 +635,9 @@ describe("a gesture in a direction with no flight in it", () => {
   });
 });
 
-describe("a nested flight under a finger", () => {
+describe("a nested transition under a finger", () => {
   it("suspends and re-arms the nested landing's net with the gesture", async () => {
-    // A nested morph is its own flight record with its own net, and a drag
+    // A nested morph is its own transition record with its own net, and a drag
     // outlives it just as easily as it outlives the container's: the type
     // would snap to its destination halfway through the gesture.
     vi.useFakeTimers();
@@ -660,7 +660,7 @@ describe("a nested flight under a finger", () => {
       await vi.advanceTimersByTimeAsync(0);
       swipe.scrub(0.3);
 
-      // Long past the flight's own span: the finger is still down.
+      // Long past the transition's own span: the finger is still down.
       await vi.advanceTimersByTimeAsync(10_000);
       expect(label.getAttribute(MORPH_ATTR)).toBe("enter");
 

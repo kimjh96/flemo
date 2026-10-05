@@ -56,6 +56,7 @@ function ShellIntlProvider({
     const next = lang === "ko" ? "en" : "ko";
     setLang(next);
     if (typeof window !== "undefined") {
+      document.documentElement.lang = next;
       window.history.replaceState(
         window.history.state,
         "",
@@ -89,6 +90,10 @@ export function useShellLocaleGetter() {
 
 export function useShellDict() {
   return getDict(useShellLang()).app;
+}
+
+export function useDict() {
+  return getDict(useShellLang());
 }
 
 export default ShellIntlProvider;

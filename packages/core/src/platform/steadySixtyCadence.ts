@@ -25,31 +25,31 @@ import { detectBlinkEngine } from "@platform/engineProbes";
 // panels: `?driver=raf&snap=always` cleared the shimmer; snap `gate`/`hybrid`
 // let it back in).
 //
-// The trustworthy reading is the one taken IN FLIGHT: the engine's
-// display-interval probe samples rAF gaps while a compiled flight's compositor
+// The trustworthy reading is the one taken RUNNING: the engine's
+// display-interval probe samples rAF gaps while a compiled transition's compositor
 // animation is running — the moment an adaptive panel shows its true rate —
 // and the frame-pacing keepalive then holds the panel at that rate for the
 // session. Session-scoped verdict, learned from those reports:
 //
-// - any in-flight median below the high-refresh threshold latches HIGH
+// - any running median below the high-refresh threshold latches HIGH
 //   permanently: a machine that CAN present fast must stay compiled;
 // - two qualifying medians inside the steady-60 window verify SIXTY;
 // - the ambiguous 12–14ms band between the thresholds resets the streak
 //   (it could be either panel class — start over);
-// - a SLOW median (>22ms — a loaded main thread mid-flight) is NEUTRAL:
+// - a SLOW median (>22ms — a loaded main thread mid-transition) is NEUTRAL:
 //   it neither advances nor resets. A 30Hz power governor only ever
 //   produces 33ms medians, so it can never accumulate the two qualifying
 //   readings; a healthy 60Hz panel whose push medians ride a heavy mount
-//   commit still verifies off its clean flights.
+//   commit still verifies off its clean transitions.
 //
-// The first flight of a session therefore always runs unverified, and a
-// machine's worst case is two flights before the profile latches. When this
-// verdict still routed, that meant two compiled flights before the player
-// took over; today it means two flights on the desktop DEFAULTS rather than
+// The first transition of a session therefore always runs unverified, and a
+// machine's worst case is two transitions before the profile latches. When this
+// verdict still routed, that meant two compiled transitions before the player
+// took over; today it means two transitions on the desktop DEFAULTS rather than
 // the profile's.
 // ─────────────────────────────────────────────────────────────────────────────
 
-// Below this in-flight median the display is presenting faster than the
+// Below this running median the display is presenting faster than the
 // player's per-frame main-thread write can survive. Mirrors the engine's
 // COMPILED_TIER_MAX_INTERVAL_MS (createTransitionEngine.ts). Exported for
 // the player's own cadence feed (it reports only high-refresh CANDIDATES —
@@ -61,33 +61,33 @@ const HIGH_REFRESH_MAX_INTERVAL_MS = 12;
 // still qualifies; a 30Hz governor's 33ms never does).
 const STEADY_SIXTY_MIN_MS = 14;
 const STEADY_SIXTY_MAX_MS = 22;
-// Consecutive qualifying flights before the verdict flips.
-const STEADY_SIXTY_FLIGHTS = 2;
+// Consecutive qualifying transitions before the verdict flips.
+const STEADY_SIXTY_TRANSITIONS = 2;
 // The player's HiDPI always-snap is the benefit that justifies the routing;
 // at 1x there is no shimmer to fix and the compiled tier keeps its record.
 const STEADY_SIXTY_MIN_DPR = 1.5;
 
 // MODULE STATE, for the life of the document. The verdict was persisted to
 // `flemo:sixty` (sessionStorage) until 2026-08-31, so that a RELOAD did not
-// re-run the two-flight warm-up; it went with every other `flemo:*` key when
+// re-run the two-transition warm-up; it went with every other `flemo:*` key when
 // the diagnostic surface was removed from the shipped library. Client-side
 // navigation keeps the verdict either way — only a hard reload starts the two
-// flights over, which is the pre-2026-08-18 behavior.
+// transitions over, which is the pre-2026-08-18 behavior.
 let sawHighRefresh = false;
 let sixtyStreak = 0;
 
 // Whether this session could ever READ the verdict (see the note in
-// reportInFlightCadence). SSR and jsdom report no touch surface, so both keep
+// reportInTransitionCadence). SSR and jsdom report no touch surface, so both keep
 // accumulating exactly as before.
 const canAccumulateVerdict = (): boolean =>
   typeof navigator === "undefined" || (navigator.maxTouchPoints ?? 0) === 0;
 
-// Feed one in-flight cadence median (RAW, unclamped — the learned-interval
+// Feed one running cadence median (RAW, unclamped — the learned-interval
 // clamp in displayCadence would erase the 60-vs-default distinction).
-// Called by the engine's display-interval probe during compiled flights, so
+// Called by the engine's display-interval probe during compiled transitions, so
 // the verdict only ever forms from measurements taken while a compositor
 // animation had the panel at its true rate.
-export const reportInFlightCadence = (rawMedianMs: number, rawMaxMs?: number): void => {
+export const reportInTransitionCadence = (rawMedianMs: number, rawMaxMs?: number): void => {
   if (!Number.isFinite(rawMedianMs) || rawMedianMs <= 0) return;
   // A TOUCH session can never consume this verdict (steadySixtyDesktopProfile
   // requires maxTouchPoints === 0), so it must not pay the streak bookkeeping
@@ -114,7 +114,7 @@ export const reportInFlightCadence = (rawMedianMs: number, rawMaxMs?: number): v
     return;
   }
   if (rawMedianMs >= STEADY_SIXTY_MIN_MS && rawMedianMs <= STEADY_SIXTY_MAX_MS) {
-    sixtyStreak = Math.min(STEADY_SIXTY_FLIGHTS, sixtyStreak + 1);
+    sixtyStreak = Math.min(STEADY_SIXTY_TRANSITIONS, sixtyStreak + 1);
     return;
   }
   // The ambiguous 12-14ms band resets; a slow (>22ms) median is neutral —
@@ -127,10 +127,10 @@ export const reportInFlightCadence = (rawMedianMs: number, rawMaxMs?: number): v
 // The verified verdict alone (no environment gates) — exposed for the
 // routing's own comment trail and the tests.
 export const steadySixtyVerified = (): boolean =>
-  !sawHighRefresh && sixtyStreak >= STEADY_SIXTY_FLIGHTS;
+  !sawHighRefresh && sixtyStreak >= STEADY_SIXTY_TRANSITIONS;
 
 // The desktop-PROFILE predicate: a desktop (non-touch) Blink session on a
-// HiDPI display whose in-flight cadence has verified steady-60.
+// HiDPI display whose running cadence has verified steady-60.
 //
 // It gates DEFAULTS, never a driver: the render-settle gate and the
 // unpainted-only image hold. It also gated the compositor warm-up's 60fps

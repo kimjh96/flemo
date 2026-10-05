@@ -1,8 +1,8 @@
-// In-flight request accounting, so a transition can tell "this screen is
+// Running request accounting, so a transition can tell "this screen is
 // still loading" from "this screen is already complete".
 //
 // The content-settle gate (see animStartAnchor) makes a cold navigation enter
-// with its content already there, which is what makes a cold flight feel like
+// with its content already there, which is what makes a cold transition feel like
 // a cached one — measured on the glass, and confirmed on device. But waiting
 // for content that is never coming would tax every WARM navigation with the
 // full timeout, and a warm entry is exactly the case that is already perfect.
@@ -75,7 +75,7 @@ const install = () => {
   }
 };
 
-// Whether anything is currently in flight. Installs the accounting on first
+// Whether anything is currently running. Installs the accounting on first
 // use, so an app that never asks never pays for it.
 export const hasPendingRequests = (): boolean => {
   install();

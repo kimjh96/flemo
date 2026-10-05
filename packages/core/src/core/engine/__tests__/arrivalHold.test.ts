@@ -33,7 +33,7 @@ describe("createArrivalHold", () => {
     }
   });
 
-  it("does not hold a morph coming home from the flight layer", async () => {
+  it("does not hold a morph coming home from the transition layer", async () => {
     // A shared element landing is not an arrival — it is the landing itself,
     // and holding it there IS the blink the hold exists to prevent.
     const { scope, section } = buildScreen();
@@ -76,13 +76,13 @@ describe("createArrivalHold", () => {
     section.appendChild(img);
     const release = createArrivalHold(scope);
 
-    // The image hold's own restore lands mid-flight. If the freeze captured
+    // The image hold's own restore lands mid-transition. If the freeze captured
     // it, the release would replay display:none with no owner left to undo
     // it — live-reproduced as orphaned blank avatars after a pop.
     img.style.display = "";
     await observerFlush();
 
-    // MID-FLIGHT is where it shows: an in-place freeze would have written
+    // MID-TRANSITION is where it shows: an in-place freeze would have written
     // display:none straight back, undoing the hold's own restore.
     expect(img.style.display).toBe("");
     release();
@@ -115,7 +115,7 @@ describe("createArrivalHold", () => {
 
     chip.setAttribute("aria-busy", "true");
     await observerFlush();
-    // On glass the attribute never existed mid-flight.
+    // On glass the attribute never existed mid-transition.
     expect(chip.hasAttribute("aria-busy")).toBe(false);
 
     release();
@@ -123,7 +123,7 @@ describe("createArrivalHold", () => {
     scope.remove();
   });
 
-  it("reverts a mid-flight attribute REMOVAL and replays it at release", async () => {
+  it("reverts a mid-transition attribute REMOVAL and replays it at release", async () => {
     const { scope, section } = buildScreen();
     const chip = document.createElement("div");
     chip.setAttribute("aria-label", "kept");
@@ -214,7 +214,7 @@ describe("createArrivalHold", () => {
     scope.remove();
   });
 
-  it("parks a mid-flight swap in place and reflects it in one commit on release", async () => {
+  it("parks a mid-transition swap in place and reflects it in one commit on release", async () => {
     const { scope, section, skeleton, trailing } = buildScreen();
     const release = createArrivalHold(scope);
 
@@ -363,7 +363,7 @@ describe("createArrivalHold", () => {
     await observerFlush();
     expect(skeleton.parentNode).toBe(section);
 
-    // The whole section unmounts mid-flight: parked node goes with it.
+    // The whole section unmounts mid-transition: parked node goes with it.
     scope.removeChild(section);
     await observerFlush();
 
@@ -395,7 +395,7 @@ describe("createArrivalHold", () => {
     scope.remove();
   });
 
-  it("reverts an in-place text write mid-flight and replays it at release", async () => {
+  it("reverts an in-place text write mid-transition and replays it at release", async () => {
     const { scope, section } = buildScreen();
     const label = document.createElement("span");
     label.textContent = "63";
@@ -404,7 +404,7 @@ describe("createArrivalHold", () => {
 
     label.firstChild!.nodeValue = "64";
     await observerFlush();
-    // On glass the pre-flight value survives the whole flight.
+    // On glass the pre-transition value survives the whole transition.
     expect(label.textContent).toBe("63");
 
     label.firstChild!.nodeValue = "65";

@@ -6,17 +6,17 @@
  * can re-wrap into its new shape. That is a layout and a fresh raster of the
  * subtree on every frame, and WebKit re-snaps the backing to the device grid
  * each time, so a subtree that does not need to move gets carried a device
- * pixel back and forth for the whole flight anyway.
+ * pixel back and forth for the whole transition anyway.
  *
  * Measured on a consumer's pill: every descendant held ONE position for all
- * twenty-three frames of the flight, and only the box's own near edge moved.
+ * twenty-three frames of the transition, and only the box's own near edge moved.
  * Right-aligned contents in a box that grows leftward do not go anywhere. The
  * per-frame layout produced no layout change at all, and the tremble was the
  * whole of what it bought.
  *
  * Where that is TRUE, holding the box at the size that contains both ends and
  * cutting the near edge back with a clip is the same picture, drawn once. Where
- * it is FALSE the flight must animate the box for real, because something
+ * it is FALSE the transition must animate the box for real, because something
  * inside genuinely has a different place at the two ends.
  *
  * This is the difference between measuring that and guessing it from the box's
@@ -28,20 +28,20 @@ const TICK = 1 / 64;
 
 /**
  * Enough of a subtree to be sure, and a stop so a page-sized morph cannot turn
- * a flight's setup into a walk of the whole document.
+ * a transition's setup into a walk of the whole document.
  */
 const LIMIT = 256;
 
 const whitespace = /^\s*$/;
 
-/** The corner a flight's box is anchored on, and grows away from. */
+/** The corner a transition's box is anchored on, and grows away from. */
 export interface MorphAnchor {
   x: "left" | "right";
   y: "top" | "bottom";
 }
 
 /**
- * Every child's place and size, measured FROM THE CORNER THE FLIGHT HOLDS.
+ * Every child's place and size, measured FROM THE CORNER THE TRANSITION HOLDS.
  *
  * A box grows AWAY from the corner it is anchored on, so that corner is the
  * origin the two measurements can be compared in: a child that sits the same
@@ -96,22 +96,22 @@ const places = (root: Element, anchor: MorphAnchor): number[] | null => {
  * Whether the box's own subtree lands in the same places at both of its sizes.
  *
  * THE QUESTION IS ABOUT ONE SUBTREE, NOT TWO. A hand-over has two elements, but
- * the one that FLIES is the arrival, and the departure's picture is carried by
+ * the one that MOVES is the arrival, and the departure's picture is carried by
  * a ghost stacked over it. Comparing the two subtrees answers a different
  * question and usually answers it "no", because the reason a box grows at all
  * is that the two ends hold different things.
  *
  * So the arrival is asked about itself, on a copy, at the two sizes its own
- * flight will pass through. The copy is laid out beside the original and taken
+ * transition will pass through. The copy is laid out beside the original and taken
  * straight back out, so nothing on the page moves to answer this.
  */
 /**
- * ASKED ONCE PER SHAPE, NOT ONCE PER FLIGHT.
+ * ASKED ONCE PER SHAPE, NOT ONCE PER TRANSITION.
  *
- * The answer is a fact about a subtree at two sizes, and the same pair flies the
+ * The answer is a fact about a subtree at two sizes, and the same pair moves the
  * same two sizes every time a consumer taps the same card. Laying a copy out
  * twice is two forced layouts, and they happen in the FIRST frame of the
- * flight, which already carries the arriving screen's whole commit: measured on
+ * transition, which already carries the arriving screen's whole commit: measured on
  * a consumer's app, that frame ran 57ms against 15ms for every frame after it,
  * and nothing moves until it ends.
  *
@@ -123,7 +123,7 @@ const places = (root: Element, anchor: MorphAnchor): number[] | null => {
  * the whole difference being a probe whose answer was already known.
  *
  * The key is what the answer actually depends on: the two sizes, the corner the
- * flight is anchored on, the SHAPE of the subtree, and the context that styles
+ * transition is anchored on, the SHAPE of the subtree, and the context that styles
  * it. All of it is read without touching layout, so a card whose words changed
  * asks again and one that is the same card at the same two sizes does not.
  *

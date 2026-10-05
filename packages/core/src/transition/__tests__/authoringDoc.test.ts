@@ -24,9 +24,9 @@ import { morphTransitionMap } from "@transition/morphTransition/morphTransition"
 import createPartTransition from "@transition/partTransition/createPartTransition";
 import createRawPartTransition from "@transition/partTransition/createRawPartTransition";
 
-// THE ONE DOCUMENT AGENTS.md CALLS REQUIRED READING, CHECKED AGAINST THE CODE.
+// THE STATUS TABLE LINKED FROM THE REQUIRED AUTHORING DOCUMENT, CHECKED AGAINST THE CODE.
 //
-// `docs/instructions/transition-authoring.md` exists because the four factories
+// `docs/instructions/transition-authoring.md` links this table because the four factories
 // share a vocabulary and do not share its meaning, and getting a pose into the
 // wrong slot is the mistake that costs a day. A table that says which slot each
 // side lands in is only worth reading while it is TRUE, and prose has no way of
@@ -39,14 +39,16 @@ import createRawPartTransition from "@transition/partTransition/createRawPartTra
 // a reader's lost afternoon.
 const DOC = resolve(
   dirname(fileURLToPath(import.meta.url)),
-  "../../../../../docs/instructions/transition-authoring/semantics.md"
+  "../../../../../docs/instructions/transition-authoring/semantics/status-and-slots.md"
+);
+const FACTORY_DOC = resolve(
+  dirname(fileURLToPath(import.meta.url)),
+  "../../../../../docs/instructions/transition-authoring/semantics/factory-vocabulary.md"
 );
 
-// The heading the slot table lives under. Named rather than counted: the
-// document was split into one file per concern and every "## 2." this test used
-// to find went with it, which broke the check silently in the split's own
-// commit.
-const SLOT_TABLE = "## Who is who on every status";
+// The heading the slot table lives under. Named rather than counted so a
+// document split cannot silently stop this test from checking the table.
+const SLOT_TABLE = "# Status and slots";
 
 const TRANSITION_DIR = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -218,7 +220,7 @@ const readRows = (): Row[] => {
 describe("the transition authoring document", () => {
   const rows = readRows();
 
-  it("names a row for every side of every flight", () => {
+  it("names a row for every side of every transition", () => {
     const covered = new Set(rows.map((row) => row.variant));
     for (const status of ["PUSHING", "REPLACING", "POPPING"]) {
       expect(covered).toContain(`${status}-true`);
@@ -236,7 +238,7 @@ describe("the transition authoring document", () => {
   });
 
   it("is right about the one slot a part has and a decorator does not", () => {
-    const doc = readFileSync(DOC, "utf8");
+    const doc = readFileSync(FACTORY_DOC, "utf8");
     expect(doc).toContain("omission holds `idle`");
     const bare = createPartTransition({
       name: "doc-part-bare",
@@ -298,7 +300,7 @@ describe("published transition factory guidance", () => {
     const activeDoc =
       /\/\*\*((?:(?!\/\*\*)[\s\S])*?)\*\/\s+(?:export )?declare const ACTIVE_ATTR/.exec(emitted);
     expect(activeDoc, "ACTIVE_ATTR lost its documentation").not.toBeNull();
-    expect(activeDoc![1]).toContain("not which one is arriving");
+    expect(activeDoc![1]).toContain("not which one is the new screen");
     expect(activeDoc![1]).toContain("on a pop the");
     expect(activeDoc![1]).not.toMatch(/moving TO/);
   });
@@ -314,7 +316,7 @@ describe("published transition factory guidance", () => {
     }).outputText;
 
     expect(emitted).toContain("already follows the transition's swipe");
-    expect(emitted).toContain("opts that Part element out of the default rider");
+    expect(emitted).toContain("stops that Part element from following the swipe");
   });
 });
 
@@ -327,7 +329,7 @@ describe("published transition factory guidance", () => {
 //
 // It also pins one asymmetry worth keeping honest: `popOnEnter` is POPPING-true
 // for a screen, a part and a decorator, and POPPING-false for a MORPH, because
-// a morph's entering side is the element that flies and on a pop that element
+// a morph's entering side is the element that moves and on a pop that element
 // is the inactive one. A normalizing refactor would "fix" that and pair every
 // morph backwards on every pop.
 const RAW_FACTORIES = [

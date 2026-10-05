@@ -6,20 +6,20 @@ import createTransition from "@transition/createTransition";
 import { transitionMap } from "@transition/transition";
 
 import createTransitionEngine from "@core/engine/createTransitionEngine";
-import { flightWindowActive } from "@core/engine/flightWindow";
+import { transitionWindowActive } from "@core/engine/transitionWindow";
 
 import type { TransitionEngineDeps } from "@core/engine/types";
 
 // THE HOLDS A SCREEN NEVER CAME BACK TO RELEASE.
 //
-// Every hold `flightHolds` arms is handed back by a LATER drive pass: the one
+// Every hold `transitionHolds` arms is handed back by a LATER drive pass: the one
 // where the screen leaves the statuses that justified it. A screen that
-// unmounts mid-flight never has one, and two of those holds are not the
-// screen's to take with it — the response park and the flight window are
+// unmounts mid-transition never has one, and two of those holds are not the
+// screen's to take with it — the response park and the transition window are
 // session-global latches, and the window is a refcount with no timer behind
 // it. Measured at the engine, with timers and rAF flushed after each step:
 //
-//   during the flight          window open
+//   during the transition          window open
 //   PUSHING -> COMPLETED       window closed
 //   PUSHING -> unmount         window OPEN, and it stays that way
 //
@@ -29,7 +29,7 @@ import type { TransitionEngineDeps } from "@core/engine/types";
 //
 // The other half of this file is the failure mode the fix must not have. A
 // cleanup runs on every effect RE-RUN as well as on unmount, and releasing the
-// arrival armor between two passes of the same flight would be worse than the
+// arrival armor between two passes of the same transition would be worse than the
 // leak it fixes.
 
 const animated = createTransition({
@@ -92,9 +92,9 @@ describe("holds a screen leaves behind", () => {
     resolveSpy.mockRestore();
   });
 
-  it("closes the global window when the screen goes away mid-flight", async () => {
+  it("closes the global window when the screen goes away mid-transition", async () => {
     const dispose = drive("PUSHING");
-    expect(flightWindowActive()).toBe(true);
+    expect(transitionWindowActive()).toBe(true);
 
     // The unmount: the node leaves and the effect is cleaned up. No COMPLETED
     // pass ever runs, which is the whole point.
@@ -102,27 +102,27 @@ describe("holds a screen leaves behind", () => {
     dispose();
     await settle();
 
-    expect(flightWindowActive()).toBe(false);
+    expect(transitionWindowActive()).toBe(false);
   });
 
   it("keeps holding across a re-run, which is not a screen going away", async () => {
     const first = drive("PUSHING");
-    expect(flightWindowActive()).toBe(true);
+    expect(transitionWindowActive()).toBe(true);
 
-    // What React does on every commit of the same flight: clean up the
+    // What React does on every commit of the same transition: clean up the
     // previous pass, then run the next one. The screen stays in the document.
     first();
     const second = drive("PUSHING");
     await settle();
 
     // Still armed. Letting go here would land the arrival armor in the middle
-    // of the flight it exists to shield.
-    expect(flightWindowActive()).toBe(true);
+    // of the transition it exists to shield.
+    expect(transitionWindowActive()).toBe(true);
 
     scope.remove();
     second();
     await settle();
-    expect(flightWindowActive()).toBe(false);
+    expect(transitionWindowActive()).toBe(false);
   });
 
   it("survives a host with no microtask queue to check on", async () => {
@@ -133,21 +133,21 @@ describe("holds a screen leaves behind", () => {
     const dispose = drive("PUSHING");
 
     expect(() => dispose()).not.toThrow();
-    expect(flightWindowActive()).toBe(true);
+    expect(transitionWindowActive()).toBe(true);
 
     vi.unstubAllGlobals();
     scope.remove();
     drive("PUSHING")();
     await settle();
-    expect(flightWindowActive()).toBe(false);
+    expect(transitionWindowActive()).toBe(false);
   });
 
-  it("still closes it when the flight completes the ordinary way", async () => {
+  it("still closes it when the transition completes the ordinary way", async () => {
     const pushing = drive("PUSHING");
     const completed = drive("COMPLETED", true);
     await settle();
 
-    expect(flightWindowActive()).toBe(false);
+    expect(transitionWindowActive()).toBe(false);
 
     pushing();
     completed();

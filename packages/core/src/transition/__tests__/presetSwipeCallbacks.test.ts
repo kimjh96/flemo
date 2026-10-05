@@ -191,9 +191,9 @@ describe("layout's declared swipe, which is not its pop", () => {
 // omission.
 //
 // It used to drive its own drag with `1 - progress / 100`, which is linear in
-// the SCREEN'S POSITION, while the flight runs the dim on the clock it
+// the SCREEN'S POSITION, while the transition runs the dim on the clock it
 // inherits. Measured on a cupertino pop with the screen three quarters across,
-// the flight had this dim at 0.62 and the drag at 0.245. Declaring ANY hook
+// the transition had this dim at 0.62 and the drag at 0.245. Declaring ANY hook
 // opts a decorator out of the declarative rider entirely (see
 // `collectDecoratorRiders`), so the hooks were the thing keeping it out of the
 // path that now reads the gesture through the screen's own curve.

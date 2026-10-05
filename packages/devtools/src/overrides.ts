@@ -43,7 +43,7 @@ export interface FlagDescriptor {
   effect: string;
   /**
    * Report the value by its size only. For the recorder's own payload, which
-   * the report already carries as flights; copied in whole it buried the
+   * the report already carries as transitions; copied in whole it buried the
    * panel's header under its own JSON.
    */
   sizeOnly?: boolean;
@@ -68,9 +68,9 @@ export const DEVTOOLS_OWNED_FLAGS: readonly FlagDescriptor[] = [
     key: TRACE_KEY,
     storage: "session",
     kind: "production-state",
-    values: "the recorder's serialized flights",
+    values: "the recorder's serialized transitions",
     fallback: "(no trace carried across a load)",
-    effect: "the flights this recorder carries across a page load",
+    effect: "the transitions this recorder carries across a page load",
     sizeOnly: true
   }
 ];
@@ -78,7 +78,7 @@ export const DEVTOOLS_OWNED_FLAGS: readonly FlagDescriptor[] = [
 /**
  * Every `flemo:*` key the library reads. EMPTY since 2026-08-31: the engine's
  * diagnostic surface was removed from the shipped package outright, so a
- * session key can no longer change what a flight does. The array stays as the
+ * session key can no longer change what a transition does. The array stays as the
  * shape a report reads, and so this file keeps saying so out loud.
  */
 export const CORE_FLAGS: readonly FlagDescriptor[] = [];
@@ -193,7 +193,8 @@ export const RETIRED_FLAGS: readonly RetiredFlag[] = [
   {
     key: "flemo:landing-snap",
     storage: "session",
-    retiredWith: "the integer-device-pixel landing snap, falsified on device (2026-08-22)"
+    retiredWith:
+      "the integer-device-pixel snap at the end of the transition, falsified on device (2026-08-22)"
   },
   {
     key: "flemo:handoff",

@@ -22,7 +22,7 @@ const isHTMLElement = (target: unknown): target is HTMLElement =>
 // other (a visible snap to rest). An owner-scoped clear removes only that
 // writer's stake and restores only when the LAST stake is gone; a clear with
 // NO owner is the force form — the final authority (the engine's COMPLETED
-// flip, the player's own teardown), where the flight is over by definition.
+// flip, the player's own teardown), where the transition is over by definition.
 interface InlineLease {
   original: string;
   owners: Set<symbol>;
@@ -65,7 +65,7 @@ export const trackInlineWrite = (
 
 // Conclude a running settle without writing values: a NAVIGATION owns its
 // participants, and a settle still interpolating would pull toward its own
-// target while the flight (or the player) writes the real pose. Exported for
+// target while the transition (or the player) writes the real pose. Exported for
 // those two call sites; the instant-write path above concludes its own.
 export const concludeInlineSettle = (el: HTMLElement, owner?: symbol) => {
   if (!isHTMLElement(el)) return;
@@ -79,7 +79,7 @@ export const concludeInlineSettle = (el: HTMLElement, owner?: symbol) => {
 // after a swipe is cancelled, the CSS rest rule resumes). Pass an explicit
 // `properties` list to override. Pass `owner` to release only that writer's
 // stake — the property is restored only when no other writer still holds it;
-// omit `owner` for the force form (the flight-over final authority).
+// omit `owner` for the force form (the transition-over final authority).
 export const clearInlineAnimation = (el: HTMLElement, properties?: string[], owner?: symbol) => {
   // A settle IS the inline `transition` reset below: dropping it concludes
   // the motion without writing anything, which is what a handoff to the rest

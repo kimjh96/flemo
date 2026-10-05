@@ -29,7 +29,7 @@ describe("resolveLength", () => {
   it("reads an empty string as no offset at all", () => {
     // `x: ""` reaches here from an authored target that computed its own
     // value and came up with nothing. It is not an unresolvable unit — it is
-    // zero — and returning null for it would drop a whole flight's counter-ride.
+    // zero — and returning null for it would drop a whole transition's counter-ride.
     expect(resolveLength("", 400)).toBe(0);
   });
 

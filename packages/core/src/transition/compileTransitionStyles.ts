@@ -42,9 +42,9 @@ import {
   TRANSITION_ATTR
 } from "@dom/attributes";
 
-import { resolveDecoratorClock } from "@transition/decorator/resolveDecoratorClock";
+import { resolveDecoratorTiming } from "@transition/decorator/resolveDecoratorTiming";
 
-import { resolvePartClock } from "@transition/partTransition/resolvePartClock";
+import { resolvePartTiming } from "@transition/partTransition/resolvePartTiming";
 
 import type { Decorator } from "@transition/decorator/typing";
 import type { PartTransition } from "@transition/partTransition/typing";
@@ -381,7 +381,7 @@ const restAttrSelector = (transitionName: string, variant: TransitionVariant): s
 };
 
 // A decorator is matched by the transition that names it as well as by its own
-// name, because its clock comes from that transition (resolveDecoratorClock).
+// name, because its clock comes from that transition (resolveDecoratorTiming).
 // The same decorator on two transitions of different lengths is two rule sets,
 // and without the transition in the selector they would be one, with the
 // winner decided by source order.
@@ -429,11 +429,11 @@ const barAttrSelector = (transitionName: string, variant: TransitionVariant): st
 // leaves with it.
 //
 // BOTH boxes can ride, and which one does depends on which screen is moving.
-// The HOST rides the screen that renders it, because when that screen flies
-// everything it hosts flies with it — a region sliding out from under its own
+// The HOST rides the screen that renders it, because when that screen moves
+// everything it hosts moves with it — a region sliding out from under its own
 // sheet is the failure this pairing prevents. A SLOT rides its owner, which
 // matters when the owner is a nested screen moving inside a host that is not.
-// The binding gives exactly one of them the attributes for any single flight,
+// The binding gives exactly one of them the attributes for any single transition,
 // so the two can never compose and send an overlay twice as far as its screen.
 const layerRiderSelector = (
   marker: string,
@@ -466,7 +466,7 @@ const partSelector = (name: string, variant: TransitionVariant): string => {
 //
 // A part is referenced by name and may appear under any transition in the
 // Router, so unlike a decorator it cannot be resolved once. The transition term
-// is what picks the right resolved clock (see resolvePartClock), and it also
+// is what picks the right resolved clock (see resolvePartTiming), and it also
 // carries the specificity: four attribute selectors to the base rule's three,
 // so a part INSIDE a screen takes the inherited clock while one mounted outside
 // any screen — persistent chrome beside a `<Slot>`, a portal — matches only the
@@ -546,16 +546,16 @@ export const decoratorAnimationName = (
   variant: TransitionVariant
 ) => animationName("decorator", `${transitionName}--${decoratorName}`, variant);
 
-// A head tier plays the SAME flight under a copied keyframe set, so its
+// A head tier plays the SAME transition under a copied keyframe set, so its
 // `animationend` / `animationcancel` events carry a suffixed name. Every
-// listener that matches a flight by name must accept all of them — a listener
-// that recognizes only the base name silently stops resolving the flight, and
+// listener that matches a transition by name must accept all of them — a listener
+// that recognizes only the base name silently stops resolving the transition, and
 // the restart watchdog then replays the whole transition (glass-visible as a
 // second fade on REPLACE). Keep this list beside the suffixes the compiler
 // emits, and route every name comparison through the matcher.
 // Named once, so the matcher below and the compiler that emits the keyframes
 // cannot drift apart. They already did: `govpark` and `deskpark` shipped
-// without ever being added here, so every parked flight's `animationend` went
+// without ever being added here, so every parked transition's `animationend` went
 // unrecognized. On an iPhone that is the whole reported defect — the restart
 // watchdog replayed the transition (the second run is visible on the glass, and
 // device-traced: the park keyframe ended at 912ms and started over at 1179ms)
@@ -574,7 +574,7 @@ export const HEAD_ANIMATION_SUFFIXES = Object.values(HEAD_SUFFIXES).map((suffix)
 // headBlock), after the suffix: `<name>-deskhead-717ms`.
 const HEAD_CLOCK_TAG = /^-\d+ms$/;
 
-export const matchesFlightAnimationName = (eventName: string, expectedName: string): boolean =>
+export const matchesTransitionAnimationName = (eventName: string, expectedName: string): boolean =>
   eventName === expectedName ||
   HEAD_ANIMATION_SUFFIXES.some((suffix) => {
     const head = `${expectedName}${suffix}`;
@@ -688,11 +688,11 @@ const compileVariantBlock = (
   // PUSHING-true with `initial` as its `from` and the same values as its `to`,
   // and its author wrote `duration: 0` there because there was nothing to run.
   // Once a clock can be INHERITED rather than authored (see
-  // resolveDecoratorClock) that coincidence breaks: the screen's 0.7s arrives
+  // resolveDecoratorTiming) that coincidence breaks: the screen's 0.7s arrives
   // on a variant whose endpoints are identical, and the compiler would emit
   // `@keyframes { from {} to {} }` plus a 0.7s rule to play it. An empty
   // animation still fires `animationend`, so variantHasAnimation would report
-  // the element as a participant and the engine would wait out a flight for a
+  // the element as a participant and the engine would wait out a transition for a
   // thing that never moves.
   const interpolates = declsInterpolate(authoredFromDecls, authoredToDecls);
 
@@ -755,7 +755,7 @@ const compileVariantBlock = (
   //
   // --flemo-gov-stretch: the user-selected time dilation, applied to
   // the COMPILED animation so it keeps its panel-rate presentation (the
-  // 60fps screen-recording round proved compiled flights present at panel
+  // 60fps screen-recording round proved compiled transitions present at panel
   // rate under LPM while rAF is capped ~30Hz). At wall-clock playback the
   // authored curve's front-loaded 0-60% crosses in 5-6 capped-eye frames —
   // faster than the eye locks on; stretching the duration by the measured
@@ -788,7 +788,7 @@ const compileVariantBlock = (
   // tier; POPPING stays short — its release is measured clean and it is
   // the most latency-sensitive gesture.
   // FLOOR (device-dialed 2026-08-13): 180/100/80. One notch below
-  // (120/70/60) the whole flight fit inside a worst-case governor
+  // (120/70/60) the whole transition fit inside a worst-case governor
   // starvation window and transitions vanished ("무반응 후 즉시 전환");
   // battle-era 350/200/120 was 2x too pessimistic.: walked down from the battle-era 350/200/120
   // — the pipeline is healthy now (literal timing, active-from-birth) so
@@ -829,7 +829,7 @@ const compileVariantBlock = (
   // animation's first visible frame.
   //
   // `shiftDelay` is the governed tier's extra: it ALSO pushes animation-delay out by
-  // the head, so a governed flight sits still for two heads, not one. That is the
+  // the head, so a governed transition sits still for two heads, not one. That is the
   // shipped, device-dialed behavior on touch (the numbers were walked down
   // against the felt result, so the doubling is baked into the value that was
   // chosen) and it is not this change's business to re-dial. The DESKTOP head is
@@ -873,12 +873,12 @@ const compileVariantBlock = (
     // A part's keyframes are shared across every transition it rides, because
     // its pose does not depend on the transition: only its clock does, and the
     // clock lives in the rule. A head breaks that. It is a fraction of the
-    // flight, `head / (duration + head)`, so the same part under a 700ms
+    // transition, `head / (duration + head)`, so the same part under a 700ms
     // cupertino and a 250ms material needs two different keyframe bodies, and
     // under one name only the last body emitted survives the cascade. Every
     // part then played whichever transition's head happened to compile last:
     // measured on desktop Chrome as the shared header's title 3.9% of its path
-    // behind the screen carrying it on every flight that wore the head, which
+    // behind the screen carrying it on every transition that wore the head, which
     // a programmatic pop and a swipe then disagreed about. Screens and
     // decorators are already named for their transition and keep their names.
     const clockTag = scope === "part" ? `-${Math.round(total * 1000)}ms` : "";
@@ -909,9 +909,9 @@ const compileVariantBlock = (
   // changes on every frame of the head, so the compositor is already carrying
   // this animation when the real motion begins. Measured: drops at the boundary
   // fell from 78% of pushes to 33%.
-  // THE SECOND HEAD BELONGS TO THE SLIDE, NOT TO EVERY FLIGHT.
+  // THE SECOND HEAD BELONGS TO THE SLIDE, NOT TO EVERY TRANSITION.
   //
-  // The governed tier's delay shift was dialed against a SLIDING flight, which
+  // The governed tier's delay shift was dialed against a SLIDING transition, which
   // is what `governedSlide` names: a push or a pop. A REPLACE never gets that
   // treatment anywhere else in the engine, and shifting its delay as well only
   // makes it wait a second head for a slide it is not doing. Device-read on a
@@ -921,7 +921,7 @@ const compileVariantBlock = (
   // TRIED AND REVERTED: zeroing the opening head for a REPLACE.
   //
   // A replace does not slide, so the head looked like pure stillness: 180ms in
-  // which the flight sat still with the arriving element already showing its
+  // which the transition sat still with the arriving element already showing its
   // destination's contents at the departure's size (device-read on a
   // consumer's tab switch). Removing it made the transition SWALLOW on the
   // same device, which is exactly what this value was dialed to close. The
@@ -993,13 +993,13 @@ const compileVariantBlock = (
   // through a different path and shows none of this) then presents that layer
   // at its static opacity while the animation runs: device-measured on a
   // matched shared bar, the departing glyph held FULL colour through the whole
-  // flight and was cut at unmount instead of fading, with `getComputedStyle`
+  // transition and was cut at unmount instead of fading, with `getComputedStyle`
   // reporting a perfectly interpolated 0.46 the entire time. Proved by
   // elimination on the device — one override, `[data-flemo-part-name] {
   // will-change: auto }`, and the same build cross-fades.
   //
   // Nothing is traded away. A screen is a full-viewport surface whose transform
-  // runs for the whole flight, which is what the promotion was written for; a
+  // runs for the whole transition, which is what the promotion was written for; a
   // part is a glyph or a label inside chrome that is already composited, so its
   // layer buys no frames and costs a correct hand-over.
   const willChangeDecl =
@@ -1009,7 +1009,7 @@ const compileVariantBlock = (
 
   // `contain: layout` confines layout invalidation inside the transitioning
   // scope, so a heavy arrival screen's reflow doesn't propagate up through
-  // ancestors and steal time from the in-flight compositor animation.
+  // ancestors and steal time from the running compositor animation.
   // Active-variant-scoped on purpose: it establishes a new containing block
   // for absolute/fixed descendants, which we only want during the
   // transition window (status flips back to IDLE/COMPLETED → rule stops
@@ -1099,7 +1099,7 @@ const compileVariantBlock = (
   // park-over: hold the entering screen at its DESTINATION but ON TOP at a
   // near-zero opacity, so the browser genuinely PAINTS/composites its tiles
   // (giant image textures included) during the hold — the slide then rides the
-  // cached composite instead of paying the first paint mid-flight. opacity last.
+  // cached composite instead of paying the first paint mid-transition. opacity last.
   const parkOverBlock = parksEntering
     ? `\n${screenSelector}${attrValueSelector(ANIM_HOLD_ATTR, ANIM_HOLD.PARK_OVER)} {\n  animation: none;\n${declsToBlock(
         authoredToDecls
@@ -1335,7 +1335,7 @@ export const compileTransitionStyles = (
       continue;
     }
 
-    const resolved = resolveDecoratorClock(transition, decorator);
+    const resolved = resolveDecoratorTiming(transition, decorator);
     const pairName = `${transition.name}--${decorator.name}`;
     const selectorBuilder = (_: string, pairVariant: TransitionVariant) =>
       restDecoratorSelector(transition.name, decorator.name, pairVariant);
@@ -1373,15 +1373,15 @@ export const compileTransitionStyles = (
   // says — a part that authored its OWN duration and delay resolves to the same
   // clock under every transition, so its higher-specificity twin is pure weight
   // on the sheet the browser re-matches on every navigation.
-  const byNameClocks = new Map<string, ReturnType<typeof resolvePartClock>>();
+  const byNameClocks = new Map<string, ReturnType<typeof resolvePartTiming>>();
 
   for (const partTransition of partList) {
     const name = partTransition.name;
     // Normalized, not inherited: this is the rule a part with no transition
-    // matches, and there is no flight above it to take a clock from. Passing it
+    // matches, and there is no transition above it to take a clock from. Passing it
     // through the same resolver is what keeps the optional shape from reaching
     // the emitter.
-    const byName = resolvePartClock(null, partTransition);
+    const byName = resolvePartTiming(null, partTransition);
     byNameClocks.set(name, byName);
 
     for (const variant of DECORATOR_VARIANTS) {
@@ -1403,16 +1403,16 @@ export const compileTransitionStyles = (
 
   // ONE PASS PER (TRANSITION x PART) PAIR, on top of the by-name pass above.
   //
-  // A part declares a POSE; how long it takes is the flight's answer, and the
-  // flight already gave it. Before this, an omitted duration resolved to zero
+  // A part declares a POSE; how long it takes is the transition's answer, and the
+  // transition already gave it. Before this, an omitted duration resolved to zero
   // and the part SNAPPED under a screen that ran for three quarters of a
-  // second — and a part authored LONGER than its screen held the whole flight
+  // second — and a part authored LONGER than its screen held the whole transition
   // open (statusChoreographySpanMs), which disables swipe-back for as long as
   // it runs. The by-name pass stays: it is what a part mounted outside any
   // screen matches, and that one has no transition to inherit from.
   for (const transition of transitionList) {
     for (const part of partList) {
-      const resolved = resolvePartClock(transition, part);
+      const resolved = resolvePartTiming(transition, part);
       const byName = byNameClocks.get(part.name);
       const selectorBuilder = (_: string, pairVariant: TransitionVariant) =>
         partPairSelector(transition.name, part.name, pairVariant);
@@ -1476,7 +1476,7 @@ export const compileTransitionStyles = (
 const ANIM_HOLD_RULE = [
   // One selector per paused form, then the same set again scoped to the
   // <Part> and morph elements inside a held carrier. A morph's keyframes are
-  // emitted per flight rather than compiled, but its CLOCK is the same one
+  // emitted per transition rather than compiled, but its CLOCK is the same one
   // every other participant obeys — which is the whole reason a shared element
   // starts on the same frame as the screen carrying it, with no timing code on
   // either side.
@@ -1487,7 +1487,7 @@ const ANIM_HOLD_RULE = [
       `${attrValueSelector(ANIM_HOLD_ATTR, value)} ${attrSelector(MORPH_ATTR)}`,
       // The GHOST too. It is deliberately stripped of every morph marker so
       // nothing mistakes the copy for the real element — which also took it
-      // out of the rule above, and a copy that dissolves while the flight is
+      // out of the rule above, and a copy that dissolves while the transition is
       // still held is an afterimage of the thing that has not moved yet.
       `${attrValueSelector(ANIM_HOLD_ATTR, value)} ${attrSelector(MORPH_GHOST_ATTR)}`,
       // AND THE SHADE, for the same reason and with the worse symptom. The
@@ -1496,11 +1496,11 @@ const ANIM_HOLD_RULE = [
       // Part and not the ghost — so it matched none of the selectors above and
       // was the one participant the hold never reached. It therefore began at
       // the style commit while everything around it waited for the release,
-      // and ran the WHOLE flight ahead by however long the hold lasted:
+      // and ran the WHOLE transition ahead by however long the hold lasted:
       // measured on a desktop Chrome pop, the shade's animationend landed at
       // 760ms and the card's travel at 827ms, both reporting the same 0.7s of
       // elapsed time. What that draws is a shadow detached from the card it
-      // belongs to for every frame of the flight.
+      // belongs to for every frame of the transition.
       `${attrValueSelector(ANIM_HOLD_ATTR, value)} ${attrSelector(MORPH_SHADE_ATTR)}`
     ])
   ].join(",\n") + " {",
@@ -1511,14 +1511,14 @@ const ANIM_HOLD_RULE = [
 // NOTE (consumer-animation quarantine, removed): a rule used to live here that
 // set `animation: none !important` on every non-<Part> descendant (and its
 // `::before`/`::after`) of a navigation's cold entering screens, to prevent a
-// storm of consumer animation layers from committing during the flight. It
+// storm of consumer animation layers from committing during the transition. It
 // manipulated animations the consumer authored — skeleton shimmers, ambient
 // loops — which is not the library's call to make. Consumer animations now run
 // exactly as written, transitions or not.
 
-// In-flight commit hold (see core/engine/arrivalHold.ts): content that
+// Running commit hold (see core/engine/arrivalHold.ts): content that
 // arrives inside a screen DURING its transition is held off-glass and
-// reflected in one commit at rest, so a mid-flight Suspense swap can never
+// reflected in one commit at rest, so a mid-transition Suspense swap can never
 // punch through a decelerating motion. The engine stamps the attribute; this
 // rule is the entire visual mechanism.
 const ARRIVAL_HOLD_RULE = [

@@ -6,7 +6,7 @@ import { clear, el, setText, svgEl } from "../panel/dom";
 import {
   DASH,
   environmentSummary,
-  flightListSignature,
+  transitionListSignature,
   formatBool,
   formatCount,
   formatGapMs,
@@ -17,15 +17,15 @@ import {
 import { PANEL_CSS } from "../panel/styles";
 
 import type { DevtoolsPanelHandle } from "../panel";
-import type { FlemoReport, FlightRecord, FlightRecorderHandle } from "../types";
+import type { FlemoReport, TransitionRecord, TransitionRecorderHandle } from "../types";
 
 // Fixtures are cast rather than typed structurally ON PURPOSE: the report
 // schema keeps growing, and the panel's contract is "render whatever arrives,
 // never crash". Tests that had to be updated for every new recorder field
 // would quietly stop testing that.
-const flight = (over: Record<string, unknown> = {}): FlightRecord =>
+const transition = (over: Record<string, unknown> = {}): TransitionRecord =>
   ({
-    id: "flight-1",
+    id: "transition-1",
     kind: "PUSH",
     t0: { ms: 100, iso: "2026-08-18T09:00:00.000Z" },
     t1: { ms: 700, iso: "2026-08-18T09:00:00.600Z" },
@@ -43,10 +43,10 @@ const flight = (over: Record<string, unknown> = {}): FlightRecord =>
     },
     longTasks: [],
     holdLongTasks: [],
-    landing: { residualInlineTransforms: [], offViewportAtRest: false, stuckStatuses: [] },
+    endAudit: { residualInlineTransforms: [], offViewportAtRest: false, stuckStatuses: [] },
     anomalies: [],
     ...over
-  }) as unknown as FlightRecord;
+  }) as unknown as TransitionRecord;
 
 const report = (over: Record<string, unknown> = {}): FlemoReport =>
   ({
@@ -59,13 +59,13 @@ const report = (over: Record<string, unknown> = {}): FlemoReport =>
       rafCadence: { medianGapMs: 16.67, sampleCount: 20 }
     },
     overrides: { active: {}, warnings: [] },
-    flights: [],
+    transitions: [],
     anomalies: [],
     blindSpots: ["present pipeline"],
     ...over
   }) as unknown as FlemoReport;
 
-const stub = (read: () => FlemoReport): FlightRecorderHandle => ({
+const stub = (read: () => FlemoReport): TransitionRecorderHandle => ({
   report: read,
   detach: () => {},
   mark: () => null
@@ -152,7 +152,7 @@ describe("attachDevtoolsPanel — lifecycle", () => {
     const detach = vi.fn();
     (window as unknown as { flemo: unknown }).flemo = {
       __flemoDevtools: true,
-      report: () => report({ flights: [flight()] }),
+      report: () => report({ transitions: [transition()] }),
       detach
     };
     mount({ initialOpen: true });
@@ -213,7 +213,11 @@ describe("attachDevtoolsPanel — lifecycle", () => {
 
 describe("attachDevtoolsPanel — toggle and list", () => {
   it("renders only the toggle when closed and opens on click", () => {
-    mount({ recorder: stub(() => report({ flights: [flight(), flight({ id: "flight-2" })] })) });
+    mount({
+      recorder: stub(() =>
+        report({ transitions: [transition(), transition({ id: "transition-2" })] })
+      )
+    });
     vi.advanceTimersByTime(2100);
     expect(find(".panel").hidden).toBe(true);
     expect(find(".count").textContent).toBe("2");
@@ -223,7 +227,7 @@ describe("attachDevtoolsPanel — toggle and list", () => {
     expect(find(".panel").hidden).toBe(false);
     expect(rows()).toHaveLength(2);
     // Newest first.
-    expect(rows()[0]?.getAttribute("data-flight-id")).toBe("flight-2");
+    expect(rows()[0]?.getAttribute("data-transition-id")).toBe("transition-2");
 
     find(".toggle").click();
     expect(find(".panel").hidden).toBe(true);
@@ -232,28 +236,28 @@ describe("attachDevtoolsPanel — toggle and list", () => {
     expect(find(".panel").hidden).toBe(true);
   });
 
-  it("shows the anomaly dot only when a flight carries anomalies", () => {
-    let flights = [flight()];
-    mount({ recorder: stub(() => report({ flights })) });
+  it("shows the anomaly dot only when a transition carries anomalies", () => {
+    let transitions = [transition()];
+    mount({ recorder: stub(() => report({ transitions })) });
     vi.advanceTimersByTime(2100);
     expect(find(".dot").hidden).toBe(true);
-    flights = [flight({ anomalies: ["long task 180ms overlapped flight start"] })];
+    transitions = [transition({ anomalies: ["long task 180ms overlapped transition start"] })];
     vi.advanceTimersByTime(2100);
     expect(find(".dot").hidden).toBe(false);
   });
 
-  it("renders the empty state, the corner option and the flight row summary", () => {
+  it("renders the empty state, the corner option and the transition row summary", () => {
     mount({ recorder: stub(() => report()), initialOpen: true, position: "bottom-left" });
     vi.advanceTimersByTime(400);
     expect(find(".toggle").getAttribute("data-corner")).toBe("bottom-left");
-    expect(find(".list").textContent).toContain("no flights recorded yet");
-    expect(find(".detail").textContent).toContain("select a flight");
+    expect(find(".list").textContent).toContain("no transitions recorded yet");
+    expect(find(".detail").textContent).toContain("select a transition");
 
     panel?.detach();
     panel = null;
     mount({
       recorder: stub(() =>
-        report({ flights: [flight({ anomalies: ["a", "b"], durationMs: 600.4 })] })
+        report({ transitions: [transition({ anomalies: ["a", "b"], durationMs: 600.4 })] })
       ),
       initialOpen: true
     });
@@ -267,26 +271,32 @@ describe("attachDevtoolsPanel — toggle and list", () => {
   });
 
   it("keeps the selection stable across refreshes and ignores re-selecting", () => {
-    let flights = [flight(), flight({ id: "flight-2" })];
-    mount({ recorder: stub(() => report({ flights })), initialOpen: true });
+    let transitions = [transition(), transition({ id: "transition-2" })];
+    mount({ recorder: stub(() => report({ transitions })), initialOpen: true });
     vi.advanceTimersByTime(400);
-    // Auto-selection follows the newest flight while nothing is selected.
-    expect(find('.row[data-flight-id="flight-2"]').getAttribute("aria-selected")).toBe("true");
+    // Auto-selection follows the newest transition while nothing is selected.
+    expect(find('.row[data-transition-id="transition-2"]').getAttribute("aria-selected")).toBe(
+      "true"
+    );
 
-    find('.row[data-flight-id="flight-1"]').click();
-    expect(find('.row[data-flight-id="flight-1"]').getAttribute("aria-selected")).toBe("true");
-    find('.row[data-flight-id="flight-1"]').click(); // no-op re-select
-    expect(find(".detail").textContent).toContain("flight-1");
+    find('.row[data-transition-id="transition-1"]').click();
+    expect(find('.row[data-transition-id="transition-1"]').getAttribute("aria-selected")).toBe(
+      "true"
+    );
+    find('.row[data-transition-id="transition-1"]').click(); // no-op re-select
+    expect(find(".detail").textContent).toContain("transition-1");
 
-    flights = [...flights, flight({ id: "flight-3" })];
+    transitions = [...transitions, transition({ id: "transition-3" })];
     vi.advanceTimersByTime(400);
     expect(rows()).toHaveLength(3);
-    expect(find('.row[data-flight-id="flight-1"]').getAttribute("aria-selected")).toBe("true");
-    expect(find(".detail").textContent).toContain("flight-1");
+    expect(find('.row[data-transition-id="transition-1"]').getAttribute("aria-selected")).toBe(
+      "true"
+    );
+    expect(find(".detail").textContent).toContain("transition-1");
   });
 
   it("does not re-render regions whose data did not change", () => {
-    mount({ recorder: stub(() => report({ flights: [flight()] })), initialOpen: true });
+    mount({ recorder: stub(() => report({ transitions: [transition()] })), initialOpen: true });
     vi.advanceTimersByTime(400);
     const row = rows()[0];
     vi.advanceTimersByTime(1000);
@@ -295,23 +305,27 @@ describe("attachDevtoolsPanel — toggle and list", () => {
   });
 
   it("ignores interactions after detach", () => {
-    mount({ recorder: stub(() => report({ flights: [flight(), flight({ id: "flight-2" })] })) });
+    mount({
+      recorder: stub(() =>
+        report({ transitions: [transition(), transition({ id: "transition-2" })] })
+      )
+    });
     find(".toggle").click();
-    const stale = find('.row[data-flight-id="flight-1"]');
+    const stale = find('.row[data-transition-id="transition-1"]');
     panel?.detach();
     expect(() => stale.click()).not.toThrow();
   });
 });
 
-describe("attachDevtoolsPanel — the no-repaint-during-flight guarantee", () => {
+describe("attachDevtoolsPanel — the no-repaint-during-transition guarantee", () => {
   it("skips every refresh while a screen carries a transitional status", () => {
-    let flights = [flight()];
-    mount({ recorder: stub(() => report({ flights })), initialOpen: true });
+    let transitions = [transition()];
+    mount({ recorder: stub(() => report({ transitions })), initialOpen: true });
     vi.advanceTimersByTime(400);
     expect(rows()).toHaveLength(1);
 
     const screen = mountScreen("PUSHING");
-    flights = [flight(), flight({ id: "flight-2" })];
+    transitions = [transition(), transition({ id: "transition-2" })];
     vi.advanceTimersByTime(4000);
     // Frozen: neither the list nor the toggle badge moved.
     expect(rows()).toHaveLength(1);
@@ -323,9 +337,9 @@ describe("attachDevtoolsPanel — the no-repaint-during-flight guarantee", () =>
     expect(find(".count").textContent).toBe("2");
   });
 
-  it("defers a toggle click that lands mid-flight until the flight lands", () => {
+  it("defers a toggle click that lands mid-transition until the transition lands", () => {
     const screen = mountScreen("POPPING");
-    mount({ recorder: stub(() => report({ flights: [flight()] })) });
+    mount({ recorder: stub(() => report({ transitions: [transition()] })) });
     find(".toggle").click();
     expect(find(".panel").hidden).toBe(true);
 
@@ -389,10 +403,10 @@ describe("attachDevtoolsPanel — copy report JSON", () => {
   it("writes the report through the async clipboard and restores its label", async () => {
     const writeText = vi.fn(() => Promise.resolve());
     setClipboard({ writeText });
-    mount({ recorder: stub(() => report({ flights: [flight()] })), initialOpen: true });
+    mount({ recorder: stub(() => report({ transitions: [transition()] })), initialOpen: true });
     vi.advanceTimersByTime(400);
     copyButton()?.click();
-    expect(writeText).toHaveBeenCalledWith(expect.stringContaining('"flight-1"'));
+    expect(writeText).toHaveBeenCalledWith(expect.stringContaining('"transition-1"'));
     await flushMicrotasks();
     expect(copyButton()?.textContent).toBe("Copied ✓");
     copyButton()?.click(); // resets the pending restore timer
@@ -401,10 +415,10 @@ describe("attachDevtoolsPanel — copy report JSON", () => {
     expect(copyButton()?.textContent).toBe("Copy report JSON");
   });
 
-  it("holds the copied label until the flight lands", async () => {
+  it("holds the copied label until the transition lands", async () => {
     const writeText = vi.fn(() => Promise.resolve());
     setClipboard({ writeText });
-    mount({ recorder: stub(() => report({ flights: [flight()] })), initialOpen: true });
+    mount({ recorder: stub(() => report({ transitions: [transition()] })), initialOpen: true });
     vi.advanceTimersByTime(400);
 
     // The clipboard resolves on its own schedule, and a navigation can start
@@ -430,7 +444,7 @@ describe("attachDevtoolsPanel — copy report JSON", () => {
 
   it("drops the pending label restore when the panel detaches first", async () => {
     setClipboard({ writeText: () => Promise.resolve() });
-    mount({ recorder: stub(() => report({ flights: [flight()] })), initialOpen: true });
+    mount({ recorder: stub(() => report({ transitions: [transition()] })), initialOpen: true });
     vi.advanceTimersByTime(400);
     copyButton()?.click();
     await flushMicrotasks();
@@ -456,7 +470,7 @@ describe("attachDevtoolsPanel — copy report JSON", () => {
     expect(copyButton()?.textContent).toBe("Copied ✓");
   });
 
-  it("defers the rejected-clipboard fallback until the flight lands", async () => {
+  it("defers the rejected-clipboard fallback until the transition lands", async () => {
     let reject = (_error: Error): void => {};
     const execCommand = vi.fn(() => true);
     setClipboard({
@@ -602,7 +616,7 @@ describe("attachDevtoolsPanel — resize", () => {
 
 describe("attachDevtoolsPanel — the motion/images sections", () => {
   const findings = () =>
-    flight({
+    transition({
       motion: {
         sampledFrames: 30,
         stalledFrames: 12,
@@ -612,12 +626,12 @@ describe("attachDevtoolsPanel — the motion/images sections", () => {
       },
       images: {
         loadingAtStart: 12,
-        addedDuringFlight: 3,
-        completedDuringFlight: 5,
-        heldDuringFlight: 5,
+        addedDuringTransition: 3,
+        completedDuringTransition: 5,
+        heldDuringTransition: 5,
         completedUnheld: 1
       },
-      landing: {
+      endAudit: {
         residualInlineTransforms: [],
         offViewportAtRest: false,
         stuckStatuses: [],
@@ -627,7 +641,7 @@ describe("attachDevtoolsPanel — the motion/images sections", () => {
 
   it("shows the defects a human would otherwise have to read JSON for", () => {
     mount({
-      recorder: stub(() => report({ flights: [findings()] })),
+      recorder: stub(() => report({ transitions: [findings()] })),
       initialOpen: true
     });
     vi.advanceTimersByTime(400);
@@ -637,14 +651,14 @@ describe("attachDevtoolsPanel — the motion/images sections", () => {
     expect(detail).toContain("250ms");
     expect(detail).toContain("180ms");
     expect(detail).toContain("still marked at rest");
-    expect(detail).toContain("completed mid-flight");
-    expect(detail).toContain("added mid-flight3");
+    expect(detail).toContain("completed mid-transition");
+    expect(detail).toContain("added mid-transition3");
     expect(detail).toContain("completed without hold1");
   });
 
-  it("marks a real finding, and leaves a clean flight unmarked", () => {
+  it("marks a real finding, and leaves a clean transition unmarked", () => {
     mount({
-      recorder: stub(() => report({ flights: [findings()] })),
+      recorder: stub(() => report({ transitions: [findings()] })),
       initialOpen: true
     });
     vi.advanceTimersByTime(400);
@@ -659,8 +673,8 @@ describe("attachDevtoolsPanel — the motion/images sections", () => {
     mount({
       recorder: stub(() =>
         report({
-          flights: [
-            flight({
+          transitions: [
+            transition({
               motion: {
                 sampledFrames: 30,
                 stalledFrames: 0,
@@ -670,12 +684,12 @@ describe("attachDevtoolsPanel — the motion/images sections", () => {
               },
               images: {
                 loadingAtStart: 12,
-                addedDuringFlight: 0,
-                completedDuringFlight: 4,
-                heldDuringFlight: 12,
+                addedDuringTransition: 0,
+                completedDuringTransition: 4,
+                heldDuringTransition: 12,
                 completedUnheld: 0
               },
-              landing: {
+              endAudit: {
                 residualInlineTransforms: [],
                 offViewportAtRest: false,
                 stuckStatuses: [],
@@ -695,22 +709,22 @@ describe("attachDevtoolsPanel — the motion/images sections", () => {
   });
 });
 
-describe("attachDevtoolsPanel — flight detail", () => {
-  it("renders every section of a rich flight", () => {
+describe("attachDevtoolsPanel — transition detail", () => {
+  it("renders every section of a rich transition", () => {
     mount({
       recorder: stub(() =>
         report({
-          flights: [
-            flight({
+          transitions: [
+            transition({
               routerId: "root",
               longTasks: [{ startMs: 1200, durationMs: 180 }],
               holdLongTasks: [{ startMs: 900, durationMs: 60 }],
-              landing: {
+              endAudit: {
                 residualInlineTransforms: ["screen[0] transform=translateX(10px)"],
                 offViewportAtRest: true,
                 stuckStatuses: ["PUSHING"]
               },
-              anomalies: ["landing residue"],
+              anomalies: ["end-of-transition residue"],
               frameSamples: {
                 held: { count: 7, medianGapMs: 18.1, maxGapMs: 45, over30Count: 1 },
                 released: { count: 4, medianGapMs: 16.7, maxGapMs: 33, gaps: [16.7, 33, 16.7, 0] }
@@ -734,15 +748,15 @@ describe("attachDevtoolsPanel — flight detail", () => {
     expect(detail).toContain("900ms + 60ms (absorbed by hold)");
     expect(detail).toContain("screen[0] transform=translateX(10px)");
     expect(detail).toContain("PUSHING");
-    expect(detail).toContain("landing residue");
+    expect(detail).toContain("end-of-transition residue");
     expect(shadow().querySelector(".spark")).not.toBeNull();
     expect(shadow().querySelector("polyline")?.getAttribute("points")).toContain(",");
   });
 
-  it("renders a bare flight with dashes instead of crashing", () => {
+  it("renders a bare transition with dashes instead of crashing", () => {
     mount({
       recorder: stub(() =>
-        report({ flights: [{}], environment: undefined, blindSpots: undefined })
+        report({ transitions: [{}], environment: undefined, blindSpots: undefined })
       ),
       initialOpen: true
     });
@@ -751,13 +765,13 @@ describe("attachDevtoolsPanel — flight detail", () => {
     expect(rows()).toHaveLength(1);
     expect(rows()[0]?.textContent).toContain(DASH);
     // No id to select by, so the detail pane stays on its empty state.
-    expect(find(".detail").textContent).toContain("select a flight");
+    expect(find(".detail").textContent).toContain("select a transition");
     expect(find(".foot").textContent).toContain("What this cannot see");
   });
 
-  it("renders a clean flight's empty sections", () => {
+  it("renders a clean transition's empty sections", () => {
     mount({
-      recorder: stub(() => report({ flights: [flight({ frameSamples: undefined })] })),
+      recorder: stub(() => report({ transitions: [transition({ frameSamples: undefined })] })),
       initialOpen: true
     });
     vi.advanceTimersByTime(400);
@@ -768,14 +782,14 @@ describe("attachDevtoolsPanel — flight detail", () => {
     expect(texts(".kv").some((value) => value.includes(DASH))).toBe(true);
   });
 
-  it("renders a flight that carries nothing but an id", () => {
+  it("renders a transition that carries nothing but an id", () => {
     mount({
-      recorder: stub(() => report({ flights: [{ id: "flight-1" }] })),
+      recorder: stub(() => report({ transitions: [{ id: "transition-1" }] })),
       initialOpen: true
     });
     vi.advanceTimersByTime(400);
     const detail = find(".detail").textContent ?? "";
-    expect(detail).toContain("flight-1");
+    expect(detail).toContain("transition-1");
     expect(detail).toContain(DASH);
     // Absent long tasks / landing / anomalies read as "none", not as a crash.
     expect(detail).toContain("clean");
@@ -786,8 +800,8 @@ describe("attachDevtoolsPanel — flight detail", () => {
     mount({
       recorder: stub(() =>
         report({
-          flights: [
-            flight({
+          transitions: [
+            transition({
               frameSamples: {
                 held: { count: 0, medianGapMs: 0, maxGapMs: 0, over30Count: 0 },
                 released: { count: 2, medianGapMs: 0, maxGapMs: 0, over30Count: 0, gaps: [0, 0] }
@@ -832,18 +846,18 @@ describe("panel formatting helpers", () => {
     );
   });
 
-  it("keys the flight list on the values it shows", () => {
-    expect(flightListSignature([flight()], "flight-1")).toBe(
-      "flight-1#flight-1|PUSH|compiled|600|2|0"
+  it("keys the transition list on the values it shows", () => {
+    expect(transitionListSignature([transition()], "transition-1")).toBe(
+      "transition-1#transition-1|PUSH|compiled|600|2|0"
     );
-    expect(flightListSignature([{} as FlightRecord], null)).toBe("#|||0|0|0");
+    expect(transitionListSignature([{} as TransitionRecord], null)).toBe("#|||0|0|0");
   });
 
   it("only reports a released-gap series it can actually see", () => {
     expect(releasedGapSeries(undefined)).toBeNull();
-    expect(releasedGapSeries(flight().frameSamples)).toBeNull();
+    expect(releasedGapSeries(transition().frameSamples)).toBeNull();
     const withGaps = (gaps: unknown) =>
-      releasedGapSeries({ released: { gaps } } as unknown as FlightRecord["frameSamples"]);
+      releasedGapSeries({ released: { gaps } } as unknown as TransitionRecord["frameSamples"]);
     expect(withGaps([1])).toBeNull();
     expect(withGaps(["a", Number.NaN, 1])).toBeNull();
     expect(withGaps([16.7, "a", 33])).toEqual([16.7, 33]);
@@ -874,7 +888,7 @@ describe("panel DOM helpers", () => {
   });
 });
 
-// THE SECTIONS THAT ANSWER "did the shared elements fly", "what did the
+// THE SECTIONS THAT ANSWER "did the shared elements move", "what did the
 // browser report in a single frame", and "what actually drove this".
 describe("attachDevtoolsPanel — shared elements, tripwires and input", () => {
   const rich = () =>
@@ -884,8 +898,8 @@ describe("attachDevtoolsPanel — shared elements, tripwires and input", () => {
         { id: "build-mode", status: "violated", detail: "development-server globals are present" },
         { id: "display-cadence", status: "ok", detail: "60Hz" }
       ],
-      flights: [
-        flight({
+      transitions: [
+        transition({
           motion: {
             sampledFrames: 20,
             stalledFrames: 0,
@@ -898,7 +912,7 @@ describe("attachDevtoolsPanel — shared elements, tripwires and input", () => {
           morphs: {
             registered: 4,
             pairable: ["hero", "title"],
-            flew: ["hero"],
+            moved: ["hero"],
             skipped: ["title"],
             camera: true,
             ghosts: 1,
@@ -927,12 +941,12 @@ describe("attachDevtoolsPanel — shared elements, tripwires and input", () => {
     expect(chips.some((chip) => chip.startsWith("display-cadence"))).toBe(false);
   });
 
-  it("names the shared elements that did not fly, and the residue they left", () => {
+  it("names the shared elements that did not move, and the residue they left", () => {
     mount({ recorder: stub(rich), initialOpen: true });
     vi.advanceTimersByTime(400);
     const detail = find(".detail").textContent ?? "";
     expect(detail).toContain("shared elements");
-    expect(detail).toContain("did not fly");
+    expect(detail).toContain("did not move");
     expect(detail).toContain("title");
     expect(detail).toContain("duplicate keys in one screen");
     expect(detail).toContain("1 roles");
@@ -964,8 +978,8 @@ describe("attachDevtoolsPanel — shared elements, tripwires and input", () => {
     expect(find(".detail").textContent).toContain("+22ms after t0");
   });
 
-  it("says nothing about shared elements on a flight that had none", () => {
-    mount({ recorder: stub(() => report({ flights: [flight()] })), initialOpen: true });
+  it("says nothing about shared elements on a transition that had none", () => {
+    mount({ recorder: stub(() => report({ transitions: [transition()] })), initialOpen: true });
     vi.advanceTimersByTime(400);
     const detail = find(".detail").textContent ?? "";
     expect(detail).toContain("not observed");
@@ -994,13 +1008,13 @@ describe("attachDevtoolsPanel — shared elements, tripwires and input", () => {
     expect(marks).toEqual(["A", "B", null]);
   });
 
-  it("renders the new sections of a bare flight with dashes instead of crashing", () => {
+  it("renders the new sections of a bare transition with dashes instead of crashing", () => {
     mount({
       recorder: stub(() =>
         report({
           verdict: undefined,
           preconditions: undefined,
-          flights: [{ id: "flight-1", morphs: {}, tripwires: [], input: {} }]
+          transitions: [{ id: "transition-1", morphs: {}, tripwires: [], input: {} }]
         })
       ),
       initialOpen: true
@@ -1014,16 +1028,16 @@ describe("attachDevtoolsPanel — shared elements, tripwires and input", () => {
     expect(detail).not.toContain("tripwires (one-frame events)");
   });
 
-  it("renders a flight whose shared elements are all present and clean", () => {
+  it("renders a transition whose shared elements are all present and clean", () => {
     mount({
       recorder: stub(() =>
         report({
-          flights: [
-            flight({
+          transitions: [
+            transition({
               morphs: {
                 registered: 2,
                 pairable: ["hero"],
-                flew: ["hero"],
+                moved: ["hero"],
                 skipped: [],
                 camera: false,
                 ghosts: 0,
@@ -1043,7 +1057,7 @@ describe("attachDevtoolsPanel — shared elements, tripwires and input", () => {
     });
     vi.advanceTimersByTime(400);
     const detail = find(".detail").textContent ?? "";
-    expect(detail).toContain("did not flynone");
+    expect(detail).toContain("did not movenone");
     expect(detail).toContain("residue at restclean");
     expect(detail).toContain("touch");
     expect(find(".detail").querySelectorAll(".v.bad")).toHaveLength(0);
@@ -1069,7 +1083,7 @@ describe("panel stylesheet", () => {
   // A 999px radius is a stadium once a chip wraps: the verdict and a long
   // warning both wrap, and their text ran out past the curve.
   // A session with a handful of findings used to fill the drawer with chips and
-  // leave the flight list and its detail no height to scroll in.
+  // leave the transition list and its detail no height to scroll in.
   it("caps the header at half the drawer and scrolls it there", () => {
     const head = /\n\.head \{([^}]*)\}/.exec(PANEL_CSS)?.[1] ?? "";
     expect(head).toContain("max-height: 50%;");

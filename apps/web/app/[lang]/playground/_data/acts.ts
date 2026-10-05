@@ -120,7 +120,7 @@ export const actById = (id: string | undefined): Act | undefined =>
   ACTS.find((act) => act.id === id);
 
 // A flat gradient rather than a photograph, and that is a measurement rather
-// than a taste: an image finishing its decode mid-flight rasters on the moving
+// than a taste: an image finishing its decode mid-transition rasters on the moving
 // layer and costs a present. `@flemo/devtools` reports it as the warm-side
 // image-hold regression; a stage being judged should not manufacture one.
 export const artworkFor = (hue: number): string =>

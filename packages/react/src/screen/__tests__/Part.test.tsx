@@ -175,7 +175,7 @@ describe("Part owner Router marker", () => {
           ScreenContext.Provider,
           { value: screen },
           // A nested Router's chrome: the NEAREST RouterIdContext is the
-          // inner one, but the part belongs to the outer flight.
+          // inner one, but the part belongs to the outer transition.
           createElement(
             RouterIdContext.Provider,
             { value: "inner-router" },

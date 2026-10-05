@@ -7,7 +7,7 @@ import { stampAsyncImageDecode } from "@core/engine/imageDecodeHygiene";
 
 // Async-decode stamping (imageDecodeHygiene.ts): a transitional screen's
 // images decode OFF the paint critical path, so a huge cross-origin source
-// (the device-measured 37MP portrait) can no longer freeze flight frames.
+// (the device-measured 37MP portrait) can no longer freeze transition frames.
 
 describe("stampAsyncImageDecode", () => {
   it("stamps decoding=async on images the consumer left unspecified", () => {

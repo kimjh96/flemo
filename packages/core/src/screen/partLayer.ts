@@ -12,13 +12,13 @@ import { PART_LAYER_ATTR } from "@dom/attributes";
 // context holding the screen's z-index — so the lower screen's part is painted
 // under the upper screen's opaque surface. Both parts run, only one is seen.
 // Being covered is a property of being a DESCENDANT, so the covered side's
-// parts leave for the duration of the flight and come back when it lands.
+// parts leave for the duration of the transition and come back when it lands.
 //
 // Deliberately NOT the morph layer, though the shape is the same. A morph
 // stages only when a <Morph> pair matches, and it owns that box outright: it
 // writes the layer's z-index and mirrors a screen's hold onto it, then strips
 // the hold attribute again on landing (see attachMorph's `finish`). A part
-// flight has its own lifetime and would have its hold torn out from under it by
+// transition has its own lifetime and would have its hold torn out from under it by
 // any morph that happened to land first. Two lifetimes, two boxes.
 //
 // Per Router SCOPE, not per document, for the reason morphLayer states: a
@@ -37,7 +37,7 @@ export const registerPartLayer = (store: NavigateStoreApi, element: HTMLElement 
 };
 
 /**
- * The layer to stage a flight's bar parts in, creating a document-level fallback
+ * The layer to stage a transition's bar parts in, creating a document-level fallback
  * for a binding that publishes none. The fallback is correct for a root Router
  * (its screens fill the viewport anyway) and wrong only for a CONTAINED one,
  * which is exactly the case a binding is expected to publish.

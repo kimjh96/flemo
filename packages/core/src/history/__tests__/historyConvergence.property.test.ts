@@ -198,7 +198,7 @@ describe("history convergence property", () => {
             throw error;
           });
         } else {
-          // Remount: the Router dies mid-flight and a fresh one seeds from the
+          // Remount: the Router dies mid-transition and a fresh one seeds from the
           // browser's current entry (the storm's cross-boundary case).
           trace.push("R");
           router.dispose();

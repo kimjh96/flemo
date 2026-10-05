@@ -22,10 +22,10 @@ const EASE: [number, number, number, number] = [0.32, 0.72, 0, 1];
  * The iOS-style horizontal push and pop, registered as `"cupertino"`, and the
  * Router's default when `defaultTransitionName` is omitted.
  *
- * The arriving screen slides in from the right over 0.7s while the covered one
- * retreats 30% of its width. It names the `overlay` decorator for the dim over
+ * The new screen slides in from the right over 0.7s while the covered one
+ * moves back 30% of its width. It sets the `overlay` decorator for the dim over
  * the covered screen; the native leading-edge shadow is deliberately not
- * replicated. Every participant riding this flight inherits the same 0.7s.
+ * replicated. Every element that moves with this transition inherits the same 0.7s.
  */
 const cupertino = createTransition({
   name: "cupertino",

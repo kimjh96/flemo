@@ -40,15 +40,15 @@ function CompositionCommandLayer({ onClose }: CompositionCommandLayerProps) {
             </button>
           </div>
           <p className="mt-3 text-sm leading-6 text-slate-600 dark:text-slate-300">
-            This dialog was opened by the inner memory Router. Layer moves its paint into the outer
-            screen host, so the dim covers the shared header too.
+            The inner memory Router opened this dialog. Layer renders it in the outer screen host,
+            so the dim also covers the shared header.
           </p>
           <div className="mt-5 grid grid-cols-2 gap-2 text-xs font-bold">
             <span className="rounded-2xl bg-indigo-50 p-3 text-indigo-700 dark:bg-indigo-950/50 dark:text-indigo-200">
               Inner state kept
             </span>
             <span className="rounded-2xl bg-emerald-50 p-3 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-200">
-              Outer chrome covered
+              Outer header covered
             </span>
           </div>
         </section>

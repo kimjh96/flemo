@@ -3,7 +3,7 @@ import { ANIM_HOLD_ATTR } from "@dom/attributes";
 // present from the main thread (non-Blink).
 //
 // A compiled animation runs on the wall clock: when the main thread loses a
-// few frames mid-flight, the timeline keeps advancing and the next presented
+// few frames mid-transition, the timeline keeps advancing and the next presented
 // frame shows the curve several steps ahead — a fast slide visibly "launches"
 // (device-measured: a 26%-of-travel single-frame stride at 55ms into a push,
 // against a healthy 11-12% easing peak). The rAF player is immune because it
@@ -13,7 +13,7 @@ import { ANIM_HOLD_ATTR } from "@dom/attributes";
 // motion resumes two frames past where it stalled and plays its authored
 // curve out in full, just late.
 //
-// The watcher runs only while a native-driven flight is active: one timestamp
+// The watcher runs only while a native-driven transition is active: one timestamp
 // subtraction per frame, and it WRITES nothing until a stall actually happens
 // — so unlike a per-frame driver it contributes no timing jitter of its own.
 // On Blink the compositor keeps presenting through main-thread stalls (an rAF
@@ -62,18 +62,18 @@ const shiftAnimations = (element: HTMLElement, excessMs: number, frameNow: numbe
   }
 };
 
-// One anchor attempt per animation, ever: the flight-start anchor (below)
-// must not rewind an animation a second effect re-run sees mid-flight — a
+// One anchor attempt per animation, ever: the transition-start anchor (below)
+// must not rewind an animation a second effect re-run sees mid-transition — a
 // healthy timeline pulled backwards is a visible jump.
 const startAnchored = new WeakSet<Animation>();
 
-// First-frame clock hold: the COMPLETE form of the flight-start anchor.
+// First-frame clock hold: the COMPLETE form of the transition-start anchor.
 //
-// The rewind (anchorNativeFlightStart) runs from a React effect, and effect
+// The rewind (anchorNativeTransitionStart) runs from a React effect, and effect
 // scheduling races the very block it compensates for: when the effect
 // flushes AFTER the release commit's heavy render pass, the clocks are
 // already aged at collection time and are indistinguishable from a healthy
-// mid-flight re-run — the opening still skips, intermittently. This hold
+// mid-transition re-run — the opening still skips, intermittently. This hold
 // removes the race by never letting the clock run before a presentable
 // frame: an engine-owned MutationObserver catches the anim-hold release in
 // its microtask (before the frame's style/layout/paint, regardless of what
@@ -83,7 +83,7 @@ const startAnchored = new WeakSet<Animation>();
 // tick — so however long the entering commit blocks, t=0 lands on the first
 // frame the user actually sees, by construction. The first frame presents
 // the authored from-pose (the same pose the hold was showing), so the
-// handoff is seamless; the flight simply begins one presented frame later,
+// handoff is seamless; the transition simply begins one presented frame later,
 // which is exactly the rAF player's semantics.
 // The first-frame hold's insurance for suspended rAF (background tab).
 const FIRST_FRAME_BACKSTOP_MS = 1000;
@@ -93,7 +93,7 @@ const FIRST_FRAME_BACKSTOP_MS = 1000;
 // BASELINE before the release's monster frame (its first rAF runs at the
 // top of that frame's rendering update, before the layout/paint block), so
 // the frame's whole span becomes a measured, capped gap instead of a
-// wholesale clock advance. Far past any flight; overlap with the effect's
+// wholesale clock advance. Far past any transition; overlap with the effect's
 // watcher is safe by the per-frame shift dedup.
 const EARLY_WATCH_BACKSTOP_MS = 3000;
 
@@ -162,7 +162,7 @@ export function holdNativeClocksToFirstFrame(
         if (startAnchored.has(animation)) continue;
         // A just-born animation's start may still be PENDING (currentTime
         // null) — that is the freshest state of all. Only a NUMERIC clock
-        // past one step marks a mid-flight animation, which must not be
+        // past one step marks a mid-transition animation, which must not be
         // touched.
         const currentTime = animation.currentTime;
         if (typeof currentTime === "number" && currentTime > NATIVE_STALL_STEP_MS) continue;
@@ -177,7 +177,7 @@ export function holdNativeClocksToFirstFrame(
     }
     if (held.length === 0) return;
     handle = requestAnimationFrame(resume);
-    // rAF suspends in background tabs; a flight must never stay frozen.
+    // rAF suspends in background tabs; a transition must never stay frozen.
     if (typeof setTimeout === "function") backstop = setTimeout(resume, FIRST_FRAME_BACKSTOP_MS);
     // Early stall watch: baselined at the NEXT rAF — the top of the very
     // frame whose layout/paint is the entering commit's block — so that
@@ -229,7 +229,7 @@ export function holdNativeClocksToFirstFrame(
   };
 }
 
-// Flight-START anchor: the gap watchNativeStalls cannot see. The stall
+// Transition-START anchor: the gap watchNativeStalls cannot see. The stall
 // watcher measures rAF-to-rAF gaps, so it needs one clean tick as a
 // baseline — but the heaviest block of a navigation is the very FIRST
 // frame after the hold release, where the entering screen's style, layout
@@ -241,19 +241,19 @@ export function holdNativeClocksToFirstFrame(
 //
 // This grafts the player's semantics onto the native driver's first frame:
 // at the release, every JUST-started flemo animation (aged at most one
-// step — an older one belongs to an effect re-run mid-flight and must not
+// step — an older one belongs to an effect re-run mid-transition and must not
 // be touched) is marked, and on the next rAF any marked clock that aged
 // beyond one step is pulled back to exactly one step of progress. rAF runs
 // before the frame's render steps, so the rewind lands before that frame
 // presents. `onShift` mirrors watchNativeStalls' onStall: the engine's
 // wall-clock deadlines must move with the rewound timeline.
-// How long past the flight's birth the anchor keeps watching. The
+// How long past the transition's birth the anchor keeps watching. The
 // release-frame co-flush it exists for ages the clock in the FIRST rendering
 // update (whose block a single next-rAF check fires BEFORE, not after —
 // measured: a 300ms block injected into the release frame sailed straight
 // past the one-shot form and swallowed 94% of the travel); one short window
 // of frames covers that update and its immediate aftermath, then the anchor
-// stands down for good so mid-flight presentation is never touched.
+// stands down for good so mid-transition presentation is never touched.
 const START_ANCHOR_WINDOW_MS = 150;
 
 // The hold guard: how far into the future the first tick dates each clock.
@@ -263,11 +263,11 @@ const START_ANCHOR_WINDOW_MS = 150;
 const START_HOLD_GUARD_MS = 4000;
 
 // If the restore tick never comes (rAF suspends — a backgrounded tab right
-// at flight birth), the guard must not strand the animation 4s in the
+// at transition birth), the guard must not strand the animation 4s in the
 // future: a wall-clock backstop restores it the same way.
 const START_HOLD_BACKSTOP_MS = 400;
 
-export function anchorNativeFlightStart(
+export function anchorNativeTransitionStart(
   elements: () => (HTMLElement | null | undefined)[],
   onShift?: (excessMs: number) => void,
   // Whether the two-phase hold applies. TRUE for slides (PUSHING/POPPING),
@@ -280,7 +280,7 @@ export function anchorNativeFlightStart(
   holdFirstFrame = true,
   // FIRST-TICK-ONLY mode, for rAF-capped sessions (iOS Low Power Mode). LPM
   // caps rAF ~30Hz while the compositor keeps presenting at panel rate, so
-  // every gap-based watch here reads a healthy flight as a stall: the
+  // every gap-based watch here reads a healthy transition as a stall: the
   // co-flush window's allowance (capped at one step per tick) falls behind
   // wall time within 2-3 ticks and rewinds an animation the user has ALREADY
   // watched reach 40-60% of travel — device-measured (iPhone LPM, 2026-08)
@@ -308,7 +308,7 @@ export function anchorNativeFlightStart(
       // A just-born animation's start may still be PENDING (currentTime
       // null) — the freshest state of all (the hold's own gate treats it
       // the same way). Only a NUMERIC clock past one step marks a
-      // mid-flight animation, which must not be touched.
+      // mid-transition animation, which must not be touched.
       const currentTime = animation.currentTime;
       if (typeof currentTime === "number" && currentTime > NATIVE_STALL_STEP_MS) continue;
       if (currentTime !== null && typeof currentTime !== "number") continue;
@@ -329,7 +329,7 @@ export function anchorNativeFlightStart(
   //   identical to the park pose already on glass, so nothing changes.
   //   RESTORE (next tick, block behind us): give the guard back so each
   //   clock sits at exactly base + the capped allowance — the opening plays
-  //   in full from its first REAL presented frame. A healthy flight's
+  //   in full from its first REAL presented frame. A healthy transition's
   //   restore is a numeric no-op (guard out, one frame's allowance in), so
   //   the hold costs it nothing but one from-pose frame.
   // Then the allowance watch continues for the co-flush window, unchanged.
@@ -467,7 +467,7 @@ export function anchorNativeFlightStart(
   };
 }
 
-// Watches for main-thread stalls while a native-driven flight is running and
+// Watches for main-thread stalls while a native-driven transition is running and
 // re-anchors every flemo animation under the given elements (subtrees
 // included — parts live inside screen scopes, and sibling screens carry
 // their own participants). `onStall` fires after a shift so the engine can
@@ -519,7 +519,7 @@ interface ReleaseAnchorRecord {
 }
 const releaseAnchors = new WeakMap<HTMLElement, ReleaseAnchorRecord>();
 
-export function armFlightStartAnchorAtRelease(
+export function armTransitionStartAnchorAtRelease(
   scope: HTMLElement,
   elements: () => (HTMLElement | null | undefined)[],
   onShift?: (excessMs: number) => void,
@@ -545,7 +545,7 @@ export function armFlightStartAnchorAtRelease(
     if (engaged || disposed) return;
     engaged = true;
     observer.disconnect();
-    detachAnchor = anchorNativeFlightStart(elements, onShift, holdFirstFrame, firstTickOnly);
+    detachAnchor = anchorNativeTransitionStart(elements, onShift, holdFirstFrame, firstTickOnly);
   };
   const observer = new MutationObserver(() => {
     if (scope.getAttribute(ANIM_HOLD_ATTR) !== "false") return;

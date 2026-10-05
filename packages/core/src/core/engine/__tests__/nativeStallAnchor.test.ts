@@ -3,9 +3,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   NATIVE_STALL_STEP_MS,
   watchNativeStalls,
-  anchorNativeFlightStart,
+  anchorNativeTransitionStart,
   holdNativeClocksToFirstFrame,
-  armFlightStartAnchorAtRelease
+  armTransitionStartAnchorAtRelease
 } from "@core/engine/nativeStallAnchor";
 
 interface FakeAnimation {
@@ -186,7 +186,7 @@ describe("watchNativeStalls", () => {
   });
 });
 
-describe("anchorNativeFlightStart", () => {
+describe("anchorNativeTransitionStart", () => {
   const GUARD = 4000; // START_HOLD_GUARD_MS
   const makeAnimation = (currentTime: number, name = "flemo-screen-x-PUSHING-true") =>
     ({
@@ -213,7 +213,7 @@ describe("anchorNativeFlightStart", () => {
   it("the first tick holds every fresh clock in the future (from-pose through the release block)", () => {
     const fresh = makeAnimation(2);
     const { rafCbs, raf } = queuedRaf();
-    const detach = anchorNativeFlightStart(() => [host([fresh])]);
+    const detach = anchorNativeTransitionStart(() => [host([fresh])]);
     rafCbs.shift()!(0); // HOLD: the block's own present now shows the from pose
     expect(fresh.startTime).toBe(1000 + GUARD);
     detach();
@@ -224,7 +224,7 @@ describe("anchorNativeFlightStart", () => {
     const fresh = makeAnimation(2);
     const { rafCbs, raf } = queuedRaf();
     const onShift = vi.fn();
-    const detach = anchorNativeFlightStart(() => [host([fresh])], onShift);
+    const detach = anchorNativeTransitionStart(() => [host([fresh])], onShift);
     rafCbs.shift()!(0); // hold
     // The release block ran 150ms; the (guarded) clock aged with it.
     (fresh as unknown as { currentTime: number }).currentTime = 2 + 150 - GUARD;
@@ -239,11 +239,11 @@ describe("anchorNativeFlightStart", () => {
     raf.mockRestore();
   });
 
-  it("a healthy flight's hold+restore is a numeric no-op and never fires onShift", () => {
+  it("a healthy transition's hold+restore is a numeric no-op and never fires onShift", () => {
     const fresh = makeAnimation(2);
     const { rafCbs, raf } = queuedRaf();
     const onShift = vi.fn();
-    const detach = anchorNativeFlightStart(() => [host([fresh])], onShift);
+    const detach = anchorNativeTransitionStart(() => [host([fresh])], onShift);
     rafCbs.shift()!(1000); // hold
     (fresh as unknown as { currentTime: number }).currentTime = 2 + 16 - GUARD;
     rafCbs.shift()!(1016); // restore: guard out, one frame's allowance in
@@ -270,7 +270,7 @@ describe("anchorNativeFlightStart", () => {
     const fresh = makeAnimation(2);
     const { rafCbs, raf } = queuedRaf();
     const onShift = vi.fn();
-    const detach = anchorNativeFlightStart(() => [host([fresh])], onShift);
+    const detach = anchorNativeTransitionStart(() => [host([fresh])], onShift);
     rafCbs.shift()!(1000); // hold
     (fresh as unknown as { currentTime: number }).currentTime = 2 + 16 - GUARD;
     rafCbs.shift()!(1016); // restore → base 18, allowance resets
@@ -288,7 +288,7 @@ describe("anchorNativeFlightStart", () => {
   it("a detach between hold and restore gives the guard back", () => {
     const fresh = makeAnimation(2);
     const { rafCbs, raf } = queuedRaf();
-    const detach = anchorNativeFlightStart(() => [host([fresh])]);
+    const detach = anchorNativeTransitionStart(() => [host([fresh])]);
     rafCbs.shift()!(0); // hold
     (fresh as unknown as { currentTime: number }).currentTime = 2 + 30 - GUARD;
     detach();
@@ -301,7 +301,7 @@ describe("anchorNativeFlightStart", () => {
     const fresh = makeAnimation(2);
     const { rafCbs, raf } = queuedRaf();
     const onShift = vi.fn();
-    const detach = anchorNativeFlightStart(() => [host([fresh])], onShift, false);
+    const detach = anchorNativeTransitionStart(() => [host([fresh])], onShift, false);
     rafCbs.shift()!(0); // no hold: startTime untouched, watch begins
     expect(fresh.startTime).toBe(1000);
     // A 150ms release block: the one-shot rewind covers it, one frame late.
@@ -318,7 +318,7 @@ describe("anchorNativeFlightStart", () => {
     const fresh = makeAnimation(2);
     const { rafCbs, raf } = queuedRaf();
     const onShift = vi.fn();
-    const detach = anchorNativeFlightStart(() => [host([fresh])], onShift, false, true);
+    const detach = anchorNativeTransitionStart(() => [host([fresh])], onShift, false, true);
     // One LPM frame (48ms) of clock aging between the release microtask and
     // the first rendering update — nothing has presented yet.
     (fresh as unknown as { currentTime: number }).currentTime = 2 + 48;
@@ -327,7 +327,7 @@ describe("anchorNativeFlightStart", () => {
     expect(fresh.startTime).toBeCloseTo(1000 + (2 + 48 - allowed), 5);
     expect(onShift).toHaveBeenCalledTimes(1);
     // Stands down: no co-flush watch — later capped-rAF gaps (which are NOT
-    // presentation gaps under LPM) can never rewind the presenting flight.
+    // presentation gaps under LPM) can never rewind the presenting transition.
     expect(rafCbs.length).toBe(0);
     // Detach after the tick must not restore-guard the clock backwards.
     const settled = fresh.startTime;
@@ -340,7 +340,7 @@ describe("anchorNativeFlightStart", () => {
     const fresh = makeAnimation(2);
     const { rafCbs, raf } = queuedRaf();
     const onShift = vi.fn();
-    const detach = anchorNativeFlightStart(() => [host([fresh])], onShift, false, true);
+    const detach = anchorNativeTransitionStart(() => [host([fresh])], onShift, false, true);
     (fresh as unknown as { currentTime: number }).currentTime = 2 + 30; // inside one step
     rafCbs.shift()!(30);
     expect(fresh.startTime).toBe(1000);
@@ -355,7 +355,7 @@ describe("anchorNativeFlightStart", () => {
     // startTime both null (play pending, resolving only at the first render
     // tick — AFTER the block). The hold must pin an explicit future start
     // off the document timeline, or the anchor silently no-ops on the very
-    // flights it exists for.
+    // transitions it exists for.
     const pending = {
       animationName: "flemo-screen-x-PUSHING-true",
       playState: "running",
@@ -364,27 +364,27 @@ describe("anchorNativeFlightStart", () => {
       timeline: { currentTime: 500 }
     } as unknown as CSSAnimation;
     const { rafCbs, raf } = queuedRaf();
-    const detach = anchorNativeFlightStart(() => [host([pending])]);
+    const detach = anchorNativeTransitionStart(() => [host([pending])]);
     rafCbs.shift()!(0); // hold
     expect(pending.startTime).toBe(500 + GUARD);
     detach();
     raf.mockRestore();
   });
 
-  it("never touches a mid-flight animation (an effect re-run) or the same animation twice", () => {
-    const midFlight = makeAnimation(300);
+  it("never touches a mid-transition animation (an effect re-run) or the same animation twice", () => {
+    const midTransition = makeAnimation(300);
     const { rafCbs, raf } = queuedRaf();
-    anchorNativeFlightStart(() => [host([midFlight])]);
+    anchorNativeTransitionStart(() => [host([midTransition])]);
     while (rafCbs.length) rafCbs.shift()!(performance.now());
-    expect(midFlight.startTime).toBe(1000); // never collected, never held
+    expect(midTransition.startTime).toBe(1000); // never collected, never held
 
     // A fresh one, anchored once; a second arming must not re-anchor it.
     const fresh = makeAnimation(0);
-    const detach = anchorNativeFlightStart(() => [host([fresh])]);
+    const detach = anchorNativeTransitionStart(() => [host([fresh])]);
     rafCbs.shift()!(0); // hold
     const heldStart = fresh.startTime;
     expect(heldStart).toBe(1000 + GUARD);
-    const detachSecond = anchorNativeFlightStart(() => [host([fresh])]);
+    const detachSecond = anchorNativeTransitionStart(() => [host([fresh])]);
     expect(fresh.startTime).toBe(heldStart); // startAnchored remembers the object
     detach();
     detachSecond();
@@ -451,7 +451,7 @@ describe("holdNativeClocksToFirstFrame", () => {
     scope.remove();
   });
 
-  it("leaves aged clocks (a mid-flight re-arm) untouched", async () => {
+  it("leaves aged clocks (a mid-transition re-arm) untouched", async () => {
     const scope = makeScope();
     const { animation, calls } = makeAnim(300);
     const target = document.createElement("div");
@@ -502,7 +502,7 @@ describe("holdNativeClocksToFirstFrame", () => {
 // Both release-armed anchors watch the SAME signal — the hold attribute
 // flipping to "false" — and both have to handle the two ways that signal can
 // arrive: after they armed, or before (the release beat the arming, which is a
-// real race on a fast machine). A miss on either end is a flight that runs
+// real race on a fast machine). A miss on either end is a transition that runs
 // with no anchor at all.
 describe("arming against the hold release", () => {
   const armed = (scope: HTMLElement, target: HTMLElement) => {
@@ -510,7 +510,7 @@ describe("arming against the hold release", () => {
     const raf = vi
       .spyOn(window, "requestAnimationFrame")
       .mockImplementation((cb: FrameRequestCallback) => (rafCbs.push(cb), rafCbs.length));
-    const detach = armFlightStartAnchorAtRelease(scope, () => [target]);
+    const detach = armTransitionStartAnchorAtRelease(scope, () => [target]);
     return { rafCbs, raf, detach };
   };
 

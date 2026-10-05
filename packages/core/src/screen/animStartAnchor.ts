@@ -101,11 +101,11 @@ export interface AnimHoldReleaseOptions {
   decodeWait?: boolean;
   // Wait for the screen's first CONTENT WAVE before starting the motion.
   // Glass measurement (real display recording, region captured): a warm
-  // screen's flight is perfectly monotone, while a cold screen's flight holds
+  // screen's transition is perfectly monotone, while a cold screen's transition holds
   // one frame and then double-steps at the moment its data commits — the
   // tremor, reproducible with every flemo mechanism disabled, so it is the
   // commit itself stealing a compositor tick. Waiting for that commit BEFORE
-  // the motion makes a cold flight identical to a warm one, and the
+  // the motion makes a cold transition identical to a warm one, and the
   // destination arrives complete instead of assembling under the eye.
   // Bounded twice: `contentWaitMs` for the first mutation to show up at all,
   // and `contentCapMs` for the whole wait.
@@ -123,7 +123,7 @@ export interface AnimHoldReleaseOptions {
     // the gate before any data exists.
     minNodes: number;
     // RENDER-settle mode: wait only for the mount RENDER to quiesce (the
-    // commit storm to stop), NOT for in-flight data. The original gate waited
+    // commit storm to stop), NOT for running data. The original gate waited
     // for requests to land — a ~300ms-plus floor (React throttles suspense
     // reveals to fallback+300ms) that read as a dead tap. The device-measured
     // jank, though, is the RENDER blocking the opening, not the data (async,
@@ -165,7 +165,7 @@ const IMAGE_TEXT_EQUIVALENT = 40;
 // reveal render — device-video'd as the member-detail push departing blank
 // and swallowing its opening on the reveal's main-thread block. Content
 // density alone is the right test; a genuinely sparse screen with nothing in
-// flight still exits at the GRACE (see the graceTimer below), which is what
+// transition still exits at the GRACE (see the graceTimer below), which is what
 // actually distinguishes an empty state from a pre-content one.
 const looksLikeShell = (scope: HTMLElement): boolean => {
   if (typeof scope.querySelectorAll !== "function") return false;
@@ -182,10 +182,10 @@ const looksLikeShell = (scope: HTMLElement): boolean => {
 // once a fallback has painted, the reveal is deferred until well after it
 // (FALLBACK_THROTTLE_MS, 300ms today — an internal constant that varies by
 // React version), even when the data resolved instantly from a cache. During
-// that deferral NOTHING is observable from outside — no request in flight, no
+// that deferral NOTHING is observable from outside — no request running, no
 // mutation — yet a reveal commit is scheduled and will land. Traced on a
 // production app: gate released at +164ms on the "sparse screen" grace,
-// React's deferred reveal landed at fallback+300ms, 133ms INTO the flight,
+// React's deferred reveal landed at fallback+300ms, 133ms INTO the transition,
 // cancelling ~130 skeleton animations and skipping a vsync mid-slide. The
 // gate therefore keys on STATE, never on a timing window: as long as the
 // scope still reads as a skeleton whose placeholders animate, the reveal has
@@ -208,9 +208,9 @@ const hasAnimatedPlaceholders = (scope: HTMLElement): boolean => {
 
 // The pending-request counter sees fetch/XHR but is BLIND to <img> loads —
 // traced on production as a commit wave (image paints + a raster burst) 31ms
-// into a flight whose reveal had already settled: the markup landed before the
+// into a transition whose reveal had already settled: the markup landed before the
 // motion, its images finished DURING it. An incomplete image inside the
-// scope's first screenful counts as in-flight work exactly like a pending
+// scope's first screenful counts as running work exactly like a pending
 // request (same bounds: the settle cap). Deliberately narrow:
 // - Only the scope's first screenful, measured against the SCOPE's own box —
 //   a held screen sits translated offscreen, so the window viewport is the
@@ -219,7 +219,7 @@ const hasAnimatedPlaceholders = (scope: HTMLElement): boolean => {
 //   decode wait uses.
 // - A lazy image that has not even selected a source may never start loading
 //   while the screen holds offscreen — waiting on it would burn the whole
-//   cap, so it is skipped (it was never going to land mid-flight anyway).
+//   cap, so it is skipped (it was never going to land mid-transition anyway).
 // A failed load also flips `complete`, so a broken image cannot stall this.
 const hasPendingImages = (scope: HTMLElement): boolean => {
   /* v8 ignore next -- the settle gate only runs a scope past looksLikeShell,
@@ -307,9 +307,9 @@ export function scheduleAnimHoldReadiness(
     // Two independent conditions must BOTH hold for this screen to be worth
     // waiting on, because either alone misreads a common case:
     //
-    // - Something is in flight. Nothing pending means nothing is coming.
+    // - Something is running. Nothing pending means nothing is coming.
     // - The screen is still a SHELL. A stale-while-revalidate cache refetches
-    //   on mount, so a fully-rendered warm screen has requests in flight too;
+    //   on mount, so a fully-rendered warm screen has requests running too;
     //   what separates them is that a skeleton carries structure without text.
     //   Measured on a production list at the anchor: cold 165 chars over 235
     //   elements (0.7), the same screen warm 1716 over 196 (8.8) — a factor of
@@ -348,9 +348,9 @@ export function scheduleAnimHoldReadiness(
     // no timing window — the reveal ENDS this condition when it lands, and the
     // settle cap bounds the wait if it never does.
     const awaitingThrottledReveal = () => looksLikeShell(scope) && hasAnimatedPlaceholders(scope);
-    // In-flight work this screen is still waiting on: network requests OR the
+    // Running work this screen is still waiting on: network requests OR the
     // first screenful's images (see hasPendingImages) — either landing
-    // mid-flight costs a frame, so both hold the gate under the same cap.
+    // mid-transition costs a frame, so both hold the gate under the same cap.
     const somethingLoading = () => hasPendingRequests() || hasPendingImages(scope);
     const finish = () => {
       if (finished) return;
@@ -372,7 +372,7 @@ export function scheduleAnimHoldReadiness(
     // 24 transitions: 29% velocity noise gated on two frames vs 3% ungated).
     // Waiting for a genuinely calm window is the whole point of the gate.
     const QUIET_FRAMES = 6;
-    // A wave that DE-SHELLED the scope with nothing left in flight is not the
+    // A wave that DE-SHELLED the scope with nothing left running is not the
     // middle of a storm — it is the reveal itself, the very commit the gate
     // exists to keep out of the motion. Everything after it (paint + raster)
     // needs the standard two-frame anchor, not six: the beat-storm case the
@@ -395,7 +395,7 @@ export function scheduleAnimHoldReadiness(
     // the pixels being READY. On WebKit a heavy screen's first raster is a
     // 200-500ms paint/layout block that is not a DOM mutation and not a JS long
     // task — so a gate that releases on DOM-quiescence alone still hands the
-    // slide an unrasterized layer, and the raster lands mid-flight (compiled:
+    // slide an unrasterized layer, and the raster lands mid-transition (compiled:
     // the clock runs through the block and the slide jumps; player: it freezes)
     // — device-reproduced as the rapid-LPM detail-push jump. The pre-raster
     // hold (react ScreenMotion: the entering screen is painted at ~0 opacity
@@ -413,7 +413,7 @@ export function scheduleAnimHoldReadiness(
     // own style/layout/paint block (not a mutation, not a JS long task) is
     // still due. Device-measured on a fully-loaded infinite list (desktop
     // steady-60 player): EVERY heavy pop opened with one ~50-60ms frame gap
-    // overlapping flight start — the exact stutter class this gate exists to
+    // overlapping transition start — the exact stutter class this gate exists to
     // absorb. So in render-settle mode a give-up release must ride TWO
     // consecutive FAST frames: a slow frame (the block just ran, or the timer
     // fired right before one) restarts the pair, capMs bounds the wait. A
@@ -429,7 +429,7 @@ export function scheduleAnimHoldReadiness(
     // overlap perfectly: the grace is 60ms of frames going by, and if the last
     // of them were fast then the thread is quiet now and there is nothing to
     // collect. Measured on the playground's push, the serial form held the
-    // flight 117-134ms where the anchor and the grace alone account for ~94.
+    // transition 117-134ms where the anchor and the grace alone account for ~94.
     //
     // So the gaps are watched from the anchor onwards and the guard reads the
     // ones it already has. It is the same evidence, and it is about the same
@@ -514,7 +514,7 @@ export function scheduleAnimHoldReadiness(
         if (remaining <= 0) {
           // Still fetching means another beat is coming; a scope that is
           // STILL an animated shell means the throttled reveal has not landed
-          // yet — release now and it lands mid-flight. Keep waiting for
+          // yet — release now and it lands mid-transition. Keep waiting for
           // either (the cap is the backstop).
           if (loadingWait() && elapsed() < settle.capMs) {
             quietFrames.push(requestAnimationFrame(() => step(quietSpan())));
@@ -560,7 +560,7 @@ export function scheduleAnimHoldReadiness(
     });
     observer.observe(scope, { childList: true, subtree: true });
     cancellers.push(finish);
-    // A shell with nothing in flight is not loading — it is simply a sparse
+    // A shell with nothing running is not loading — it is simply a sparse
     // screen (an empty state, an error). Give up on the short grace instead of
     // the full window. The check is deferred rather than immediate because a
     // screen's own requests are issued by its mount effects, a tick after the
@@ -581,10 +581,10 @@ export function scheduleAnimHoldReadiness(
         if (!seen && !loadingWait()) finishWhenFramesFast();
       }, settle.graceMs);
       // Giving up at a fixed deadline is what leaves the slow screens exposed:
-      // measured at an emulated mobile viewport, a flight whose content lands
-      // inside it is bad in a third of transitions, while a flight that waits is
+      // measured at an emulated mobile viewport, a transition whose content lands
+      // inside it is bad in a third of transitions, while a transition that waits is
       // clean in every one. So the deadline only applies while NOTHING is in
-      // flight — as long as this screen still has requests outstanding, its
+      // transition — as long as this screen still has requests outstanding, its
       // content is genuinely coming and the wait continues to the cap.
       firstTimer = setTimeout(function giveUp() {
         if (seen) return;
@@ -648,9 +648,9 @@ export function scheduleAnimHoldRelease(
   // The backstop is insurance against a suspended rAF, not a wait — so it must
   // OUTLAST every bounded wait the readiness gate can legitimately hold.
   // With a content settle configured the gate may wait up to its cap (a
-  // throttled suspense reveal, requests still in flight); a 300ms backstop
+  // throttled suspense reveal, requests still running); a 300ms backstop
   // under that cap would fire first and release the motion INTO the very
-  // commit the gate is waiting out — measured as the reveal and the flight
+  // commit the gate is waiting out — measured as the reveal and the transition
   // starting on the same frame.
   const settleCapMs = options.contentSettle?.capMs ?? 0;
   const fallback = setTimeout(release, ANIM_HOLD_RELEASE_BACKSTOP_MS + settleCapMs);
@@ -684,10 +684,10 @@ interface AnimHoldGroup {
 // The backstop a member's options call for: insurance against a suspended rAF,
 // never a wait — so it must outlast every bounded wait the readiness gate can
 // legitimately hold. With a content settle configured the gate may wait up to
-// its cap (a throttled suspense reveal, requests still in flight); a plain
+// its cap (a throttled suspense reveal, requests still running); a plain
 // 300ms backstop under that cap fires first and releases the motion INTO the
 // very commit the gate is waiting out — measured on a production push as the
-// reveal and the flight starting on the same frame.
+// reveal and the transition starting on the same frame.
 const backstopBoundMs = (options?: AnimHoldReleaseOptions) =>
   ANIM_HOLD_RELEASE_BACKSTOP_MS + (options?.contentSettle?.capMs ?? 0);
 

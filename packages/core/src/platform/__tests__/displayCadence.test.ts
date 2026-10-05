@@ -7,7 +7,7 @@ import {
 } from "@platform/displayCadence";
 
 // The session's learned display cadence. One number, fed by the engine's
-// in-flight rAF probe and read by the compiled tier's landing governor.
+// running rAF probe and read by the compiled tier's landing governor.
 //
 // Its whole job is to be TRUSTWORTHY: a reading taken at the wrong moment (a
 // stall, an idle window, measurement noise) must not move it, because the

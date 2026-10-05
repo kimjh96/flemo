@@ -14,7 +14,7 @@ function CompositionWorkspaceScreen() {
     <Screen
       hideStatusBar
       hideSystemNavigationBar
-      backgroundColor="var(--color-bg)"
+      backgroundColor="var(--bg)"
       sharedTopBar={
         <CompositionHeader
           eyebrow="Workspace"

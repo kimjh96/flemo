@@ -25,7 +25,7 @@ const readBrands = (): UaBrand[] | null => {
  * Engine classification. Chromium brand in UA-CH is the only reliable Blink
  * signal (mere presence of userAgentData is not — WebKit shipped it in 2025).
  * iOS Chrome is WebKit underneath and ships no Chromium brand, so it
- * correctly lands in "webkit".
+ * is correctly classified as "webkit".
  */
 export const detectEngine = (): "blink" | "webkit" | "gecko" | "unknown" => {
   if (typeof navigator === "undefined") return "unknown";
@@ -63,7 +63,7 @@ export const isEmulationSuspected = (): boolean => {
 /**
  * Sample the idle rAF cadence: median gap over ~`frames` frames. Run at
  * attach, while the page is quiet, so the report can distinguish a 60Hz
- * display from 120Hz ProMotion or an LPM-capped ~30Hz clock.
+ * display from 120Hz ProMotion or a Low Power Mode cap of ~30Hz.
  */
 export const sampleRafCadence = (
   frames = 20

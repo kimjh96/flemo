@@ -1,11 +1,11 @@
-// In-flight commit hold: no visible content change while a screen is in
+// Running commit hold: no visible content change while a screen is in
 // motion.
 //
 // A cold navigation routinely carries async data commits — Suspense
 // boundaries resolving 200-500ms after the tap, refetches re-rendering a
-// just-unfrozen pop destination — which land MID-FLIGHT while the screen is
+// just-unfrozen pop destination — which land MID-TRANSITION while the screen is
 // still decelerating. Measured on device-emulated Chrome: zero dropped
-// frames, zero layout shifts, yet the mid-flight content changes read
+// frames, zero layout shifts, yet the mid-transition content changes read
 // unmistakably as stutter. The library owns the fix the same way it owns
 // every pipeline collision: relocate the visible event into a window where
 // it cannot collide with motion. Three mutation classes are held:
@@ -27,7 +27,7 @@
 // The release — at COMPLETED, or the instant the transition is interrupted —
 // reflects everything in ONE commit: the same events, the same content, just
 // never during motion. This is the shipped "delayed-but-complete" contract
-// (the transition gate for heavy mounts) extended from mount time to flight
+// (the transition gate for heavy mounts) extended from mount time to transition
 // time.
 //
 // Exempt from the freeze, on purpose: the scope element itself, <Part>
@@ -36,9 +36,9 @@
 // invisible; freezing its construction would be wasted work).
 //
 // A morph is exempt from the ARRIVAL side too, and that one is not an
-// optimisation: a shared element spends the flight staged in the flight layer
+// optimisation: a shared element spends the transition staged in the morph layer
 // and comes home the moment its travel ends, which looks exactly like content
-// arriving mid-flight. Holding it would hide the element at the instant it
+// arriving mid-transition. Holding it would hide the element at the instant it
 // lands and reveal it again at rest — the blink the hold exists to prevent,
 // caused by the hold.
 
@@ -65,7 +65,7 @@ interface TargetBatch {
 }
 
 // Per-key freeze state for in-place writes. `glass` is what stays presented
-// for the whole flight; `latest` is what React believes and what the release
+// for the whole transition; `latest` is what React believes and what the release
 // replays; `pendingEcho` marks that our own revert's mutation record is still
 // due, so a delivery showing the glass value again is our echo, not a
 // consumer write.
@@ -81,7 +81,7 @@ const EXEMPT_SELECTOR = [
   attrSelector(PART_NAME_ATTR),
   attrSelector(MORPH_ATTR),
   // The morph's placeholder is written by the runtime too: it is given the
-  // element's size for the flight and handed back its own at the landing.
+  // element's size for the transition and handed back its own at the landing.
   attrSelector(MORPH_SLOT_ATTR),
   attrSelector(HELD_ARRIVAL_ATTR),
   attrSelector(OFFLOADED_SRC_ATTR)
@@ -102,8 +102,8 @@ export default function createArrivalHold(scope: HTMLElement): () => void {
   // image decode offloader's owned elements (carrying its authored-source
   // stamp) are its write surface too: it swaps/hides them at INSERTION time,
   // which lands after this observer arms on an entering screen — freezing
-  // those writes reverted the swap and let the raw original paint mid-flight.
-  // The offloader governs their mid-flight visibility itself.
+  // those writes reverted the swap and let the raw original paint mid-transition.
+  // The offloader governs their mid-transition visibility itself.
   const exemptFromFreeze = (node: Node): boolean => {
     const element = node instanceof Element ? node : node.parentElement;
     if (!element) return true;
@@ -167,7 +167,7 @@ export default function createArrivalHold(scope: HTMLElement): () => void {
         // must always flow.
         if (name.startsWith("data-flemo")) continue;
         // The image reveal hold hides via INLINE display on <img> — a `style`
-        // mutation this freeze would otherwise revert mid-flight (undoing the
+        // mutation this freeze would otherwise revert mid-transition (undoing the
         // hold) and replay at rest AFTER the hold's own restore (the mutation
         // record for the restore is still in the observer queue when the
         // synchronous release replays), resurrecting `display:none` with no
@@ -198,7 +198,7 @@ export default function createArrivalHold(scope: HTMLElement): () => void {
       for (const added of Array.from(record.addedNodes)) {
         if (selfInserted.delete(added)) continue;
         if (!(added instanceof Element)) continue;
-        // A morph coming home from the flight layer is not an arrival — it is
+        // A morph coming home from the transition layer is not an arrival — it is
         // the landing itself, and hiding it there IS the blink.
         if (added.closest(EXEMPT_SELECTOR)) continue;
         added.setAttribute(HELD_ARRIVAL_ATTR, "");
@@ -241,7 +241,7 @@ export default function createArrivalHold(scope: HTMLElement): () => void {
       // ongoing staged swap when the parent already holds an invisible
       // arrival: React reveals nested Suspense content in stages, and the
       // fallback's removal can trail the content's insertion by a whole
-      // commit (measured: content inserted mid-flight, fallbacks removed
+      // commit (measured: content inserted mid-transition, fallbacks removed
       // ~300ms later in a removal-only batch). A parent with NO held
       // arrival keeps the original rule — that removal is a semantic
       // disappearance (a closing overlay) and reflects live.
@@ -278,13 +278,13 @@ export default function createArrivalHold(scope: HTMLElement): () => void {
     for (const held of heldArrivals) {
       // Async-decode the arriving content's images BEFORE the reveal: the
       // rest-time landing paint must not block on a large decode either
-      // (see imageDecodeHygiene.ts — the flight armor's last uncovered
+      // (see imageDecodeHygiene.ts — the transition armor's last uncovered
       // stall), and a held subtree was invisible so nothing decoded yet.
       if (held instanceof HTMLElement) stampAsyncImageDecode(held);
       held.removeAttribute(HELD_ARRIVAL_ATTR);
     }
     heldArrivals.clear();
-    // Replay the latest in-place values the flight reverted, in this same
+    // Replay the latest in-place values the transition reverted, in this same
     // commit, so the DOM converges on what React last wrote.
     for (const [node, freeze] of textFreeze) {
       if (node.isConnected) node.nodeValue = freeze.latest;

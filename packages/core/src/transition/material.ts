@@ -18,12 +18,12 @@ const pull = (dragY: number): number => {
 /**
  * The Material-style vertical sheet, registered as `"material"`.
  *
- * The arriving screen rises from the bottom over 0.35s while the covered one
+ * The new screen rises from the bottom over 0.35s while the covered one
  * lifts 56px and fades out; a pop reverses it at 0.25s. Push and pop running at
- * different lengths is the case variant-key clock inheritance exists for: every
- * Part and decorator picks up the same asymmetry without restating it.
+ * different lengths is the case timing inheritance by variant key exists for:
+ * every Part and decorator picks up the same asymmetry without restating it.
  *
- * Its swipe is vertical, commits at 56px, and resists past that with a
+ * Its swipe is vertical, goes back once dragged 56px, and resists past that with a
  * square-root falloff rather than following the finger or stopping dead.
  */
 const material = createTransition({

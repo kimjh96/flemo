@@ -7,7 +7,7 @@ import { headSeconds, resolveMorphSide } from "@morph/morphSide";
 // The head kit is announced by an attribute on the root, and the engine stamps
 // it from the SAME commit a morph is staged in — after the morph, because React
 // runs a descendant's layout effect first. A morph that read the attribute read
-// the PREVIOUS flight's answer: right by luck from the second navigation on,
+// the PREVIOUS transition's answer: right by luck from the second navigation on,
 // and wrong on the first, which ran a first push's element 33ms ahead of the
 // screen carrying it while every push after it was aligned.
 describe("headSeconds", () => {
@@ -68,7 +68,7 @@ describe("resolveMorphSide", () => {
   it("takes the rect as measured when the screen names no transition it knows", () => {
     // The name comes off the DOM protocol, so it is a plain string and the
     // lookup IS the validation. An unregistered one is not an error: the rect
-    // stands as measured and the flight simply corrects for nothing.
+    // stands as measured and the transition simply corrects for nothing.
     const element = document.createElement("div");
     screenWith(null).appendChild(element);
     expect(resolveMorphSide(element, element.parentElement!, "PUSHING-true")).toMatchObject({
@@ -98,7 +98,7 @@ describe("resolveMorphSide", () => {
 
   it("takes off every ancestor pose, whatever kind of box is wearing it", () => {
     // The transition puts its from-pose on whatever its selector list names,
-    // and a flight is staged in the middle of that. Device-read on a consumer's
+    // and a transition is staged in the middle of that. Device-read on a consumer's
     // tab switch: the only transformed box above the morph at staging was a
     // layer SLOT, with every screen above it at identity — so a rule that asks
     // one kind of box found nothing to undo and left the arrival a whole 1%

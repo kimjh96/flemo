@@ -1,11 +1,11 @@
 // MOVING AN ELEMENT INTO A STAGING LAYER.
 //
 // flemo lifts elements out of their screens twice, for the same reason and by
-// the same means. A morph's shared element travels in the flight layer (see
+// the same means. A morph's shared element travels in the transition layer (see
 // @morph/morphLayer); a matched shared bar's <Part> cross-fades in the part
 // layer (see @screen/partLayer). A screen clips its descendants, covers what it
 // replaces, and drags its contents along when it slides — all three are
-// properties of being a DESCENDANT, so for the flight the element stops being
+// properties of being a DESCENDANT, so for the transition the element stops being
 // one.
 //
 // What both moves need is here, once. It lives in @dom because the two callers
@@ -25,7 +25,7 @@ export interface StagingRect {
  *
  * The layer can sit inside a transformed ancestor (a demo bezel, a scaled
  * preview), in which case a px it is positioned by is not a px on the glass.
- * Its measured rect against its laid-out size gives the ratio, so a flight is
+ * Its measured rect against its laid-out size gives the ratio, so a transition is
  * expressed in the space it is actually staged in.
  */
 // THE LAID-OUT SIZE IS ROUNDED. THE PAINTED ONE IS NOT.
@@ -37,7 +37,7 @@ export interface StagingRect {
 // transform at all. That ratio is then divided into every rect staged through
 // it, and half a pixel over a 342px layer inflates a 314px arrival by 0.46px.
 //
-// What that looks like is the flight ending half a pixel wide of where the
+// What that looks like is the transition ending half a pixel wide of where the
 // element rests and stepping there in one frame at the landing. Device-measured
 // on an iPhone at 3x: the detail's meta line landed 0.94px high and dropped.
 // It does not show on a whole-pixel layout, which is why every desktop window
@@ -68,12 +68,12 @@ export const intoLayerSpace = (rect: StagingRect, layer: HTMLElement): StagingRe
 // out of the tree and every animation on it is canceled; put it back and they
 // start over from zero.
 //
-// A flight does exactly that, twice: the real element is hoisted into its
+// A transition does exactly that, twice: the real element is hoisted into its
 // staging layer when it leaves, and returned when it lands. Whatever the
 // consumer put INSIDE that element comes along for the ride — a `<Part>`, a
 // spinner, a fade of their own — and every one of those replays on landing, a
 // beat after it had already finished. Which reads as the content blinking out
-// and coming back at the exact moment the flight settles.
+// and coming back at the exact moment the transition settles.
 //
 // So the clocks travel with the node. Before the move each animation's time is
 // recorded; after it, the same animation is seeked back to where it was. A
@@ -117,7 +117,7 @@ function indexOf(root: Element): Map<Element, number> {
   return index;
 }
 
-// ASKING IS A STYLE RECALCULATION, AND A FLIGHT ASKS ONCE PER PARTICIPANT.
+// ASKING IS A STYLE RECALCULATION, AND A TRANSITION ASKS ONCE PER PARTICIPANT.
 //
 // `getAnimations` has to resolve style before it can answer, so its cost is
 // whatever the frame has dirtied since the last time style was clean. On the
@@ -187,7 +187,7 @@ export interface PreserveAnimationsOptions {
    * animation itself on both sides of the move and must stay its only author.
    * A staged `<Part>` is the opposite case — the compiled part rule animates the
    * part element itself, and that rule matches on name/status/active with no
-   * structural term, so the move restarts the very animation the flight is
+   * structural term, so the move restarts the very animation the transition is
    * being watched for.
    */
   includeRoot?: boolean;
@@ -201,7 +201,7 @@ export interface PreserveAnimationsOptions {
  * Move an element without restarting the animations inside it.
  *
  * Returns HOW MANY it had to carry, because asking is the expensive half: each
- * `getAnimations({ subtree: true })` forces a style recalculation, and a flight
+ * `getAnimations({ subtree: true })` forces a style recalculation, and a transition
  * lands with every one of its participants asking twice in the same frame.
  * Measured on the reference grid, that frame ran 75ms. A caller that already
  * knows the answer is zero can skip the question entirely.

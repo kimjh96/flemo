@@ -14,7 +14,7 @@ import {
 
 import type { MorphActivity, TripwireHit } from "./types";
 
-// THE MORPH PROBE: did the shared elements find each other, and did they fly.
+// THE MORPH PROBE: did the shared elements find each other, and did they move.
 //
 // A morph that does not pair fails SILENTLY. There is no error, no attribute,
 // no animation and no console line — the element simply appears where it
@@ -24,11 +24,11 @@ import type { MorphActivity, TripwireHit } from "./types";
 //
 // The question is answerable from the DOM as long as the pairing key is in it,
 // which is why `data-flemo-morph-id` exists. This probe groups the registered
-// ends by that key, notes which of them the runtime stamped with a flight role,
+// ends by that key, notes which of them the runtime stamped with a transition role,
 // and reports the difference: a pair that had everything it needed and did not
-// fly.
+// move.
 //
-// A ROLE IS THE PROOF. Both ends are stamped "enter"/"exit" for the flight's
+// A ROLE IS THE PROOF. Both ends are stamped "enter"/"exit" for the transition's
 // duration, so one role sighting settles it — the probe never has to guess from
 // geometry or from an animation it might have missed.
 
@@ -41,38 +41,38 @@ const SCREEN_SELECTOR = attrSelector(SCREEN_ATTR);
 const round1 = (value: number) => Math.round(value * 10) / 10;
 
 export interface MorphProbeState {
-  /** Registered ends seen when the flight opened. */
+  /** Registered ends seen when the transition opened. */
   registered: number;
-  /** Keys with ends this flight could have paired. */
+  /** Keys with ends this transition could have paired. */
   pairable: Set<string>;
   /** Keys carried by more than one end inside a single screen. */
   duplicated: Set<string>;
-  /** Keys seen carrying a flight role at any point during the flight. */
-  flew: Set<string>;
+  /** Keys seen carrying a transition role at any point during the transition. */
+  moved: Set<string>;
   camera: boolean;
   /** Ghosts seen, and when each appeared, so a cut one can be timed. */
   ghosts: number;
   ghostBornAt: Map<Element, number>;
   shortestGhostLifeMs: number | null;
-  /** Morph keyframe rules in the sheet when the flight opened. */
+  /** Morph keyframe rules in the sheet when the transition opened. */
   sheetRulesAtStart: number;
   /**
    * Frames where the DEPARTING end was still painting, and how strongly.
    *
    * A morph's `exit` pose is the cut: the runtime pins the departing element
-   * at it for the whole flight, so anything other than `opacity: 0` keeps the
-   * element the flight is carrying away from on glass. A push hides that (the
+   * at it for the whole transition, so anything other than `opacity: 0` keeps the
+   * element the transition is carrying away from on glass. A push hides that (the
    * arrival grows over it) and a pop reveals it, which is why it can ship.
    */
   departureFrames: number;
   departureMaxOpacity: number;
   /**
-   * The widest gap seen between a `<Part>` inside a flying morph and the box
+   * The widest gap seen between a `<Part>` inside a moving morph and the box
    * carrying it, and the part it belonged to.
    *
-   * A part's width is PINNED for the flight (pinParts) so the box's travel
+   * A part's width is PINNED for the transition (pinParts) so the box's travel
    * clips it instead of re-wrapping it. The pin takes the width the part has
-   * when the flight stages it, which on a pop is the width it rests at on the
+   * when the transition stages it, which on a pop is the width it rests at on the
    * side being returned to: a cell's, not the page's. The part then sits
    * narrower than the card it is inside for the whole gesture, with whatever
    * is behind showing through the difference.
@@ -87,17 +87,17 @@ const keyOf = (element: Element): string | null => {
   return key === null || key === "" ? null : key;
 };
 
-const isFlying = (element: Element): boolean => {
+const isMoving = (element: Element): boolean => {
   const role = element.getAttribute(MORPH_ATTR);
   return role !== null && (MORPH_ROLES as readonly string[]).includes(role);
 };
 
 /**
- * Morph keyframe rules currently in the per-flight sheet.
+ * Morph keyframe rules currently in the per-transition sheet.
  *
- * One `<style>` element holds them all and outlives every flight, so counting
- * the element proves nothing; the rules are what a flight inserts and drops.
- * A landing that leaves more than it started with leaked a flight's keyframes.
+ * One `<style>` element holds them all and outlives every transition, so counting
+ * the element proves nothing; the rules are what a transition inserts and drops.
+ * A landing that leaves more than it started with leaked a transition's keyframes.
  */
 export const morphSheetRuleCount = (): number => {
   try {
@@ -110,10 +110,10 @@ export const morphSheetRuleCount = (): number => {
 };
 
 /**
- * Read the pairing picture as the flight opens.
+ * Read the pairing picture as the transition opens.
  *
  * By this point the runtime has already staged whatever it paired: the
- * observer that opens a flight runs after the commit that stamped the roles.
+ * observer that opens a transition runs after the commit that stamped the roles.
  * So a role is read as fact, and only the ends still sitting in their screens
  * are grouped to decide what COULD have paired.
  *
@@ -128,7 +128,7 @@ export const createMorphProbeState = (participants: readonly Element[]): MorphPr
     registered: 0,
     pairable: new Set(),
     duplicated: new Set(),
-    flew: new Set(),
+    moved: new Set(),
     camera: document.querySelector(attrSelector(MORPH_CAMERA_ATTR)) !== null,
     ghosts: 0,
     departureFrames: 0,
@@ -140,7 +140,7 @@ export const createMorphProbeState = (participants: readonly Element[]): MorphPr
     shortestGhostLifeMs: null,
     sheetRulesAtStart: morphSheetRuleCount()
   };
-  const inFlight = new Set(participants);
+  const inTransition = new Set(participants);
   /** key -> owning screens (null modelled as the element itself: chrome is its own owner). */
   const owners = new Map<string, Set<Element | null>>();
   const perOwner = new Map<string, Map<Element | null, number>>();
@@ -148,15 +148,15 @@ export const createMorphProbeState = (participants: readonly Element[]): MorphPr
     state.registered += 1;
     const key = keyOf(element);
     if (key === null) continue;
-    if (isFlying(element)) {
-      state.flew.add(key);
+    if (isMoving(element)) {
+      state.moved.add(key);
       continue;
     }
     const screen = element.closest(SCREEN_SELECTOR);
-    // Only ends this flight could actually have used: one of its own screens,
+    // Only ends this transition could actually have used: one of its own screens,
     // or chrome that belongs to no screen at all. A morph sitting in a deep
     // resting screen shares nothing with this navigation.
-    if (screen !== null && !inFlight.has(screen)) continue;
+    if (screen !== null && !inTransition.has(screen)) continue;
     const owner = screen;
     let set = owners.get(key);
     if (!set) owners.set(key, (set = new Set()));
@@ -173,12 +173,12 @@ export const createMorphProbeState = (participants: readonly Element[]): MorphPr
   return state;
 };
 
-/** A role stamped (or cleared) during the flight: proof the pair flew. */
+/** A role stamped (or cleared) during the transition: proof the pair moved. */
 export const trackMorphAttribute = (state: MorphProbeState, target: Element): void => {
   if (target.hasAttribute(MORPH_CAMERA_ATTR)) state.camera = true;
-  if (!isFlying(target)) return;
+  if (!isMoving(target)) return;
   const key = keyOf(target);
-  if (key !== null) state.flew.add(key);
+  if (key !== null) state.moved.add(key);
 };
 
 /** Ghosts arriving and leaving, so one cut inside a frame can be timed. */
@@ -230,7 +230,7 @@ export const morphTripwires = (state: MorphProbeState): TripwireHit[] => {
       atMs: round1(life),
       detail:
         `a morph ghost was removed ${round1(life)}ms after it was created (under one frame) — ` +
-        "the departing content it stands for was never presented; this is the first-frame " +
+        "the old-screen content it stands for was never shown on screen; this is the first-frame " +
         "blade signature"
     }
   ];
@@ -241,11 +241,11 @@ export const morphTripwires = (state: MorphProbeState): TripwireHit[] => {
 // a part's whole room, not a gap; measuring against the card's outer edge read
 // every `px-4` card as a part 32px short of it.
 const roomFor = (part: Element, box: number): number => {
-  // Found under the flying box, so it always hangs from something.
+  // Found under the moving box, so it always hangs from something.
   const parent = part.parentElement as HTMLElement;
   const outer = parent.getBoundingClientRect().width;
   // A parent that draws no box of its own (`display: contents`) gives the part
-  // whatever room the flying box has.
+  // whatever room the moving box has.
   if (!(outer > 0)) return box;
   const style = getComputedStyle(parent);
   const px = (value: string) => Number.parseFloat(value) || 0;
@@ -263,11 +263,11 @@ const roomFor = (part: Element, box: number): number => {
 };
 
 /**
- * What the flight is PAINTING this frame, which the role sightings above
+ * What the transition is PAINTING this frame, which the role sightings above
  * cannot answer.
  *
  * Two readings, both of a handful of elements: the departing end's opacity,
- * and the width of any part inside a flying box against the room it is laid
+ * and the width of any part inside a moving box against the room it is laid
  * out in there. Both are defects this recorder watched happen and had nothing
  * to say about.
  */
@@ -281,10 +281,10 @@ export const sampleMorphPaint = (state: MorphProbeState): void => {
     if (opacity > state.departureMaxOpacity) state.departureMaxOpacity = opacity;
   }
 
-  for (const flying of document.querySelectorAll(`[${MORPH_ATTR}="enter"]`)) {
-    const box = flying.getBoundingClientRect().width;
+  for (const moving of document.querySelectorAll(`[${MORPH_ATTR}="enter"]`)) {
+    const box = moving.getBoundingClientRect().width;
     if (!(box > 0)) continue;
-    for (const part of flying.querySelectorAll(`[${PART_NAME_ATTR}]`)) {
+    for (const part of moving.querySelectorAll(`[${PART_NAME_ATTR}]`)) {
       const gap = roomFor(part, box) - part.getBoundingClientRect().width;
       if (gap <= 2) continue;
       state.partGapFrames += 1;
@@ -296,11 +296,11 @@ export const sampleMorphPaint = (state: MorphProbeState): void => {
   }
 };
 
-/** The flight's morph picture, plus what it left behind at rest. */
+/** The transition's morph picture, plus what it left behind at rest. */
 export const morphActivity = (state: MorphProbeState, busy: boolean): MorphActivity => {
   const pairable = [...state.pairable].sort();
-  const flew = [...state.flew].sort();
-  const flown = new Set(flew);
+  const moved = [...state.moved].sort();
+  const movedKeys = new Set(moved);
   const residue = busy
     ? { strandedRoles: 0, strandedStandIns: 0, strandedGhosts: 0, layerResidue: 0, leaked: 0 }
     : {
@@ -316,8 +316,8 @@ export const morphActivity = (state: MorphProbeState, busy: boolean): MorphActiv
   return {
     registered: state.registered,
     pairable,
-    flew,
-    skipped: pairable.filter((key) => !flown.has(key)),
+    moved,
+    skipped: pairable.filter((key) => !movedKeys.has(key)),
     camera: state.camera,
     ghosts: state.ghosts,
     strandedRoles: residue.strandedRoles,

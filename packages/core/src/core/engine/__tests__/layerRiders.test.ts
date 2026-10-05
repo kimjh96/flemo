@@ -102,7 +102,7 @@ describe("isRider", () => {
     expect(isRider(undefined)).toBe(false);
   });
 
-  it("says yes to a bar the binding opted into this flight", () => {
+  it("says yes to a bar the binding opted into this transition", () => {
     expect(isRider(el({ [BAR_ATTR]: "nav", [BAR_RIDING_ATTR]: "true" }))).toBe(true);
   });
 

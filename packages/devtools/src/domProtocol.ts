@@ -29,13 +29,13 @@ export const BAR_STATUS_ATTR = "data-flemo-bar-status";
 export const BAR_RIDING_ATTR = "data-flemo-bar-riding";
 
 // ── Morphs (shared elements) ────────────────────────────────────────────────
-// A morph is one element that exists on both screens of a flight under the same
+// A morph is one element that exists on both screens of a transition under the same
 // pairing key. The runtime lifts it into a layer, leaves a stand-in in its
 // place, carries a ghost of the element it replaces, and may drive a whole
 // screen as a camera. Every one of those is a marked element, so a pure
-// observer can tell a morph that FLEW from a pair that never found each other.
+// observer can tell a morph that MOVED from a pair that never found each other.
 
-/** A registered morph. The value is the role while it flies: "enter"/"exit". */
+/** A registered morph. The value is the role while it moves: "enter"/"exit". */
 export const MORPH_ATTR = "data-flemo-morph";
 
 /** The pairing key (the binding's `layoutId`), so the two ends can be grouped. */
@@ -44,19 +44,19 @@ export const MORPH_ID_ATTR = "data-flemo-morph-id";
 /** The registered morph-transition name, absent/empty meaning the default preset. */
 export const MORPH_NAME_ATTR = "data-flemo-morph-name";
 
-/** The per-Router flight layer a staged morph is lifted into. */
+/** The per-Router transition layer a staged morph is lifted into. */
 export const MORPH_LAYER_ATTR = "data-flemo-morph-layer";
 
-/** The copy left in the layout holding the flying element's place. */
+/** The copy left in the layout holding the moving element's place. */
 export const MORPH_STAND_IN_ATTR = "data-flemo-morph-stand-in";
 
-/** The copy of the replaced element carried inside the flight. */
+/** The copy of the replaced element carried inside the transition. */
 export const MORPH_GHOST_ATTR = "data-flemo-morph-ghost";
 
-/** A screen being driven as a camera by a morph, stamped with the flight id. */
+/** A screen being driven as a camera by a morph, stamped with the transition id. */
 export const MORPH_CAMERA_ATTR = "data-flemo-morph-camera";
 
-/** The `<style>` element a morph writes its per-flight keyframes into. */
+/** The `<style>` element a morph writes its per-transition keyframes into. */
 export const MORPH_SHEET_ATTR = "data-flemo-morph-sheet";
 
 /** The values MORPH_ATTR takes while an element is in the air. */
@@ -71,13 +71,13 @@ export const MORPH_ROLES = ["enter", "exit"] as const;
 /** Every flemo keyframe name starts with this. */
 export const FLEMO_ANIMATION_PREFIX = "flemo-";
 
-/** A morph's per-flight keyframes are namespaced again under this. */
+/** A morph's per-transition keyframes are namespaced again under this. */
 export const MORPH_ANIMATION_PREFIX = "flemo-morph-";
 
 /** This package's own marker — core reserves the name but never writes it. */
 export const DEVTOOLS_PANEL_ATTR = "data-flemo-devtools-panel";
 
-/** The statuses during which a flight is moving. */
+/** The statuses during which a transition is moving. */
 export const TRANSITIONAL_STATUSES = ["PUSHING", "POPPING", "REPLACING"] as const;
 
 /** The ANIM_HOLD_ATTR values that mean "held" (any form of park included). */

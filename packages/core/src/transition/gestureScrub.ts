@@ -2,9 +2,9 @@ import type { AnimationOptions } from "@transition/cssTypes";
 
 import { invertEasing, resolveEasing } from "@transition/cubicBezier";
 
-// A FLIGHT THE FINGER OWNS.
+// A TRANSITION THE FINGER OWNS.
 //
-// Every other flight in flemo is clocked by the compiled hold: the engine
+// Every other transition in flemo is clocked by the compiled hold: the engine
 // pauses the animations, flips one attribute, and the browser runs them. A drag
 // has neither half of that. The navigation does not exist yet — a swipe commits
 // on release, if at all — so there is no status to stage from and no hold
@@ -64,7 +64,7 @@ export const holdScrubAt = (animations: readonly Animation[], seconds: number): 
 /**
  * How far short of the travel's end a scrub is allowed to seek, in seconds.
  *
- * A DRAG THAT REACHES THE END IS NOT A FLIGHT THAT FINISHED.
+ * A DRAG THAT REACHES THE END IS NOT A TRANSITION THAT FINISHED.
  *
  * `animationend` is dispatched on the PHASE change, not on the playback: an
  * animation seeked to `delay + duration` has left its active phase, and the
@@ -77,7 +77,7 @@ export const holdScrubAt = (animations: readonly Animation[], seconds: number): 
  * shared element back in its screen mid-gesture, and all three of what that
  * looks like were reported from the playground at once: the element blinked
  * home under a finger that was still down, a finger coming back the other way
- * found nothing left to move, and the release — with the flight already gone
+ * found nothing left to move, and the release — with the transition already gone
  * from the scope, so nothing was marked delivered — let the navigation stage
  * the whole trip a second time.
  *
@@ -147,7 +147,7 @@ export const settleScrubbed = (
 ): void => {
   const span = Math.max(seconds, 1 / 60);
   // The remaining travel decides the RATE, so a release near either end lands
-  // as quickly as the screens do rather than replaying a whole flight's worth
+  // as quickly as the screens do rather than replaying a whole transition's worth
   // of clock.
   const now = (timeOf(animations[0] ?? null) ?? 0) / 1000;
   const total = clock.start + clock.duration;
@@ -169,9 +169,9 @@ export const settleScrubbed = (
     // NEXT frame resolves deciding what time it lands on — and the two engines
     // resolve it differently. Blink starts the clock at the release, which is
     // what the gesture means. WebKit resolves it against the animation's own
-    // origin, so a flight the finger held for a second comes back a second in:
+    // origin, so a transition the finger held for a second comes back a second in:
     // `currentTime` jumps the whole drag's worth of clock in one frame, the
-    // element stops tracking what the clock says, and the flight is torn down
+    // element stops tracking what the clock says, and the transition is torn down
     // by its own end a moment later. On glass that is a shared element frozen
     // at the pose the finger let go of while the screens slide out from under
     // it, and then gone. Measured on iOS Safari and reproduced in WebKit.
@@ -195,7 +195,7 @@ export const settleScrubbed = (
       animation.startTime = timeline - at / playbackRate;
     } catch {
       // A timeline that refuses the write leaves the animation where it is;
-      // the flight's own backstop still brings the element home.
+      // the transition's own backstop still brings the element home.
       animation.play();
     }
   }
@@ -284,7 +284,7 @@ const poseOf = (frame: ComputedKeyframe): Pose => {
 export interface ReturnLeg {
   /** Staged with the drag, parked out of effect until the release seeks it. */
   readonly animation: Animation;
-  /** The leg's own clock, in milliseconds: its zero is the flight's arrival. */
+  /** The leg's own clock, in milliseconds: its zero is the transition's arrival. */
   readonly duration: number;
   /** The stretch of that clock the poses actually travel over. */
   readonly travel: { readonly start: number; readonly end: number };
@@ -303,7 +303,7 @@ export interface ReturnLeg {
  * keeps the curve it was given, pointing FORWARD: reversing a path must not
  * reverse its speed, or the return would leave slowly and arrive at full tilt.
  *
- * The flat lead-in a flight spends before it moves is dropped from the end of
+ * The flat lead-in a transition spends before it moves is dropped from the end of
  * the leg, so the leg finishes when the travel does rather than holding the
  * landed pose for the length of a head nobody is waiting through.
  *
@@ -343,9 +343,9 @@ export const stageReturnLeg = (
     }));
   if (frames.length < 2) return null;
   // A step is a handover, not a travel: it says WHO renders the element, and
-  // the flight's own landing is what hands it back. Reversed as a motion it
+  // the transition's own landing is what hands it back. Reversed as a motion it
   // would fire at the top of the return instead, showing the element that was
-  // cut alongside the one still flying home.
+  // cut alongside the one still moving home.
   if (frames.some((frame) => String(frame.easing).includes("step"))) return null;
 
   const poses = frames.map((frame) => frame.pose);
@@ -364,7 +364,7 @@ export const stageReturnLeg = (
   const offsets = frames.map((frame) => frame.offset);
   const easings = frames.map((frame) => frame.easing);
   const last = frames.length - 1;
-  // What travels, and what is only a hold at either end: a flight's flat
+  // What travels, and what is only a hold at either end: a transition's flat
   // lead-in and the frame it spends arrived are poses repeated, so the travel
   // is what lies between the last frame equal to the first and the first frame
   // equal to the last.
@@ -385,7 +385,7 @@ export const stageReturnLeg = (
   const legFrames: Keyframe[] = [];
   for (let index = last; index >= head; index--) {
     const frame: Keyframe = {
-      // The last frame is the pose the flight started from, and it lands
+      // The last frame is the pose the transition started from, and it lands
       // exactly on the leg's end rather than a rounding step short of it.
       offset: index === head ? 1 : Math.min(1, ((1 - offsets[index]!) * duration) / legDuration),
       // The segment this frame now LEAVES is the one the source entered it
@@ -408,7 +408,7 @@ export const stageReturnLeg = (
     leg.currentTime = PARKED_MS;
   } catch {
     // A host that refuses the seek cannot park the leg out of effect, and a
-    // leg left in effect would wear the flight's arrival for the whole drag.
+    // leg left in effect would wear the transition's arrival for the whole drag.
     leg.cancel();
     return null;
   }
@@ -446,7 +446,7 @@ export const stageReturnLeg = (
  * fraction `q` of the travel sits at `1 - q` along it — through the curve,
  * which is why this inverts rather than mirrors the time.
  *
- * `null` when there is nothing left to fly.
+ * `null` when there is nothing left to move.
  */
 export const returnLegSeek = (
   leg: ReturnLeg,
@@ -468,7 +468,7 @@ export const returnLegSeek = (
  * Put a staged leg at the pose already on screen and let it run.
  *
  * `remaining` of the leg's own clock covers the release's `seconds`, which is
- * what makes a leg staged for the flight's length land in the time the release
+ * what makes a leg staged for the transition's length land in the time the release
  * settled on. Nothing here builds or reshapes an effect — the leg was staged
  * with the drag — so the frame the finger lifts has no animation to commit.
  */

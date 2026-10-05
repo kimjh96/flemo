@@ -141,18 +141,18 @@ export const composePosesToCss = (poses: MorphPose[]): string => {
 //
 // A transform is one of the few things a compositor can animate by itself, so
 // an animation of one advances every vsync whatever the page is doing. That is
-// usually the point. It is exactly wrong for the things in a flight that are
+// usually the point. It is exactly wrong for the things in a transition that are
 // not animations in their own right: a GHOST is a copy of the departure whose
 // whole job is to sit on the element it is dissolving into, and a CAMERA is
 // defined as precisely the zoom that carries the element from one end of the
-// flight to the other. Both are defined RELATIVE to an element that travels by
+// transition to the other. Both are defined RELATIVE to an element that travels by
 // its box, which no compositor can interpolate, and which therefore only
 // advances on the frames the main thread manages to produce.
 //
 // Sampled off the `Animation` objects, the pair agrees: same `startTime`, same
 // `currentTime`, computed progress within a thousandth. They disagree only in
 // what reaches the glass. Isolated on both engines with the main thread blocked
-// mid-flight, a transform twin of a box travel ran 146px (Blink) and 167px
+// mid-transition, a transform twin of a box travel ran 146px (Blink) and 167px
 // (WebKit) ahead of it, over a travel of 280px, before the box moved at all.
 //
 // Composing the transform from REGISTERED custom properties is what takes it
@@ -176,7 +176,7 @@ const PINNED = {
   rotate: "--flemo-pose-r"
 } as const;
 
-// The travel's own coordinates. A flight's POSITION moves by `translate` so
+// The travel's own coordinates. A transition's POSITION moves by `translate` so
 // that the glyphs on it are painted from a transform rather than from a layout
 // box (see morphKeyframes), and `translate` is one of the few things WebKit
 // will run on the compositor EVEN WHERE THE SAME KEYFRAME ANIMATES A SIZE:
@@ -186,7 +186,7 @@ const PINNED = {
 // which is the text arriving late that it reads as.
 //
 // So the travel is driven through registered properties too, which no
-// compositor can run, and the flight stays on one thread while keeping the
+// compositor can run, and the transition stays on one thread while keeping the
 // painting a transform gives it.
 const TRAVEL = { x: "--flemo-move-x", y: "--flemo-move-y", lift: "--flemo-lift-y" } as const;
 
@@ -195,7 +195,7 @@ const TRAVEL = { x: "--flemo-move-x", y: "--flemo-move-y", lift: "--flemo-lift-y
 // WebKit drops an animated `width` on an element that is ALSO animating a
 // custom property: the property interpolates, the size holds its first keyframe
 // and jumps to its last on the landing frame. Reported from a consumer's tab
-// switch as a pill whose contents were clipped for the whole flight and snapped
+// switch as a pill whose contents were clipped for the whole transition and snapped
 // open at the end. Measured on that page, an element carrying the same classes:
 //
 //   width in the keyframe, beside a custom property   1 distinct value
@@ -234,7 +234,7 @@ export const pinnedBoxDecls = (width: number, height: number, indent = "    "): 
 // leave that edge a tick short on the frames where the value falls between
 // rulings and exact on the frames where it does not: measured on a consumer's
 // pill, 366.0000, 365.9844, 365.9844, 366.0000, with every right-aligned thing
-// inside it following, frame after frame, for the whole flight.
+// inside it following, frame after frame, for the whole transition.
 //
 // Printed ON the ruler, at the six decimals a 64th needs, both truncations are
 // exact and the edge is one number again.
@@ -249,7 +249,7 @@ export const pinnedBoxDeclsOnRuler = (width: number, height: number, indent = " 
   `${indent}${BOX.w}: ${exact(width)}px;\n${indent}${BOX.h}: ${exact(height)}px;`;
 
 // The two halves of a type morph's tracking. The author's travels on the
-// flight's own curve; the correction that keeps the glyphs from drifting apart
+// transition's own curve; the correction that keeps the glyphs from drifting apart
 // holds and steps (see morphLine). One property, two clocks, the same way the
 // travel carries its lift.
 const TRACK = { authored: "--flemo-track", fix: "--flemo-track-fix" } as const;
@@ -267,7 +267,7 @@ export const pinnedTrackFixDecl = (value: number, indent = "    "): string =>
 
 // TWO CLOCKS ON ONE PROPERTY.
 //
-// A flight's position eases; the ascent it has to cancel climbs in steps (see
+// A transition's position eases; the ascent it has to cancel climbs in steps (see
 // morphLine). Those are two timings, and one property can only carry one
 // keyframe — which is why the cancellation used to need a SECOND property, and
 // why it was refused wherever that property was already spoken for: a nested
@@ -298,10 +298,10 @@ export const PINNED_POSE_TRANSFORM = `translate3d(var(${PINNED.x}), var(${PINNED
  * the engine and animates discretely, which would teleport a pose at its
  * midpoint instead of interpolating it.
  *
- * One set of names for every flight rather than one per participant, because a
+ * One set of names for every transition rather than one per participant, because a
  * registration is document-wide and re-registering invalidates style for the
  * whole page. `inherits: false` is what makes that safe: each element holds its
- * own values, so two flights never read each other's and no descendant inherits
+ * own values, so two transitions never read each other's and no descendant inherits
  * a pose meant for its parent.
  */
 export const PINNED_POSE_PROPERTY_RULES = [

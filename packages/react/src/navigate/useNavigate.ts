@@ -24,7 +24,7 @@ import type { RegisterRoute } from "@Route";
 interface DistanceOptions {
   /**
    * How far into the existing stack the call reaches: the target is the screen
-   * `skip` below the top. `pop` lands on it and defaults to 1, `replace`
+   * `skip` below the top. `pop` ends on it and defaults to 1, `replace`
    * replaces it, and `push` keeps it and stacks on top, both defaulting to 0.
    */
   skip?: number;
@@ -43,8 +43,8 @@ interface DistanceOptions {
  * As a hook argument it is the default target for every call the hook returns;
  * as a per-call option it overrides that default. Resolution searches the
  * current Router and its ancestors, never a sibling. A pathless `pop` has no
- * route owner to infer, so `"nearest-owner"` cannot select a Router for it:
- * name the owner instead.
+ * route to look up, so `"nearest-owner"` cannot select a Router for it:
+ * name the Router that handles it instead.
  */
 export interface UseNavigateOptions {
   /** A Router `name`, or one of `current`, `parent`, `root`, `nearest-owner`. */

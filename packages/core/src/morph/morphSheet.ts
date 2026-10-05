@@ -6,41 +6,43 @@ import { MORPH_SHEET_ATTR } from "@dom/attributes";
 
 import { PINNED_POSE_PROPERTY_RULES } from "@morph/morphPose";
 
-// The per-flight keyframe sheet.
+// The per-transition keyframe sheet.
 //
 // Every other animation in flemo is compiled once from its definition, because
 // every other animation is fully known before a navigation starts. A morph is
 // not: how far the element travels and how much it grows are two rects that
 // only exist once the arriving screen has laid out. So its keyframes are
-// inserted at the flight's start, with LITERAL values — no `var()` in the
+// inserted at the transition's start, with LITERAL values — no `var()` in the
 // keyframe, which is the same discipline the compiled sheet keeps for its
-// timing — and dropped when the flight lands.
+// timing — and dropped when the transition lands.
 //
-// Insertion goes through CSSOM rather than rewriting `textContent`: a flight
+// Insertion goes through CSSOM rather than rewriting `textContent`: a transition
 // starts inside a layout effect, one style recalculation away from the frame
-// the user sees, and re-parsing the whole sheet there is work the flight would
+// the user sees, and re-parsing the whole sheet there is work the transition would
 // pay for.
 //
 // The one exception to "literal" is a PINNED pose, which is driven through
 // registered custom properties precisely so that no compositor can run it, and
-// therefore stays with the rest of the flight (see morphPose). Those
-// registrations live below, and unlike a flight's own rules they are never
+// therefore stays with the rest of the transition (see morphPose). Those
+// registrations live below, and unlike a transition's own rules they are never
 // dropped.
 //
 // THE TWO LIVE IN SEPARATE SHEETS, and that is load-bearing. Blink re-reads a
 // style sheet whole when any rule in it is inserted or deleted, and a re-read
 // sheet that carries `@property` counts as a change of registrations, which
 // invalidates style for the entire document. With the registrations in the
-// flights' own sheet, every flight's insertion and every landing's removal
+// transitions' own sheet, every transition's insertion and every landing's removal
 // restyled every element on the page: traced on desktop Chrome as a
 // document-wide `PropertyRegistration` invalidation at each landing and two
 // recalculations of the whole arriving screen (220 elements) inside it. Kept
 // apart, the registration sheet is written once and never touched again, and
 // the same landing restyles about twenty.
-const FLIGHTS = "";
+const TRANSITIONS = "";
 const PROPERTIES = "properties";
 
-const sheet = (kind: typeof FLIGHTS | typeof PROPERTIES = FLIGHTS): CSSStyleSheet | null => {
+const sheet = (
+  kind: typeof TRANSITIONS | typeof PROPERTIES = TRANSITIONS
+): CSSStyleSheet | null => {
   if (isServer()) return null;
   let tag = document.head.querySelector<HTMLStyleElement>(`style[${MORPH_SHEET_ATTR}="${kind}"]`);
   if (!tag) {
@@ -52,9 +54,9 @@ const sheet = (kind: typeof FLIGHTS | typeof PROPERTIES = FLIGHTS): CSSStyleShee
 };
 
 /**
- * Insert one flight's rules and return the disposer that removes exactly them.
+ * Insert one transition's rules and return the disposer that removes exactly them.
  *
- * The rules are tracked by identity, not by index: a concurrent flight (two
+ * The rules are tracked by identity, not by index: a concurrent transition (two
  * morphing elements in one navigation, or a second navigation interrupting the
  * first) inserts and drops rules in between, and an index captured at insertion
  * would by then point at someone else's keyframes.
@@ -71,9 +73,9 @@ export const insertMorphRules = (rules: string[]): (() => void) => {
       if (cssRule) inserted.push(cssRule);
       /* v8 ignore next 4 -- a malformed rule is a bug in the emitter, not a
          runtime condition; the guard exists so one bad rule cannot leave a
-         flight without its cleanup. */
+         transition without its cleanup. */
     } catch {
-      // Keep going: a partially inserted flight still cleans up below.
+      // Keep going: a partially inserted transition still cleans up below.
     }
   }
 
@@ -89,9 +91,9 @@ export const insertMorphRules = (rules: string[]): (() => void) => {
 // REGISTERED ONCE, AND KEPT.
 //
 // `@property` is a document-wide registration, and adding or removing one
-// invalidates style for everything — which is the single frame a flight has the
-// least room in. So the pose's five go in on the first flight that needs them
-// and stay there for the session: five declarations, and no churn on any flight
+// invalidates style for everything — which is the single frame a transition has the
+// least room in. So the pose's five go in on the first transition that needs them
+// and stay there for the session: five declarations, and no churn on any transition
 // after the first.
 //
 // Keyed by the sheet rather than by a module flag so a second document (a test,
@@ -104,7 +106,7 @@ const registered = new WeakMap<CSSStyleSheet, boolean>();
  * A browser that does not understand `@property` refuses the rule, and there
  * every pose has to stay literal: unregistered, those properties would animate
  * discretely and teleport a pose at its midpoint rather than interpolating it.
- * A part that leads the rest of its flight is a flaw; one that jumps is a break.
+ * A part that leads the rest of its transition is a flaw; one that jumps is a break.
  */
 export const ensurePinnedPoses = (): boolean => {
   const target = sheet(PROPERTIES);
@@ -124,9 +126,9 @@ export const ensurePinnedPoses = (): boolean => {
   return took;
 };
 
-// READING THE FLIGHT BACK OUT.
+// READING THE TRANSITION BACK OUT.
 //
-// A gesture's release has to stage the return of a flight it did not compile,
+// A gesture's release has to stage the return of a transition it did not compile,
 // which means reading the path back. `getKeyframes()` looks like the way to do
 // that and is not: Chromium answers a CSS animation with the offsets and the
 // curves and none of the custom properties, and a pinned pose — the whole box
@@ -166,8 +168,8 @@ const TIMING_FUNCTION = "animation-timing-function";
 /**
  * The curve the animation itself carries, which its keyframes inherit.
  *
- * A flight's rule names both, so the rule that names the animation is where it
- * is read from; the flyer's own set is written inline instead, as a shorthand
+ * A transition's rule names both, so the rule that names the animation is where it
+ * is read from; the mover's own set is written inline instead, as a shorthand
  * list, so there it is matched by position against the names.
  */
 const declaredEasing = (
@@ -195,10 +197,10 @@ const declaredEasing = (
 };
 
 /**
- * One flight's compiled path, as its emitter wrote it.
+ * One transition's compiled path, as its emitter wrote it.
  *
  * `null` when the rules are not this sheet's to read — an animation from
- * somewhere else, or a flight whose rules have already been dropped — and the
+ * somewhere else, or a transition whose rules have already been dropped — and the
  * caller falls back to what the animation itself reports.
  */
 export const declaredMorphKeyframes = (animation: Animation): DeclaredFrame[] | null => {

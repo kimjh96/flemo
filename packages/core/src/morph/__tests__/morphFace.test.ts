@@ -13,7 +13,7 @@ import {
 
 // A FACE'S HEIGHT IS NOT A LINE.
 //
-// The half-leading a flight renders is `(line-height - the face's own height)`
+// The half-leading a transition renders is `(line-height - the face's own height)`
 // halved, and on Blink that second term climbs in whole-pixel steps while the
 // first interpolates smoothly. Everything here exists so the line-height can be
 // made to climb the same stairs, and so that an engine which does not have them
@@ -49,14 +49,14 @@ describe("faceRatios", () => {
     face(0.952, 0.241);
 
     // Cache-busting through the weight: the ratios are remembered per face for
-    // the session, which is what keeps a flight from paying for them twice.
+    // the session, which is what keeps a transition from paying for them twice.
     expect(faceRatios({ ...FAMILY, weight: 401 })).toEqual({ ascent: 0.952, descent: 0.241 });
   });
 
   it("asks at a size large enough for the answer to be precise", () => {
     // The metrics come back ROUNDED, so the ratio is only as good as the size
     // it was divided by. A boundary placed a hundredth of a pixel of font size
-    // out was measured to be a whole frame wide at the end of a flight.
+    // out was measured to be a whole frame wide at the end of a transition.
     const context = face(0.952, 0.241);
     faceRatios({ ...FAMILY, weight: 402 });
 
@@ -195,7 +195,7 @@ describe("faceAims", () => {
     }
   });
 
-  it("gives them in the order the flight meets them", () => {
+  it("gives them in the order the transition meets them", () => {
     expect(faceAims(14, 24, ratios, 1)).toEqual(
       [...faceAims(14, 24, ratios, 1)].sort((a, b) => a - b)
     );

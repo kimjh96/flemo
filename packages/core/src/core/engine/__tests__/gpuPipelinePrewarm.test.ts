@@ -7,7 +7,7 @@ import ensureGpuPipelinePrewarm, {
 } from "@core/engine/gpuPipelinePrewarm";
 
 // The one-shot GPU pipeline prewarm (gpuPipelinePrewarm.ts): imperceptible
-// probes at boot idle draw the flight's pipeline variants so a cold Graphite
+// probes at boot idle draw the transition's pipeline variants so a cold Graphite
 // cache compiles before any motion. Blink-only (Graphite/Dawn is Chromium's
 // rasterizer), refcounted across Routers, self-clocked teardown.
 
@@ -170,7 +170,7 @@ describe("gpuPipelinePrewarm", () => {
     vi.runAllTimers();
   });
 
-  it("defers the probe while a flemo transition is in flight, then runs when idle", () => {
+  it("defers the probe while a flemo transition is running, then runs when idle", () => {
     // A screen mid-transition on the page: the probe must NOT attach (its
     // Dawn compile would collide with the live motion).
     const screen = document.createElement("div");
@@ -179,17 +179,17 @@ describe("gpuPipelinePrewarm", () => {
     document.body.appendChild(screen);
 
     ensureGpuPipelinePrewarm();
-    // The idle fires while a flight is active → the probe reschedules instead
+    // The idle fires while a transition is active → the probe reschedules instead
     // of attaching. (runOnlyPendingTimers, not runAllTimers: the reschedule is
     // a fresh timer created during the run, so we step one idle at a time.)
     vi.runOnlyPendingTimers();
     expect(host()).toBeNull();
     expect(animate).not.toHaveBeenCalled();
 
-    vi.runOnlyPendingTimers(); // still flying → still deferred
+    vi.runOnlyPendingTimers(); // still moving → still deferred
     expect(host()).toBeNull();
 
-    // The flight settles; the next idle runs the probe.
+    // The transition settles; the next idle runs the probe.
     screen.setAttribute("data-flemo-status", "COMPLETED");
     vi.runOnlyPendingTimers();
     expect(host()).not.toBeNull();
@@ -202,7 +202,7 @@ describe("gpuPipelinePrewarm", () => {
     // The compiles are enqueued at the probe's first draw; cancelling
     // mid-span retracts nothing, so a started probe completes on its clock.
     ensureGpuPipelinePrewarm();
-    vi.advanceTimersByTime(0); // idle fires with no flight → probe attaches
+    vi.advanceTimersByTime(0); // idle fires with no transition → probe attaches
     expect(host()).not.toBeNull();
 
     const screen = document.createElement("div");
@@ -212,7 +212,7 @@ describe("gpuPipelinePrewarm", () => {
     vi.advanceTimersByTime(PREWARM_SPAN_MS - 1);
     expect(host()).not.toBeNull(); // still finishing its span
     vi.advanceTimersByTime(1);
-    expect(host()).toBeNull(); // self-teardown on schedule, flight or not
+    expect(host()).toBeNull(); // self-teardown on schedule, transition or not
 
     screen.remove();
   });

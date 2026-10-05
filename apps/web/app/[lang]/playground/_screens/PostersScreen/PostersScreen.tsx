@@ -41,15 +41,13 @@ function PostersScreen() {
     <Screen
       statusBarHeight="0px"
       systemNavigationBarHeight="0px"
-      backgroundColor="var(--color-bg)"
+      backgroundColor="var(--bg)"
       sharedBottomBar={<TabBar />}
     >
       <div className="flex h-full flex-col">
         <header className="shrink-0 px-5 pt-6 pb-3">
-          <h2 className="text-2xl font-extrabold tracking-[-0.02em] text-[var(--color-text-primary)]">
-            {t.app.tabPosters}
-          </h2>
-          <p className="mt-0.5 text-sm text-[var(--color-text-disabled)]">{t.app.postersNote}</p>
+          <h2 className="text-2xl font-extrabold tracking-[-0.02em] text-fg">{t.app.tabPosters}</h2>
+          <p className="mt-0.5 text-sm text-fg-subtle">{t.app.postersNote}</p>
         </header>
 
         <ul className="grid min-h-0 flex-1 grid-cols-2 content-start gap-3 overflow-y-auto px-4 pb-3">
@@ -67,41 +65,41 @@ function PostersScreen() {
                 // `block`, because a <button> is inline-block by default and
                 // its line box then adds the strut's descender under the card
                 // inside it. Measured: the card's own box was 207px while the
-                // cell holding it was 214px, so a flight that starts from the
+                // cell holding it was 214px, so a transition that starts from the
                 // card's box starts 7px SHORTER than the cell it left, which is
                 // the card appearing to shrink before it grows. `attachMorph`
                 // records the same 6.31px on WebKit for the same reason.
                 className="block w-full cursor-pointer text-left"
               >
-                {/* THE CARD is what flies under the container transform: the
+                {/* THE CARD is what moves under the container transform: the
                     cell becomes the page rather than a square escaping from
                     it. Under every other case this is a plain box. */}
                 <CardShell
                   layoutId={`card-${act.id}`}
-                  className="block overflow-hidden rounded-2xl bg-[var(--color-layer)] pb-3"
+                  className="block overflow-hidden rounded-2xl bg-surface-2 pb-3"
                 >
                   {/* THE BOX IS THE WRAPPER'S, not the morph's.
                       
-                      A morph leaves a stand-in in its place for the flight, and
-                      that stand-in is sized to the element in flight, not to
+                      A morph leaves a stand-in in its place for the transition, and
+                      that stand-in is sized to the element running, not to
                       the element at rest: measured on a pop, the cell's artwork
                       reported 241px inside a 151px cell and the caption under
-                      it was pushed 15px down until the flight landed. Holding
-                      the square here, and clipping, means nothing the flight
+                      it was pushed 15px down until the transition landed. Holding
+                      the square here, and clipping, means nothing the transition
                       does can move the two lines below. */}
                   <span className="block aspect-square w-full overflow-hidden">
                     <Morph
                       as="span"
                       // Scoped to THIS surface, not shared with the list tab. Both
                       // tabs show the same acts, so one id across both would pair
-                      // all ten whenever the two tabs are in a flight together.
+                      // all ten whenever the two tabs are in a transition together.
                       // The detail is the big side for either, and is told which
                       // one opened it through the route.
                       name={morph}
                       layoutId={`cell-${act.id}`}
                       // The top rounding is the ARTWORK'S OWN, not only the
                       // wrapper's clip. At rest the two paint identically, but
-                      // a flight lifts the artwork out of the wrapper: with no
+                      // a transition lifts the artwork out of the wrapper: with no
                       // radius of its own the corners snapped square on a
                       // push's first frame and stayed square until a pop's
                       // landing. Owned, the pair carries 16px-top ↔ 0 and the
@@ -114,35 +112,35 @@ function PostersScreen() {
                   {/* The caption runs the same part as the detail's copy, so
                       both ends of the card are bare while it travels. A
                       caption here and none there is a line of type appearing
-                      out of nothing partway through the flight, which is the
+                      out of nothing partway through the transition, which is the
                       shift between the title and the date that a recording
                       kept showing. */}
-                  {/* Visible for the whole flight, dissolving inside the
+                  {/* Visible for the whole transition, dissolving inside the
                       card's ghost, as the deleted playground's caption did.
                       Only the NAME is paired: it re-typesets into the detail's
                       heading while its clone holds this exact box. */}
                   {/* The fixed-height holder does for the name what the fixed
                       square does for the artwork. A morph's slot measures 0x0
                       while the element is away, so without a box of its own the
-                      line collapses in the flying card and everything below it
+                      line collapses in the moving card and everything below it
                       sits a line too high, then drops at the landing. */}
                   {/* The INSET LIVES ON THE HOLDER, never on the morph
                       element. A text morph pins the start edge, and the detail
                       keeps its inset on the parent, so an inset here on the
-                      element itself offset the flying line by exactly that
+                      element itself offset the moving line by exactly that
                       padding: measured +20px right on push, -20px left on pop.
                       The explicit leading pins the line box against the
-                      inherited line-height the flight stamps on the card. */}
+                      inherited line-height the transition stamps on the card. */}
                   <span className="mt-3 block h-5 px-4">
                     <CardTitle
                       layoutId={`cardname-${act.id}`}
-                      className="block truncate text-[13px] leading-5 font-semibold text-[var(--color-text-primary)]"
+                      className="block truncate text-[13px] leading-5 font-semibold text-fg"
                     >
                       {act.artist}
                     </CardTitle>
                   </span>
                   {/* Paired like the name, and for the same reason: unpaired,
-                      this line exists twice during a flight (once in the card's
+                      this line exists twice during a transition (once in the card's
                       ghost, once in the arrival) and two copies of a date line
                       cross-fading at the same spot is the shift the recordings
                       kept showing. The detail's meta is the SAME string, so the
@@ -150,7 +148,7 @@ function PostersScreen() {
                   <span className="mt-1 block h-4 px-4">
                     <CardTitle
                       layoutId={`cardmeta-${act.id}`}
-                      className="block truncate text-[11px] leading-4 text-[var(--color-text-disabled)]"
+                      className="block truncate text-[11px] leading-4 text-fg-subtle"
                     >
                       {act.day} {act.time} · ₩{act.price}
                     </CardTitle>

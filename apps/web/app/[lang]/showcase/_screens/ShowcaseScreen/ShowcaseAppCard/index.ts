@@ -1,1 +1,1 @@
-export { default } from "./ShowcaseAppCard";
+export { default, type ShowcaseAppCardProps } from "./ShowcaseAppCard";

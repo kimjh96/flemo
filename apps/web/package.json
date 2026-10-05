@@ -1,6 +1,6 @@
 {
   "name": "@flemo/web",
-  "version": "0.11.15",
+  "version": "0.12.1",
   "private": true,
   "type": "module",
   "scripts": {
@@ -18,7 +18,7 @@
     "@flemo/core": "workspace:*",
     "@flemo/devtools": "workspace:*",
     "@flemo/react": "workspace:*",
-    "next": "^16.3.7",
+    "next": "^16.3.8",
     "next-themes": "^0.4.6",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
@@ -33,7 +33,7 @@
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "eslint": "^9.39.5",
-    "eslint-config-next": "^16.3.6",
+    "eslint-config-next": "^16.3.8",
     "postcss": "^8.5.28",
     "tailwindcss": "^4.3.3",
     "typescript": "^6.0.3"

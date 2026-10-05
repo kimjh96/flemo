@@ -22,7 +22,7 @@ import {
 // own screen container — an isolated stacking context at the screen's z-index.
 // So the covered screen's <Part> runs its half of the cross-fade under the other
 // screen's opaque surface, where nothing can see it. Staging lifts it above both
-// screens for the flight and puts it back, unchanged, when the flight lands.
+// screens for the transition and puts it back, unchanged, when the transition lands.
 
 const NEXT_FRAME = () => new Promise((resolve) => setTimeout(resolve, 0));
 
@@ -130,7 +130,7 @@ describe("stageBarParts", () => {
   it("leaves a stand-in holding the part's place in the bar", () => {
     // A part is part of its bar's layout. Lift it out and the bar loses exactly
     // its width; on a pop that happens to the RETURNING screen, whose bar is the
-    // one still on the glass at the landing. Measured on a real flight: the
+    // one still on the glass at the landing. Measured on a real transition: the
     // title moved 56px and moved back on release.
     stage();
 
@@ -172,7 +172,7 @@ describe("stageBarParts", () => {
   it("marks the staged part with the screen it belongs to", () => {
     // Its ancestry is gone, and every participant query that still has to find
     // it — the layer pin, the settle release, the COMPLETED inline clear — goes
-    // through this marker (see flightParticipants.collectScreenParts).
+    // through this marker (see transitionParticipants.collectScreenParts).
     stage();
 
     expect(part.getAttribute(PART_HOME_ATTR)).toBe("screen-1");
@@ -198,9 +198,9 @@ describe("stageBarParts", () => {
   // A HANDOVER IS A FACT ABOUT THE DOM, NOT A FLAG THAT SETTLES LATER.
   //
   // The binding computes `bar-riding` from the partner's registration, which is
-  // a store write from an effect: on the commit that starts the flight the
+  // a store write from an effect: on the commit that starts the transition the
   // covered bar still reads `riding`. Waiting for it moved a part two painted
-  // frames into the flight, and an engine that rebuilds the layer of a live
+  // frames into the transition, and an engine that rebuilds the layer of a live
   // element it re-parents shows that as a blink.
   const partnerBar = (attrs: Record<string, string>) => {
     const other = document.createElement("div");
@@ -247,7 +247,7 @@ describe("stageBarParts", () => {
   });
 
   it("stages nothing it cannot measure", () => {
-    // A covered screen is Activity-hidden once its flight settles, and hidden
+    // A covered screen is Activity-hidden once its transition settles, and hidden
     // means display: none — every rect inside it reads 0,0 0x0. Pinning a part
     // at that measurement puts it at the layer's origin with no size, seen on a
     // real swipe as the returning screen's icon and badge drawn clipped into
@@ -315,7 +315,7 @@ describe("stageBarParts", () => {
   // THE SAME DEFECT THE MORPH LAYER HAD. A screen that unmounts while held can
   // never flip its own attribute again, and an observer on a removed node
   // fires nothing — so the parts stayed paused at the from-pose for the whole
-  // flight and then cut into place.
+  // transition and then cut into place.
   it("lets the parts go when the screen they belong to leaves the document", async () => {
     stage();
     expect(layer.getAttribute(ANIM_HOLD_ATTR)).toBe(ANIM_HOLD.HELD);
@@ -333,7 +333,7 @@ describe("stageBarParts", () => {
     expect(layer.getAttribute(ANIM_HOLD_ATTR)).toBe(ANIM_HOLD.RELEASED);
   });
 
-  it("puts the part back exactly where it was, carrying no trace of the flight", () => {
+  it("puts the part back exactly where it was, carrying no trace of the transition", () => {
     const sibling = document.createElement("span");
     bar.appendChild(sibling);
     const staged = stage();
@@ -437,10 +437,10 @@ describe("stageBarParts", () => {
     }
   });
 
-  it("leaves the hold to the flight that interrupted it", () => {
-    // A navigation interrupted mid-flight is followed by one staging over the
+  it("leaves the hold to the transition that interrupted it", () => {
+    // A navigation interrupted mid-transition is followed by one staging over the
     // top of it, and the two stage the same COUNT of the same kind of element —
-    // so occupancy cannot tell them apart. The interrupted flight's release
+    // so occupancy cannot tell them apart. The interrupted transition's release
     // must not strip the live one's hold.
     const first = stage();
 

@@ -4,13 +4,13 @@ import { SCREEN_ATTR } from "@dom/attributes";
 //
 // A pair's endpoint can sit half out of view: a cell scrolled to the list's
 // edge is clipped by the scroll container, with the tab bar or the page's
-// header stacked flush against that edge. The flight layer clips nothing, so
+// header stacked flush against that edge. The transition layer clips nothing, so
 // the instant such an element is staged the hidden part PAINTS — a half cell
-// becomes a whole one in one frame — and then the flight carries it straight
+// becomes a whole one in one frame — and then the transition carries it straight
 // across the chrome that was covering it. Reported from a scrolled grid as
 // the morph "overlapping the tab bar and the header".
 //
-// The remedy is to carry the clip as part of the flight: measure how much of
+// The remedy is to carry the clip as part of the transition: measure how much of
 // the endpoint's box its clipping ancestors actually showed, and interpolate
 // from that inset to the other end's. Leaving, the element slides out from
 // under the chrome instead of materialising over it; landing, it slides back
@@ -39,8 +39,8 @@ const clips = (overflow: string): boolean => overflow !== "" && overflow !== "vi
  * translate3d(-30%)), and mixing a rest-space element rect with mid-pose
  * ancestor boxes invents a cut the size of the pose: measured as a
  * destination cell reported 68.74% hidden on its right, which clipped the
- * flight to a sliver. Fractions of a box are invariant under the rigid
- * transforms screens fly by, so live-against-live reads the same answer the
+ * transition to a sliver. Fractions of a box are invariant under the rigid
+ * transforms screens move by, so live-against-live reads the same answer the
  * rest layout will.
  */
 export const visibleInset = (element: Element | null): MorphClipInset | null => {
@@ -54,7 +54,7 @@ export const visibleInset = (element: Element | null): MorphClipInset | null => 
   // The walk STOPS AT THE ELEMENT'S OWN SCREEN. Live-against-live is only
   // pose-invariant for ancestors that move with the element; the first thing
   // outside the screen (the scope's own box, a stage bezel) holds still while
-  // the screen flies, and measuring against it mid-pose reads the pose as a
+  // the screen moves, and measuring against it mid-pose reads the pose as a
   // cut — a cupertino pop's -30% slide became a 44% left inset, clipping the
   // returning artwork to a sliver. What hides list content is the scrollport,
   // and the scrollport lives inside the screen.
@@ -103,7 +103,7 @@ export const visibleInset = (element: Element | null): MorphClipInset | null => 
 const NONE: MorphClipInset = { top: 0, right: 0, bottom: 0, left: 0 };
 
 /**
- * The clip channel for a flight, or null when neither end was clipped —
+ * The clip channel for a transition, or null when neither end was clipped —
  * inset(0) at every frame is not worth an animated property.
  */
 export const clipTravel = (

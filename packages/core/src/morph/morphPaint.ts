@@ -1,10 +1,10 @@
 // WHAT A MORPH CARRIES BESIDES ITS BOX, as a table.
 //
 // A morph is one element on two screens, and the arriving element is the
-// ARRIVAL's tree: on the flight's first frame it is already wearing every one
+// ARRIVAL's tree: on the transition's first frame it is already wearing every one
 // of the destination's own values. So any property the two ends set differently
 // STEPS at the instant of the tap and then holds, while the box moves for the
-// rest of the flight. It reads as two events where the author wrote one.
+// rest of the transition. It reads as two events where the author wrote one.
 //
 // That failure was found one property at a time — the padding flinch, the type
 // that thickened in a single step, the corner that jumped 4px, the surface that
@@ -32,7 +32,7 @@ export interface PaintChannel {
   /**
    * Rewrite a captured value into an interpolable one. A keyword end turns the
    * whole channel into a discrete swap at the eased midpoint — worse than not
-   * carrying it, because it fires mid-flight where nothing else steps.
+   * carrying it, because it fires mid-transition where nothing else steps.
    */
   normalize?: (value: string) => string;
 }
@@ -41,7 +41,7 @@ export interface PaintChannel {
 // spacing there. Left as the keyword, `gap: normal → 12px` cannot interpolate,
 // so CSS swaps it discretely at the eased 50% — measured on the playground's
 // list pop as the row's two gaps arriving at once, +12px into the label's left
-// edge and −24px off its width in a single frame at ~38% of the flight.
+// edge and −24px off its width in a single frame at ~38% of the transition.
 // (A CSS multicol's `column-gap: normal` computes to 1em, not zero, so this
 // trades exactness there for the flex/grid case morphs actually hit.)
 const zeroNormal = (value: string): string => (value === "normal" ? "0px" : value);
@@ -106,9 +106,9 @@ const PAINT_CHANNELS: readonly PaintChannel[] = [
 //   author owns it; carrying it as well would make two authors of one property.
 // - `background-image` has no interpolation between arbitrary values, and is
 //   the element's identity rather than its state (see above).
-// - `min-*` / `max-*` are LIFTED for the flight, not carried: a clamp outranks
+// - `min-*` / `max-*` are LIFTED for the transition, not carried: a clamp outranks
 //   the animation and would pin the box at one end of it (see attachMorph).
-// - `transform` is the flight's own.
+// - `transform` is the transition's own.
 // - `font-family`, `border-style`, `text-transform`, `display`, `overflow` and
 //   friends are not interpolable at all — CSS has no midpoint for them, so
 //   there is nothing to carry.

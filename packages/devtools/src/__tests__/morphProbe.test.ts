@@ -62,28 +62,28 @@ describe("the pairing picture", () => {
     const activity = morphActivity(createMorphProbeState([a, b]), true);
     expect(activity.registered).toBe(2);
     expect(activity.pairable).toEqual(["hero"]);
-    expect(activity.flew).toEqual([]);
+    expect(activity.moved).toEqual([]);
     expect(activity.skipped).toEqual(["hero"]);
   });
 
-  it("takes a stamped role as proof the pair flew", () => {
+  it("takes a stamped role as proof the pair moved", () => {
     const a = screen("a");
     const b = screen("b");
     morph(a, "hero", "enter");
     morph(b, "hero", "exit");
 
     const activity = morphActivity(createMorphProbeState([a, b]), true);
-    expect(activity.flew).toEqual(["hero"]);
+    expect(activity.moved).toEqual(["hero"]);
     expect(activity.skipped).toEqual([]);
   });
 
-  it("ignores an end in a screen this flight is not moving", () => {
+  it("ignores an end in a screen this transition is not moving", () => {
     const a = screen("a");
     const deep = screen("deep");
     morph(a, "hero");
     morph(deep, "hero");
 
-    // Only `a` is in the flight, so the deep screen's end is not a partner.
+    // Only `a` is in the transition, so the deep screen's end is not a partner.
     const activity = morphActivity(createMorphProbeState([a]), true);
     expect(activity.pairable).toEqual([]);
     expect(activity.skipped).toEqual([]);
@@ -121,13 +121,13 @@ describe("the pairing picture", () => {
     expect(activity.pairable).toEqual([]);
   });
 
-  it("takes a role stamped mid-flight, and a camera, as they are written", () => {
+  it("takes a role stamped mid-transition, and a camera, as they are written", () => {
     const a = screen("a");
     const b = screen("b");
     const end = morph(a, "hero");
     morph(b, "hero");
     const state = createMorphProbeState([a, b]);
-    expect(state.flew.size).toBe(0);
+    expect(state.moved.size).toBe(0);
 
     end.setAttribute("data-flemo-morph", "enter");
     trackMorphAttribute(state, end);
@@ -137,26 +137,26 @@ describe("the pairing picture", () => {
     trackMorphAttribute(state, camera);
 
     const activity = morphActivity(state, true);
-    expect(activity.flew).toEqual(["hero"]);
+    expect(activity.moved).toEqual(["hero"]);
     expect(activity.camera).toBe(true);
   });
 
-  it("ignores a flying element that carries no pairing key", () => {
+  it("ignores a moving element that carries no pairing key", () => {
     const a = screen("a");
     const state = createMorphProbeState([a]);
     const anonymous = document.createElement("div");
     anonymous.setAttribute("data-flemo-morph", "enter");
     a.appendChild(anonymous);
     trackMorphAttribute(state, anonymous);
-    expect(morphActivity(state, true).flew).toEqual([]);
+    expect(morphActivity(state, true).moved).toEqual([]);
   });
 
-  it("ignores an attribute mutation on an element that is not flying", () => {
+  it("ignores an attribute mutation on an element that is not moving", () => {
     const a = screen("a");
     const end = morph(a, "hero");
     const state = createMorphProbeState([a]);
     trackMorphAttribute(state, end);
-    expect(morphActivity(state, true).flew).toEqual([]);
+    expect(morphActivity(state, true).moved).toEqual([]);
   });
 });
 
@@ -188,7 +188,7 @@ describe("ghosts", () => {
     expect(hits[0].detail).toContain("first-frame");
   });
 
-  it("says nothing about a ghost that lived a normal flight", () => {
+  it("says nothing about a ghost that lived a normal transition", () => {
     const state = createMorphProbeState([host]);
     const lived = ghost(host);
     trackMorphNodes(state, mutation({ addedNodes: nodes([lived]) }), 0);
@@ -224,7 +224,7 @@ describe("ghosts", () => {
 });
 
 describe("residue at rest", () => {
-  it("counts nothing while another flight is already running", () => {
+  it("counts nothing while another transition is already running", () => {
     const a = screen("a");
     morph(a, "hero", "enter");
     const activity = morphActivity(createMorphProbeState([a]), true);
@@ -253,7 +253,7 @@ describe("residue at rest", () => {
     expect(activity.layerResidue).toBe(2);
   });
 
-  it("reads a leak as rules the flight added and never dropped", () => {
+  it("reads a leak as rules the transition added and never dropped", () => {
     const style = document.createElement("style");
     style.setAttribute("data-flemo-morph-sheet", "");
     document.head.appendChild(style);
