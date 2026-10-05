@@ -54,7 +54,7 @@ const page: LocalizedDocPage = {
         items: [
           "[Getting started](getting-started): your first push and pop",
           "[Transitions](transitions): presets, custom motion, gestures",
-          "[Part](part), [Layer](layer), [Morph](morph), [Putting it together](composition): richer motion"
+          "[Part](part), [Layer](layer), [Morph](morph), [Putting it together](putting-it-together): richer motion"
         ]
       }
     ]
@@ -113,7 +113,7 @@ const page: LocalizedDocPage = {
         items: [
           "[빠르게 시작하기](getting-started): 첫 push와 pop",
           "[Transitions](transitions): 프리셋, 직접 만드는 화면 전환, 제스처",
-          "[Part](part), [Layer](layer), [Morph](morph), [Putting it together](composition): 더 풍부한 애니메이션"
+          "[Part](part), [Layer](layer), [Morph](morph), [Putting it together](putting-it-together): 더 풍부한 애니메이션"
         ]
       }
     ]

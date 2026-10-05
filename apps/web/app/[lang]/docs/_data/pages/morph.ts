@@ -154,7 +154,7 @@ const enBlocks: DocBlock[] = [
           "Give both elements the same children. Anything the element on the new screen does not contain cannot be carried across.",
           "The element leaves its screen when the transition starts and returns when it ends, so a scroll container, an opaque new screen or a sliding transition cannot get in the way.",
           "While the transition runs, the element is drawn above shared bars, tab bars and decorator dims. Its layer sits above every screen container, nothing inside a screen can be drawn above it, and there is currently no way to prevent this.",
-          "A morph belongs to the Router of its enclosing `Screen` and pairs only during that Router's transitions. Inside a nested Router it moves within that Router's box. See [Putting it together](composition).",
+          "A morph belongs to the Router of its enclosing `Screen` and pairs only during that Router's transitions. Inside a nested Router it moves within that Router's box. See [Putting it together](putting-it-together).",
           "A `<Part>` inside a growing Morph is laid out once at its normal width, the width it has outside a transition. As the Morph grows, the Part is clipped instead of re-wrapping.",
           "`as` renders another tag (default `div`). Props stay typed as a div's. Do not render a structural tag such as `li` or `td` with it; put the Morph inside the `li` or `td` instead.",
           "A `name` with nothing registered under it animates nothing and warns once in development."
@@ -370,7 +370,7 @@ const koBlocks: DocBlock[] = [
           "두 요소에 같은 자식을 넣으세요. 새 화면의 요소에 없는 내용은 옮겨 갈 수 없어요.",
           "요소는 전환이 시작될 때 화면에서 빠져나왔다가 끝나면 돌아와요. 그래서 스크롤 컨테이너나 불투명한 새 화면, 슬라이드 전환이 이동을 방해하지 않아요.",
           "전환 중인 요소는 공유 바, 탭 바, 데코레이터의 dim보다 위에 그려져요. 이 레이어는 모든 화면 컨테이너보다 위에 있어서 화면 안의 어떤 요소도 그보다 위에 올 수 없고, 지금은 이걸 막을 방법이 없어요.",
-          "Morph는 자신을 감싼 `Screen`의 Router에 속하고, 그 Router의 화면 전환 안에서만 짝을 찾아요. 중첩 Router 안에서는 그 Router 영역 안에서만 움직여요. [Putting it together](composition)를 참고하세요.",
+          "Morph는 자신을 감싼 `Screen`의 Router에 속하고, 그 Router의 화면 전환 안에서만 짝을 찾아요. 중첩 Router 안에서는 그 Router 영역 안에서만 움직여요. [Putting it together](putting-it-together)를 참고하세요.",
           "커지는 Morph 안에 있는 `<Part>`는 전환 중이 아닐 때의 너비로 한 번만 레이아웃돼요. Morph가 커지는 동안 줄바꿈이 다시 일어나지 않고 잘려서 보여요.",
           "`as`로 다른 태그를 렌더링할 수 있어요(기본값 `div`). prop 타입은 div 기준 그대로예요. `li`, `td` 같은 구조용 태그를 `as`로 지정하지 말고, Morph를 그 태그 안에 넣으세요.",
           "등록되지 않은 `name`을 쓰면 아무 애니메이션도 일어나지 않고, 개발 모드에서 한 번 경고가 떠요."

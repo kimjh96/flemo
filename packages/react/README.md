@@ -116,7 +116,7 @@ most pages:
 - [Transitions](https://flemo.dev/docs/transitions), [Decorator](https://flemo.dev/docs/decorator),
   [Part](https://flemo.dev/docs/part), [Morph](https://flemo.dev/docs/morph),
   [Layer](https://flemo.dev/docs/layer)
-- [Putting it together](https://flemo.dev/docs/composition): one app built step by step
+- [Putting it together](https://flemo.dev/docs/putting-it-together): one app built step by step
 - [API reference](https://flemo.dev/docs/api)
 
 Try the presets on a real app in the [playground](https://flemo.dev/playground). For coding

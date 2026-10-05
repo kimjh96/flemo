@@ -133,7 +133,7 @@ const enBlocks: DocBlock[] = [
   },
   {
     type: "p",
-    text: "[Putting it together](composition) builds an app with all of these, one step at a time."
+    text: "[Putting it together](putting-it-together) builds an app with all of these, one step at a time."
   }
 ];
 
@@ -265,7 +265,7 @@ const koBlocks: DocBlock[] = [
   },
   {
     type: "p",
-    text: "[Putting it together](composition)에서 이 모든 것을 한 단계씩 써서 앱을 만들어 봐요."
+    text: "[Putting it together](putting-it-together)에서 이 모든 것을 한 단계씩 써서 앱을 만들어 봐요."
   }
 ];
 

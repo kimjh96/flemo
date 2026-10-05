@@ -431,14 +431,14 @@ const koBlocks: DocBlock[] = [
 
 const page: LocalizedDocPage = {
   en: {
-    slug: "composition",
+    slug: "putting-it-together",
     title: "Putting it together",
     summary:
       "Build a Places app step by step: a header whose title changes, a panel with its own back stack, a card that grows into the next screen, and a menu drawn above everything.",
     blocks: enBlocks
   },
   ko: {
-    slug: "composition",
+    slug: "putting-it-together",
     title: "Putting it together",
     summary:
       "장소 앱을 단계별로 만들어 봐요. 제목만 바뀌는 헤더, 자체 뒤로 가기가 있는 패널, 다음 화면으로 커지는 카드, 모든 화면 위에 뜨는 메뉴를 차례로 더해요.",

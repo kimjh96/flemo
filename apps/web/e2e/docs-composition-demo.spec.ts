@@ -11,7 +11,7 @@ import { waitForNavIdle } from "./helpers/flemo";
 // header, inside the device, and not over the site.
 
 test("the panel's menu opens inside the demo, above its header", async ({ page }) => {
-  await page.goto("/en/docs/composition");
+  await page.goto("/en/docs/putting-it-together");
   await waitForNavIdle(page);
 
   const demo = page.locator("figure").first();
@@ -27,4 +27,14 @@ test("the panel's menu opens inside the demo, above its header", async ({ page }
     return Boolean(dialog && figure?.contains(dialog));
   });
   expect(inside).toBe(true);
+});
+
+// The page used to live at /docs/composition. That address was published, so
+// it redirects for good rather than falling through to a 404.
+test("the old composition address redirects to Putting it together", async ({ page }) => {
+  await page.goto("/docs/composition");
+  await expect(page).toHaveURL(/\/docs\/putting-it-together$/);
+
+  await page.goto("/ko/docs/composition");
+  await expect(page).toHaveURL(/\/ko\/docs\/putting-it-together$/);
 });
