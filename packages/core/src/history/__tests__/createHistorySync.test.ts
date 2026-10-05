@@ -345,7 +345,61 @@ describe("createHistorySync (headless, no React)", () => {
   it("ignores an entry that carries no frame of ours (foreign territory)", async () => {
     const { stores } = setup([root, { ...root, id: "second", pathname: "/a" }], 1);
 
-    window.history.replaceState(null, "", "/");
+    window.history.replaceState(null, "", "/elsewhere");
+    window.dispatchEvent(new PopStateEvent("popstate", { state: null }));
+    await settle();
+
+    expect(stores.history.getState().index).toBe(1);
+    expect(stores.navigate.getState().status).toBe("IDLE");
+  });
+
+  // An in-page link (`<a href="#usage">`) adds an entry the browser creates
+  // itself, with no state, on the pathname of the screen it was clicked on.
+  // Measured on flemo.dev: docs -> heading anchor -> Home, then Back moved the
+  // URL to /docs/introduction#five-core-pieces and left Home on screen.
+  it("lands Back from a pushed screen onto a fragment entry on the screen held for its pathname", async () => {
+    const docs: History = { ...root, id: "docs", pathname: "/docs" };
+    const { stores } = setup([root, docs, { ...root, id: "home", pathname: "/home" }], 2);
+
+    window.history.replaceState(null, "", "/docs#usage");
+    window.dispatchEvent(new PopStateEvent("popstate", { state: null }));
+    await settle();
+
+    expect(stores.history.getState().index).toBe(1);
+    expect(stores.history.getState().histories.map((history) => history.id)).toEqual([
+      "root",
+      "docs"
+    ]);
+    expect(stores.navigate.getState().status).toBe("COMPLETED");
+  });
+
+  it("pops every level down to the nearest held screen of a fragment entry, one at a time", async () => {
+    const docs: History = { ...root, id: "docs", pathname: "/docs" };
+    const { stores } = setup(
+      [root, docs, { ...root, id: "a", pathname: "/a" }, { ...root, id: "b", pathname: "/b" }],
+      3
+    );
+    const popped: number[] = [];
+    const unsubscribe = stores.history.subscribe((state) => popped.push(state.index));
+
+    window.history.replaceState(null, "", "/docs#usage");
+    window.dispatchEvent(new PopStateEvent("popstate", { state: null }));
+    await settle();
+    await settle();
+    unsubscribe();
+
+    expect(stores.history.getState().index).toBe(1);
+    // Through /a, never straight from /b to /docs.
+    expect(popped).toContain(2);
+  });
+
+  it("leaves the screen up when a fragment entry belongs to the screen already showing", async () => {
+    // Back from /docs#usage to /docs, or Forward onto the anchor: the same
+    // screen, so the browser's own scroll is the whole move.
+    const docs: History = { ...root, id: "docs", pathname: "/docs" };
+    const { stores } = setup([root, docs], 1);
+
+    window.history.replaceState(null, "", "/docs#usage");
     window.dispatchEvent(new PopStateEvent("popstate", { state: null }));
     await settle();
 
