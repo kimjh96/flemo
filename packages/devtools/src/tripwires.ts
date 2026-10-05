@@ -48,9 +48,13 @@ export interface TripwireOptions {
    * because a hit can land while no transition is open and must not be silently
    * attributed to the previous one.
    */
-  onHit: (hit: { kind: TripwireHit["kind"]; detail: string; atMs: number }) => void;
+  onHit: (
+    hit: { kind: TripwireHit["kind"]; detail: string; atMs: number },
+    /** The element the event fired on, so the recorder can find its Router. */
+    target: EventTarget | null
+  ) => void;
   /** Called with the moment the first flemo animation of a transition started. */
-  onAnimationStart: (atMs: number) => void;
+  onAnimationStart: (atMs: number, target: EventTarget | null) => void;
 }
 
 const isFlemoAnimation = (event: AnimationEvent): boolean =>
@@ -84,34 +88,40 @@ export const attachTripwires = (options: TripwireOptions): TripwireHandle => {
   const onAnimationStart = (event: AnimationEvent): void => {
     if (!isFlemoAnimation(event)) return;
     sawAnimation = true;
-    options.onAnimationStart(performance.now());
+    options.onAnimationStart(performance.now(), event.target);
   };
 
   const onAnimationCancel = (event: AnimationEvent): void => {
     if (!isFlemoAnimation(event)) return;
     sawAnimation = true;
-    options.onHit({
-      kind: "animation-cancel",
-      atMs: performance.now(),
-      detail:
-        `${event.animationName} was CANCELLED on ${describe(event.target)} — the element was ` +
-        "re-parented, re-styled or removed mid-transition. A cancelled animation loses its start " +
-        "time, and whatever restarts it is free to overwrite the authored delay"
-    });
+    options.onHit(
+      {
+        kind: "animation-cancel",
+        atMs: performance.now(),
+        detail:
+          `${event.animationName} was CANCELLED on ${describe(event.target)} — the element was ` +
+          "re-parented, re-styled or removed mid-transition. A cancelled animation loses its start " +
+          "time, and whatever restarts it is free to overwrite the authored delay"
+      },
+      event.target
+    );
   };
 
   const onAnimationEnd = (event: AnimationEvent): void => {
     if (!isFlemoAnimation(event)) return;
     sawAnimation = true;
     if (event.elapsedTime !== 0) return;
-    options.onHit({
-      kind: "zero-length-animation-end",
-      atMs: performance.now(),
-      detail:
-        `${event.animationName} reported animationend with elapsedTime 0 on ` +
-        `${describe(event.target)} — the animation ended without ever running. Anything ` +
-        "that waits for this event runs before the motion it was waiting for"
-    });
+    options.onHit(
+      {
+        kind: "zero-length-animation-end",
+        atMs: performance.now(),
+        detail:
+          `${event.animationName} reported animationend with elapsedTime 0 on ` +
+          `${describe(event.target)} — the animation ended without ever running. Anything ` +
+          "that waits for this event runs before the motion it was waiting for"
+      },
+      event.target
+    );
   };
 
   const onPointer = (event: Event): void => {
