@@ -1,0 +1,44 @@
+byteOwnership:
+  owner: reviewer
+  rewritePolicy: reviewed_exact
+candidateId: knorm_c130b4a024c85c8cee5c18ed
+compiler:
+  compilerBuildId: sha256:65a4a161da52ab805e88c3c575a068b4138f016bd2e5b2a20161846b0c3140d0
+  compilerId: lervo.codex.document-normalizer
+  compilerVersion: 2+codex-cli 0.160.0
+  isolation: external_no_capabilities
+  provider: codex
+formatVersion: lervo.document.v1
+operationId: knormop_25b8aea5399780fc226ce342
+outputLanguage: en
+outputs:
+  - byteCount: 824
+    contentHash: sha256:9f6c0e496eb4b12a721b74a30beded932a498438498dc01d1b5024d2f2f16b0b
+    path: apps/web/app/[lang]/docs/_data/writing-guide.md
+    userRegionHash: sha256:9f6c0e496eb4b12a721b74a30beded932a498438498dc01d1b5024d2f2f16b0b
+  - byteCount: 839
+    contentHash: sha256:62c510c8a00f0a4891ddd46e20f6658ba704be1f86cfb7dec2b32087fce6b42a
+    path: apps/web/app/[lang]/docs/_data/writing-guide/korean.md
+    userRegionHash: sha256:62c510c8a00f0a4891ddd46e20f6658ba704be1f86cfb7dec2b32087fce6b42a
+  - byteCount: 558
+    contentHash: sha256:8fb173615efb5b174420e425cfd36edca59535ab7b36c26b9a839625e433e62e
+    path: apps/web/app/[lang]/docs/_data/writing-guide/sentences.md
+    userRegionHash: sha256:8fb173615efb5b174420e425cfd36edca59535ab7b36c26b9a839625e433e62e
+  - byteCount: 2534
+    contentHash: sha256:109e906066efa9d52057a560122f81b5a8b0b0c3ca89138614b70380d979d08b
+    path: apps/web/app/[lang]/docs/_data/writing-guide/vocabulary.md
+    userRegionHash: sha256:109e906066efa9d52057a560122f81b5a8b0b0c3ca89138614b70380d979d08b
+profile: repository_document
+recordId: knormdoc_dc8ca5bb66d1338895fdf1d5
+resourceBindings: []
+schemaVersion: 2
+sourceContentHash: sha256:921361afad405cf69e453587cc3b41e08f8e1db11e41a60d517c5d0bbd9ea2c6
+sourcePath: apps/web/app/[lang]/docs/_data/writing-guide.md
+sourceUnitVersionIds:
+  - uv_32b52d24fa6b18257193921c
+  - uv_34c45f8c312e28890eb1ab01
+  - uv_36fb4bab2107eb239945fdfc
+  - uv_6e0c301421beb63d2fef8f80
+  - uv_76493e3742e3418e532c09b2
+  - uv_d0a658eba8acd41a30a4232a
+  - uv_f6347205e93683ff911ed284

@@ -1,0 +1,28 @@
+byteOwnership:
+  owner: reviewer
+  rewritePolicy: reviewed_exact
+candidateId: knorm_c130b4a024c85c8cee5c18ed
+compiler:
+  compilerBuildId: sha256:65a4a161da52ab805e88c3c575a068b4138f016bd2e5b2a20161846b0c3140d0
+  compilerId: lervo.codex.document-normalizer
+  compilerVersion: 2+codex-cli 0.160.0
+  isolation: external_no_capabilities
+  provider: codex
+formatVersion: lervo.document.v1
+operationId: knormop_730e0c9655de7f0d8d19429e
+outputLanguage: en
+outputs:
+  - byteCount: 5032
+    contentHash: sha256:7ced72781c30fe02e4b5aafa0a6472ea2ad35320f2ed2ce15cac732942ea1fcf
+    path: docs/instructions/transition-authoring/validation.md
+    userRegionHash: sha256:7ced72781c30fe02e4b5aafa0a6472ea2ad35320f2ed2ce15cac732942ea1fcf
+profile: instruction_document
+recordId: knormdoc_6be9d9082e791addbe32a91c
+resourceBindings: []
+schemaVersion: 2
+sourceContentHash: sha256:7ced72781c30fe02e4b5aafa0a6472ea2ad35320f2ed2ce15cac732942ea1fcf
+sourcePath: docs/instructions/transition-authoring/validation.md
+sourceUnitVersionIds:
+  - uv_08e28add9f5f180a40f37eda
+  - uv_209c5b3da172228d99929af7
+  - uv_64b90d664c0a4813a1a5a2f8

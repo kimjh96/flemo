@@ -74,6 +74,20 @@ export const FLEMO_ANIMATION_PREFIX = "flemo-";
 /** A morph's per-transition keyframes are namespaced again under this. */
 export const MORPH_ANIMATION_PREFIX = "flemo-morph-";
 
+/**
+ * The suffixes a head tier adds to a transition's keyframe name
+ * (`<name>-deskhead`), optionally followed by a part's clock tag (`-717ms`).
+ * The engine swaps a bare name for its head variant and back as the gates
+ * change, and each swap cancels the animation it replaces.
+ */
+export const HEAD_ANIMATION_SUFFIXES = [
+  "-gov",
+  "-deskhead",
+  "-govcreep",
+  "-govpark",
+  "-deskpark"
+] as const;
+
 /** This package's own marker — core reserves the name but never writes it. */
 export const DEVTOOLS_PANEL_ATTR = "data-flemo-devtools-panel";
 

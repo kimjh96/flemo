@@ -1,0 +1,26 @@
+byteOwnership:
+  owner: reviewer
+  rewritePolicy: reviewed_exact
+candidateId: knorm_c130b4a024c85c8cee5c18ed
+compiler:
+  compilerBuildId: sha256:65a4a161da52ab805e88c3c575a068b4138f016bd2e5b2a20161846b0c3140d0
+  compilerId: lervo.codex.document-normalizer
+  compilerVersion: 2+codex-cli 0.160.0
+  isolation: external_no_capabilities
+  provider: codex
+formatVersion: lervo.document.v1
+operationId: knormop_554447043466097e6fc083aa
+outputLanguage: en
+outputs:
+  - byteCount: 1508
+    contentHash: sha256:91a3ac1c9903e5a03ad8a15f9eaab8e4829fed898d89f25c065022bbf72466a4
+    path: docs/architecture/motion-engine/lifecycle/transition.md
+    userRegionHash: sha256:91a3ac1c9903e5a03ad8a15f9eaab8e4829fed898d89f25c065022bbf72466a4
+profile: architecture_document
+recordId: knormdoc_c3631025a2aa30b9cb6b84e9
+resourceBindings: []
+schemaVersion: 2
+sourceContentHash: sha256:e2502b3312964c268f95d5085ef7a732c32b2ed260ceb386743db206efe03f7b
+sourcePath: docs/architecture/motion-engine/lifecycle/transition.md
+sourceUnitVersionIds:
+  - uv_4e9948344f30c814a9fa6957

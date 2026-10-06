@@ -1,0 +1,28 @@
+byteOwnership:
+  owner: reviewer
+  rewritePolicy: reviewed_exact
+candidateId: knorm_c130b4a024c85c8cee5c18ed
+compiler:
+  compilerBuildId: sha256:65a4a161da52ab805e88c3c575a068b4138f016bd2e5b2a20161846b0c3140d0
+  compilerId: lervo.codex.document-normalizer
+  compilerVersion: 2+codex-cli 0.160.0
+  isolation: external_no_capabilities
+  provider: codex
+formatVersion: lervo.document.v1
+operationId: knormop_9cf6435c3c1d54e9077d926f
+outputLanguage: en
+outputs:
+  - byteCount: 2257
+    contentHash: sha256:3c49f78737b08e6c4eeee4130d46116b37f5ed0ab857ecd95ac509e0e8fe5ca6
+    path: evals/flemo-agent-guidance/README/scoring.md
+    userRegionHash: sha256:3c49f78737b08e6c4eeee4130d46116b37f5ed0ab857ecd95ac509e0e8fe5ca6
+profile: repository_document
+recordId: knormdoc_b7834b26b3cd05aac0f69899
+resourceBindings: []
+schemaVersion: 2
+sourceContentHash: sha256:84289de3373c8ec7aa8d841e6bb745f472bf87842ea5f92fc8d39ce34cf512bc
+sourcePath: evals/flemo-agent-guidance/README/scoring.md
+sourceUnitVersionIds:
+  - uv_0b9bd6c8334e23b9f1306312
+  - uv_0fcdb3cedc1e4fb61d7ff6e3
+  - uv_9fe4409ca4a0c03dd3ce8a21

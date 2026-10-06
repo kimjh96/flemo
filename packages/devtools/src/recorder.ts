@@ -80,6 +80,7 @@ export const REPORT_SCHEMA_VERSION = "4";
 const TRANSITIONAL = new Set<string>(TRANSITIONAL_STATUSES);
 const HOLD_KINDS = new Set<string>(HOLD_VALUES);
 const SCREEN_SELECTOR = attrSelector(SCREEN_ATTR);
+const ROUTER_SELECTOR = attrSelector(ROUTER_ATTR);
 const MAX_FRAME_GAPS = 2000;
 const MAX_LONG_TASKS = 1000;
 /** How often the persisted trace is refreshed while the page sits idle. */
@@ -170,7 +171,12 @@ export const attachTransitionRecorder = (
 
   const transitions: TransitionRecord[] = [];
   let transitionSeq = 0;
-  let current: ActiveTransition | null = null;
+  // One open transition PER ROUTER. A page with several Routers (a site whose
+  // pages hold live demos, each its own Router) moves them independently, and
+  // one record for "anything moving" merged their screens, read one Router's
+  // finished screens as another's stall, its fresh hold as a re-asserted one,
+  // and filed every animation event under whichever Router opened first.
+  const open = new Map<string, ActiveTransition>();
   let bucket: string | null = null;
   // Screens a stuck-watchdog finalization locked out of re-arming (see
   // evaluate) — cleared once they leave the transitional statuses.
@@ -185,34 +191,59 @@ export const attachTransitionRecorder = (
       TRANSITIONAL.has(element.getAttribute(STATUS_ATTR) ?? "")
     );
 
-  const busy = (): boolean => current !== null || transitionalScreens().length > 0;
+  const busy = (): boolean => open.size > 0 || transitionalScreens().length > 0;
 
-  const countParticipants = (screens: Element[]): TransitionRecord["participants"] => {
-    const bars = Array.from(document.querySelectorAll(attrSelector(BAR_ATTR))).filter(
+  /** The Router an element belongs to: the nearest `data-flemo-router`, or "". */
+  const routerKeyOf = (element: Element): string =>
+    element.closest(ROUTER_SELECTOR)?.getAttribute(ROUTER_ATTR) ?? "";
+
+  /** The open transition of the Router a DOM event or mutation came from. */
+  const ownerOf = (target: EventTarget | Node | null): ActiveTransition | null =>
+    target instanceof Element ? (open.get(routerKeyOf(target)) ?? null) : null;
+
+  // A childList record's target is the PARENT, and a morph moving onto its
+  // Router's layer has a parent that sits outside every screen. The moved
+  // element carries its own Router, so the nodes are asked first.
+  const ownerOfNodes = (mutation: MutationRecord): ActiveTransition | null => {
+    for (const node of [...mutation.addedNodes, ...mutation.removedNodes]) {
+      if (!(node instanceof Element)) continue;
+      const owner = ownerOf(node);
+      if (owner) return owner;
+    }
+    return ownerOf(mutation.target);
+  };
+
+  const countParticipants = (key: string, screens: Element[]): TransitionRecord["participants"] => {
+    const owned = (selector: string) =>
+      Array.from(document.querySelectorAll(selector)).filter(
+        (element) => routerKeyOf(element) === key
+      );
+    const bars = owned(attrSelector(BAR_ATTR)).filter(
       (element) =>
         TRANSITIONAL.has(element.getAttribute(BAR_STATUS_ATTR) ?? "") ||
         element.getAttribute(BAR_RIDING_ATTR) === "true"
     ).length;
-    const decorators = Array.from(document.querySelectorAll(attrSelector(DECORATOR_ATTR))).filter(
-      (element) => TRANSITIONAL.has(element.getAttribute(STATUS_ATTR) ?? "")
+    const decorators = owned(attrSelector(DECORATOR_ATTR)).filter((element) =>
+      TRANSITIONAL.has(element.getAttribute(STATUS_ATTR) ?? "")
     ).length;
-    const parts = Array.from(document.querySelectorAll(attrSelector(PART_NAME_ATTR))).filter(
-      (element) => TRANSITIONAL.has(element.getAttribute(STATUS_ATTR) ?? "")
+    const parts = owned(attrSelector(PART_NAME_ATTR)).filter((element) =>
+      TRANSITIONAL.has(element.getAttribute(STATUS_ATTR) ?? "")
     ).length;
     return { screens: screens.length, bars, decorators, parts };
   };
 
   // The tripwires run for the WHOLE session, not per transition: an animation
   // cancel can land between transitions (that is the interesting case), and the
-  // input that caused a navigation always precedes it.
+  // input that caused a navigation always precedes it. Each event goes to the
+  // transition of the Router whose element fired it.
   const tripwires = attachTripwires({
-    onHit: (hit) => {
-      const transition = current;
+    onHit: (hit, target) => {
+      const transition = ownerOf(target);
       if (!transition) return;
       transition.tripwires.push(relativeHit(hit, transition.t0Ms));
     },
-    onAnimationStart: (atMs) => {
-      const transition = current;
+    onAnimationStart: (atMs, target) => {
+      const transition = ownerOf(target);
       if (!transition || transition.firstAnimationAtMs !== null) return;
       transition.firstAnimationAtMs = round1(atMs - transition.t0Ms);
     }
@@ -227,9 +258,8 @@ export const attachTransitionRecorder = (
     return [...statuses];
   };
 
-  const sampleFrame = () => {
-    const transition = current;
-    if (!transition || detached) return;
+  const sampleFrame = (transition: ActiveTransition) => {
+    if (open.get(transition.key) !== transition || detached) return;
     const now = performance.now();
     const frames = transition.frames;
     if (
@@ -260,14 +290,14 @@ export const attachTransitionRecorder = (
       // locked screens are remembered so the next mutation does not re-arm
       // a duplicate transition on the very same stuck statuses (a locked queue
       // would otherwise fill the bounded buffer and evict real transitions).
-      stuckElements = [...transition.elements];
-      finalizeTransition(now, currentStuckStatuses(transition));
+      stuckElements = [...stuckElements, ...transition.elements];
+      finalizeTransition(transition, now, currentStuckStatuses(transition));
       return;
     }
-    transition.rafId = requestAnimationFrame(sampleFrame);
+    transition.rafId = requestAnimationFrame(() => sampleFrame(transition));
   };
 
-  const beginTransition = (screens: Element[]) => {
+  const beginTransition = (key: string, screens: Element[]) => {
     const now = performance.now();
     transitionSeq += 1;
     const activeFirst =
@@ -282,15 +312,16 @@ export const attachTransitionRecorder = (
         break;
       }
     }
-    current = {
+    const transition: ActiveTransition = {
       id: `transition-${transitionSeq}`,
+      key,
       kind,
       routerId: activeFirst.getAttribute(ROUTER_ATTR) ?? undefined,
       bucket,
       t0Ms: now,
       t0Iso: new Date().toISOString(),
       elements: [...screens],
-      participants: countParticipants(screens),
+      participants: countParticipants(key, screens),
       holdKind,
       holdReleasedAtMs: null,
       firstAnimationAtMs: null,
@@ -300,8 +331,9 @@ export const attachTransitionRecorder = (
       tripwires: [],
       rafId: null
     };
-    sampleDriverEvidence(current.frames, current.elements);
-    current.rafId = requestAnimationFrame(sampleFrame);
+    open.set(key, transition);
+    sampleDriverEvidence(transition.frames, transition.elements);
+    transition.rafId = requestAnimationFrame(() => sampleFrame(transition));
   };
 
   const scheduleEndAudit = (record: TransitionRecord, elements: Element[]) => {
@@ -380,16 +412,15 @@ export const attachTransitionRecorder = (
     anomalies: [] // derived lazily at report()
   });
 
-  const finalizeTransition = (endNow: number, stuckStatuses: string[]) => {
-    const transition = current;
-    /* v8 ignore next -- unreachable: both callers hold a transition. sampleFrame
-       returns at its own top when `current` is null, and evaluate only calls
-       this inside `if (current && ...)`. The narrowing stays for the type. */
-    if (!transition) return;
+  const finalizeTransition = (
+    transition: ActiveTransition,
+    endNow: number,
+    stuckStatuses: string[]
+  ) => {
     // Last sweep before the numbers are frozen: an image parked late in the
     // transition (or one that arrived mid-transition) must not read as unheld.
     snapshotHeldImages(transition.images, transition.elements);
-    current = null;
+    open.delete(transition.key);
     if (transition.rafId !== null) cancelAnimationFrame(transition.rafId);
     const record = buildRecord(transition, endNow, stuckStatuses, false);
     transitions.push(record);
@@ -409,7 +440,7 @@ export const attachTransitionRecorder = (
   };
 
   const trackHoldMutation = (mutation: MutationRecord) => {
-    const transition = current;
+    const transition = ownerOf(mutation.target);
     if (!transition || !(mutation.target instanceof Element)) return;
     const value = mutation.target.getAttribute(ANIM_HOLD_ATTR);
     if (value !== null && HOLD_KINDS.has(value) && transition.holdKind === null) {
@@ -448,32 +479,35 @@ export const attachTransitionRecorder = (
 
   const evaluate = () => {
     const transitional = transitionalScreens();
-    if (stuckElements.length > 0) {
-      // A watchdog-finalized queue stays suppressed until its screens
-      // actually leave the transitional statuses; only then can a fresh
-      // navigation arm a new transition.
-      if (transitional.some((element) => stuckElements.includes(element))) return;
-      stuckElements = [];
+    // A watchdog-finalized queue stays suppressed until its screens actually
+    // leave the transitional statuses; only then can a fresh navigation of that
+    // Router arm a new transition.
+    stuckElements = stuckElements.filter((element) => transitional.includes(element));
+    const groups = new Map<string, Element[]>();
+    for (const element of transitional) {
+      const key = routerKeyOf(element);
+      groups.set(key, [...(groups.get(key) ?? []), element]);
     }
-    if (!current && transitional.length > 0) {
-      beginTransition(transitional);
-      return;
+    for (const transition of [...open.values()]) {
+      if (!groups.has(transition.key)) finalizeTransition(transition, performance.now(), []);
     }
-    if (current && transitional.length === 0) {
-      finalizeTransition(performance.now(), []);
-      return;
-    }
-    if (current) {
+    for (const [key, screens] of groups) {
+      const transition = open.get(key);
+      if (!transition) {
+        if (screens.some((element) => stuckElements.includes(element))) continue;
+        beginTransition(key, screens);
+        continue;
+      }
       // A screen can join mid-transition (e.g. the entering screen mounts a
       // beat after the covered one flips) — union it into the participants.
-      for (const element of transitional) {
-        if (!current.elements.includes(element)) {
-          current.elements.push(element);
+      for (const element of screens) {
+        if (!transition.elements.includes(element)) {
+          transition.elements.push(element);
           // A whole screen can mount after the transition opened. Its childList
           // record was processed before this screen belonged to the transition,
           // so sweep the subtree again now that containment is authoritative.
-          trackAddedImages(current.images, current.elements, element.querySelectorAll("img"));
-          current.participants = countParticipants(current.elements);
+          trackAddedImages(transition.images, transition.elements, element.querySelectorAll("img"));
+          transition.participants = countParticipants(key, transition.elements);
         }
       }
     }
@@ -499,20 +533,21 @@ export const attachTransitionRecorder = (
           if (mutation.attributeName === ANIM_HOLD_ATTR) {
             trackHoldMutation(mutation);
           } else if (
-            current &&
             (mutation.attributeName === MORPH_ATTR ||
               mutation.attributeName === MORPH_CAMERA_ATTR) &&
             mutation.target instanceof Element
           ) {
-            trackMorphAttribute(current.morphs, mutation.target);
+            const transition = ownerOf(mutation.target);
+            if (transition) trackMorphAttribute(transition.morphs, mutation.target);
           }
           // Not `else if (childList)`: the observer below registers exactly
           // `attributes` and `childList`, so a record that is not the first is
           // the second, and testing for it again is a branch nothing can take.
         } else {
-          if (current) trackMorphNodes(current.morphs, mutation, now);
-          if (current && mutation.addedNodes.length > 0) {
-            trackAddedImages(current.images, current.elements, mutation.addedNodes);
+          const transition = ownerOfNodes(mutation);
+          if (transition) trackMorphNodes(transition.morphs, mutation, now);
+          if (transition && mutation.addedNodes.length > 0) {
+            trackAddedImages(transition.images, transition.elements, mutation.addedNodes);
           }
         }
       }
@@ -550,7 +585,7 @@ export const attachTransitionRecorder = (
       wentHidden = true;
       // Leaving the page is the last chance to keep the trace, and it is also
       // a moment when no transition can be running.
-      if (persist && current === null) saveTrace(transitions, REPORT_SCHEMA_VERSION);
+      if (persist && open.size === 0) saveTrace(transitions, REPORT_SCHEMA_VERSION);
     }
   };
   document.addEventListener("visibilitychange", onVisibility);
@@ -565,7 +600,7 @@ export const attachTransitionRecorder = (
     if (detached) return;
     // No `persist &&` here: the timer is only armed when persistence is on, so
     // testing it again inside the tick is a branch nothing can take.
-    if (current === null) saveTrace(transitions, REPORT_SCHEMA_VERSION);
+    if (open.size === 0) saveTrace(transitions, REPORT_SCHEMA_VERSION);
     persistTimer = window.setTimeout(persistTick, PERSIST_INTERVAL_MS);
   };
   if (persist) persistTimer = window.setTimeout(persistTick, PERSIST_INTERVAL_MS);
@@ -641,16 +676,16 @@ export const attachTransitionRecorder = (
 
   const materializeTransitions = (): TransitionRecord[] => {
     const closed = transitions.map(withDerived);
-    const transition = current;
-    if (!transition) return closed;
-    // Provisional record for a still-open transition so report() never hides an
+    // Provisional records for still-open transitions so report() never hides an
     // in-progress (or stuck) navigation.
     const now = performance.now();
-    const stuck = now - transition.t0Ms > STUCK_STATUS_MS;
-    return [
-      ...closed,
-      withDerived(buildRecord(transition, now, stuck ? currentStuckStatuses(transition) : [], true))
-    ];
+    const running = [...open.values()].map((transition) => {
+      const stuck = now - transition.t0Ms > STUCK_STATUS_MS;
+      return withDerived(
+        buildRecord(transition, now, stuck ? currentStuckStatuses(transition) : [], true)
+      );
+    });
+    return [...closed, ...running];
   };
 
   const sessionInput = (records: readonly TransitionRecord[]): InputEvidence => {
@@ -674,7 +709,6 @@ export const attachTransitionRecorder = (
     const warnings = deriveOverrideWarnings(merged);
     const environment = captureEnvironment(cadence, tripwires.sawAnimationEvent());
     const transitionRecords = materializeTransitions();
-    const openTransition = current;
     const preconditions: Precondition[] = derivePreconditions({
       environment,
       idleLongTasks: idleLongTasks(transitionRecords),
@@ -700,8 +734,9 @@ export const attachTransitionRecorder = (
       anomalies: deriveReportAnomalies({
         emulationSuspected: environment.emulationSuspected,
         platform: environment.platform,
-        stuckTransitionOpen:
-          openTransition !== null && performance.now() - openTransition.t0Ms > STUCK_STATUS_MS,
+        stuckTransitionOpen: [...open.values()].some(
+          (transition) => performance.now() - transition.t0Ms > STUCK_STATUS_MS
+        ),
         transitionAnomalies: transitionRecords.map((record) => record.anomalies)
       }),
       blindSpots: [...BLIND_SPOTS],
@@ -729,8 +764,12 @@ export const attachTransitionRecorder = (
     longTaskObserver?.disconnect();
     window.clearTimeout(persistTimer);
     persistTimer = 0;
-    if (current?.rafId != null) cancelAnimationFrame(current.rafId);
-    current = null;
+    for (const transition of open.values()) {
+      /* v8 ignore next -- the null arm is unreachable: an open transition always
+         has its next frame requested (beginTransition and sampleFrame set it). */
+      if (transition.rafId !== null) cancelAnimationFrame(transition.rafId);
+    }
+    open.clear();
     if (installedGlobal) {
       const slot = window as unknown as { flemo?: { __flemoDevtools?: boolean } };
       if (slot.flemo?.__flemoDevtools === true) delete slot.flemo;

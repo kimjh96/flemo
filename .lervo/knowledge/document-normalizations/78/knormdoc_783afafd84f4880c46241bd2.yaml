@@ -1,0 +1,36 @@
+byteOwnership:
+  owner: reviewer
+  rewritePolicy: reviewed_exact
+candidateId: knorm_c130b4a024c85c8cee5c18ed
+compiler:
+  compilerBuildId: sha256:65a4a161da52ab805e88c3c575a068b4138f016bd2e5b2a20161846b0c3140d0
+  compilerId: lervo.codex.document-normalizer
+  compilerVersion: 2+codex-cli 0.160.0
+  isolation: external_no_capabilities
+  provider: codex
+formatVersion: lervo.document.v1
+operationId: knormop_55138bda74ff7cbb593d0b52
+outputLanguage: en
+outputs:
+  - byteCount: 240
+    contentHash: sha256:a35b93392a949767a843e2806bc5f931faee4120ded48a97ce5a986f16818832
+    path: packages/devtools/README/judging.md
+    userRegionHash: sha256:a35b93392a949767a843e2806bc5f931faee4120ded48a97ce5a986f16818832
+  - byteCount: 1123
+    contentHash: sha256:2640e4cf487e859a3ae7fd9458cb7e35f9352d80e8ef38eb8e1d8c6a20c69208
+    path: packages/devtools/README/judging/protocol.md
+    userRegionHash: sha256:2640e4cf487e859a3ae7fd9458cb7e35f9352d80e8ef38eb8e1d8c6a20c69208
+  - byteCount: 364
+    contentHash: sha256:a244b07c3cd97b21c24dca05b7a39e57272a4e2c3f7c6b38c6eb1792b100d311
+    path: packages/devtools/README/judging/sharing.md
+    userRegionHash: sha256:a244b07c3cd97b21c24dca05b7a39e57272a4e2c3f7c6b38c6eb1792b100d311
+profile: repository_document
+recordId: knormdoc_783afafd84f4880c46241bd2
+resourceBindings: []
+schemaVersion: 2
+sourceContentHash: sha256:6541003235c5ad845c156da5669e87c5b13d095b73bce01b3b3b83350c230db5
+sourcePath: packages/devtools/README/judging.md
+sourceUnitVersionIds:
+  - uv_1cf5f1db0ac60e080277c853
+  - uv_7580ad078f95d15220701942
+  - uv_c3fb512d3c570728687d6399

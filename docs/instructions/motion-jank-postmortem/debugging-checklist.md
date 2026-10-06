@@ -1,0 +1,12 @@
+# (e) Debugging checklist for the next report
+
+1. **Establish viewing configuration first.** Obtain a screenshot of the actual setup. Record plain window versus DevTools device emulation, physical display, internal or external connection, refresh rate, HiDPI scaling mode, docked state, and Low Power Mode. This was the campaign's highest-leverage question and could have saved roughly ten rounds.
+2. **Check active overrides.** Inspect `flemo:*` session and local storage on the affected device, `?flemo-…` and application toggle parameters in the URL, and pinned console warnings. Mobile tab restoration can preserve sessionStorage for days.
+3. **Read badges and toggles in user videos before analyzing motion.** The emulation toolbar and `?snap=off`, two root causes, were visible in recorded frames.
+4. **Classify the symptom using the taxonomy.** Distinguish spatial shimmer, temporal frame-time jank, opening 씹힘 or 휙휙, and stepping. Ask which Korean term fits.
+5. **Separate flemo from the platform with a pure-CSS control.** Regenerate a no-`<script>` page from `compileTransitionStyles` output using the compiled keyframes, `will-change`, `contain`, and an infinite slide loop. If it reproduces without web code, stop engineering and document the external cause.
+6. **Account for instrument-invisible layers.** rAF, long-task, and trace metrics observe only the main thread. Present-pipeline judder, swallowed compositor frames, bilinear shimmer, and backlight effects require pixel probes, camera video, or frame-extracted recordings. Clean metrics alongside a visible problem identify a different layer; they are not contradictory.
+7. **Identify the routed tier before theorizing.** Follow the `driver-routing.md` decision tree and confirm on-device. Suppressed `animation` plus inline writes indicates the player; `data-flemo-lpm` on the root indicates governed compiled motion.
+8. **Fingerprint the served bundle when testing a consumer application through tarballs.** Follow `diagnostics.md` pitfall #7 before accepting a result; several rounds used stale code.
+9. **Consult the falsification list before building.** A previously rejected fix requires a new mechanism, not a rerun.
+10. **Preserve authoring fidelity.** The library must not silently change authored motion: do not remove fades, flip entry suppression, or require consumer changes such as prefetching. Keep authored motion intact while changing only internal scheduling or raster work. Only an explicit user-selected trade may violate this rule.

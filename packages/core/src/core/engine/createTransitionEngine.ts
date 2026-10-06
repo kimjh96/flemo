@@ -14,6 +14,7 @@ import { resolveVariantMotion, type VariantMotion } from "@transition/variantMot
 
 import { stageBarParts, type StagedBarParts } from "@core/engine/barPartStaging";
 import { wireCancelResume } from "@core/engine/cancelResume";
+import { holdDesktopHeadGate } from "@core/engine/headGate";
 import { stampAsyncImageDecode } from "@core/engine/imageDecodeHygiene";
 
 import { collectLayerRiders, isRider } from "@core/engine/layerRiders";
@@ -616,8 +617,12 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
 
     // Released when the transition resolves or is torn down (see armFramePacingKeepalive).
     let stopKeepalive = noop;
+    // Released the same way: the root head gate this transition holds still
+    // while it runs (see headGate).
+    let releaseHeadGate = noop;
     const resolve = () => {
       stopKeepalive();
+      releaseHeadGate();
       // Resolve THIS transition's captured task, never the live one. Reading the
       // live id let a STALE resolver (a previous transition's animationend/cancel
       // firing a frame into the NEXT transition) resolve whatever task is now
@@ -997,6 +1002,11 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
       } else {
         root.removeAttribute(DESK_HEAD_ATTR);
       }
+      // Every Router on the page reads this one attribute, so hold it while this
+      // transition runs: a transition starting elsewhere meanwhile routes with
+      // the same answer instead of flipping it under this one (see headGate).
+      releaseHeadGate();
+      releaseHeadGate = holdDesktopHeadGate(routedDesktopHead);
       // WHAT THE HEAD IS COVERING, measured rather than assumed.
       //
       // This IS the release: the styles that start the transition are resolved from
@@ -1531,6 +1541,7 @@ export default function createTransitionEngine(deps: TransitionEngineDeps): Tran
     // on the frames the eye watches settle.
     return () => {
       stopKeepalive();
+      releaseHeadGate();
       if (floor !== undefined) clearTimeout(floor);
       if (choreographyTimer !== undefined) clearTimeout(choreographyTimer);
       cancelLandingClear();

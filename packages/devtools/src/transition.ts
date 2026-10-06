@@ -13,6 +13,12 @@ import type { TransitionKind, TransitionRecord, TripwireHit } from "./types";
  */
 export interface ActiveTransition {
   id: string;
+  /**
+   * The Router this transition belongs to: its screens' `data-flemo-router`,
+   * or "" on a page whose screens carry none. Transitions are keyed by it, so
+   * two Routers moving at once are two transitions, never one.
+   */
+  key: string;
   kind: TransitionKind;
   routerId?: string;
   /** The comparison bucket armed when this transition opened, if any. */

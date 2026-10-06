@@ -1,0 +1,26 @@
+byteOwnership:
+  owner: reviewer
+  rewritePolicy: reviewed_exact
+candidateId: knorm_c130b4a024c85c8cee5c18ed
+compiler:
+  compilerBuildId: sha256:65a4a161da52ab805e88c3c575a068b4138f016bd2e5b2a20161846b0c3140d0
+  compilerId: lervo.codex.document-normalizer
+  compilerVersion: 2+codex-cli 0.160.0
+  isolation: external_no_capabilities
+  provider: codex
+formatVersion: lervo.document.v1
+operationId: knormop_f3381ef2f1037d33df1f34a0
+outputLanguage: en
+outputs:
+  - byteCount: 1634
+    contentHash: sha256:af25d52aae4a2a68fa683df0b7856cccf8fb417dbd173ec17e4c29b0795d4445
+    path: packages/devtools/README/production-safety.md
+    userRegionHash: sha256:af25d52aae4a2a68fa683df0b7856cccf8fb417dbd173ec17e4c29b0795d4445
+profile: repository_document
+recordId: knormdoc_4aaee5a3aafc500848f7d9ba
+resourceBindings: []
+schemaVersion: 2
+sourceContentHash: sha256:1d480495e507836e5d97a0f3a46e75e06c50d59d587367e8d2c02e64100a744b
+sourcePath: packages/devtools/README/production-safety.md
+sourceUnitVersionIds:
+  - uv_110ca43ca8f81c83924164cf

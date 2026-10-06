@@ -1,0 +1,27 @@
+byteOwnership:
+  owner: reviewer
+  rewritePolicy: reviewed_exact
+candidateId: knorm_c130b4a024c85c8cee5c18ed
+compiler:
+  compilerBuildId: sha256:65a4a161da52ab805e88c3c575a068b4138f016bd2e5b2a20161846b0c3140d0
+  compilerId: lervo.codex.document-normalizer
+  compilerVersion: 2+codex-cli 0.160.0
+  isolation: external_no_capabilities
+  provider: codex
+formatVersion: lervo.document.v1
+operationId: knormop_85dde643af598cb1d17216bb
+outputLanguage: en
+outputs:
+  - byteCount: 1949
+    contentHash: sha256:ddd2226f819e40e8cbb7b579681f727756d53c331f0f849243374e1cfea6ac8d
+    path: docs/architecture/motion-engine/inline-leases.md
+    userRegionHash: sha256:ddd2226f819e40e8cbb7b579681f727756d53c331f0f849243374e1cfea6ac8d
+profile: architecture_document
+recordId: knormdoc_2b84419f6f7ee889d12d77a6
+resourceBindings: []
+schemaVersion: 2
+sourceContentHash: sha256:26882c21f8d830783a609471147acad8f59f639a001c82502e16d9a953582338
+sourcePath: docs/architecture/motion-engine/inline-leases.md
+sourceUnitVersionIds:
+  - uv_03c82f38de66c7ff6139298d
+  - uv_ff7c90930c270b1ad26c78c1

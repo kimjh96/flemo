@@ -1,0 +1,31 @@
+byteOwnership:
+  owner: reviewer
+  rewritePolicy: reviewed_exact
+candidateId: knorm_c130b4a024c85c8cee5c18ed
+compiler:
+  compilerBuildId: sha256:65a4a161da52ab805e88c3c575a068b4138f016bd2e5b2a20161846b0c3140d0
+  compilerId: lervo.codex.document-normalizer
+  compilerVersion: 2+codex-cli 0.160.0
+  isolation: external_no_capabilities
+  provider: codex
+formatVersion: lervo.document.v1
+operationId: knormop_606c35da198773cd5d2b6e0b
+outputLanguage: en
+outputs:
+  - byteCount: 2378
+    contentHash: sha256:104235fb5c80352d5e67ec8610db93cf3b447b815795f00d3d20cc095ca1b978
+    path: packages/devtools/README/transition-measurements.md
+    userRegionHash: sha256:104235fb5c80352d5e67ec8610db93cf3b447b815795f00d3d20cc095ca1b978
+profile: repository_document
+recordId: knormdoc_a481dfe45ec58a50b5c74871
+resourceBindings: []
+schemaVersion: 2
+sourceContentHash: sha256:16209f57db571a38475abeea0bc665b96b827fe36bf3a5e84c231f72fdc170c8
+sourcePath: packages/devtools/README/transition-measurements.md
+sourceUnitVersionIds:
+  - uv_067c69eb0a4bdc749c670ed9
+  - uv_0b8ad26ee1db455c34b902b6
+  - uv_23ea5b0b75449547949df294
+  - uv_26a22821128f7da0c50eadee
+  - uv_36ec7ccf724ac5b9ecf33978
+  - uv_616afc89a9e5984e6deafaf9

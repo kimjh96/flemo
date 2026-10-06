@@ -157,6 +157,7 @@ export {
   targetToDecls,
   collectAnimatedProperties,
   easingToCss,
+  HEAD_ANIMATION_SUFFIXES,
   type CssDecl
 } from "@transition/compileTransitionStyles";
 export { default as applyTransitionStyles } from "@transition/applyTransitionStyles";

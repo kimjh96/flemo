@@ -1,5 +1,7 @@
 "use client";
 
+import { useEffect, useRef } from "react";
+
 import { useStep } from "@flemo/react";
 
 import Icon from "@/components/Icon";
@@ -8,10 +10,21 @@ import Logo from "@/components/Logo";
 import ThemeToggle from "@/components/ThemeToggle";
 import LanguageToggle from "@/app/[lang]/_components/LanguageToggle";
 import { useShellDict } from "@/app/[lang]/_providers/ShellIntlProvider";
+import useExitPresence from "@/app/[lang]/_hooks/useExitPresence";
 import useSiteNavigate, { type SectionPath } from "@/app/[lang]/_hooks/useSiteNavigate";
 import { GITHUB_URL } from "@/lib/i18n";
 
 import { openDocsSearch } from "@/app/[lang]/docs/_components/DocsSearch";
+
+// The mobile menu drops into place under the bar and closes faster than it
+// opens, the same as the docs search; under reduced motion it only fades.
+// Keyframes live in global.css.
+const MENU_MOTION = [
+  "data-[state=open]:animate-[menu-panel-in_220ms_var(--ease-out)_both]",
+  "data-[state=closed]:animate-[menu-panel-out_140ms_ease-in_both]",
+  "motion-reduce:data-[state=open]:animate-[fade-in_220ms_var(--ease-out)_both]",
+  "motion-reduce:data-[state=closed]:animate-[fade-out_140ms_ease-in_both]"
+].join(" ");
 
 // The persistent chrome, outside the shell's <Slot>: it stays mounted while the
 // region under it moves. Screens scroll beneath it, so it carries its own
@@ -22,6 +35,21 @@ function SiteHeader() {
   // The mobile menu is a flemo step, so the browser's Back button closes it.
   const { step, pushStep, popStep } = useStep<{ menu: boolean }>();
   const menuOpen = Boolean(step?.menu);
+  // On screen through its close animation.
+  const menu = useExitPresence(menuOpen);
+
+  // Escape closes the menu, as it closes the search.
+  const popStepRef = useRef(popStep);
+  popStepRef.current = popStep;
+  useEffect(() => {
+    if (!menuOpen) return undefined;
+    const onKey = (event: KeyboardEvent) => {
+      // The search dialog over the menu claims its own Escape first.
+      if (event.key === "Escape" && !event.defaultPrevented) void popStepRef.current();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [menuOpen]);
 
   const links: { label: string; path: SectionPath }[] = [
     { label: t.nav.docs, path: "/docs" },
@@ -108,8 +136,13 @@ function SiteHeader() {
         </div>
       </div>
 
-      {menuOpen && (
-        <div className="absolute inset-x-0 top-full h-[calc(100dvh-3.5rem)] border-t border-line bg-bg md:hidden">
+      {menu.present && (
+        <div
+          data-state={menuOpen ? "open" : "closed"}
+          inert={!menuOpen}
+          onAnimationEnd={menu.onAnimationEnd}
+          className={`absolute inset-x-0 top-full h-[calc(100dvh-3.5rem)] border-t border-line bg-bg md:hidden ${MENU_MOTION}`}
+        >
           <nav className="flex flex-col px-4 py-3">
             {[{ label: t.nav.home, path: "/" as const }, ...links].map((link) => (
               <button

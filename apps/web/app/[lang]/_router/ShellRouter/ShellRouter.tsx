@@ -29,7 +29,7 @@ export interface ShellRouterProps {
 // sits OUTSIDE the <Slot>, so it stays mounted while only the region under it
 // moves. Header taps are lateral peer moves (site-forward / site-backward);
 // a call to action that goes deeper shoves the page a full width (site-drill),
-// or pushes with cupertino on a phone so the visitor can swipe back.
+// on a phone too.
 //
 // The <Slot> fills the viewport and every screen scrolls inside it, under the
 // translucent header: the app-shell layout, where chrome is pinned and the

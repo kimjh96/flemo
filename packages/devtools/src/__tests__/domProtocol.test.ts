@@ -32,6 +32,12 @@ describe("the recorder's copy of the DOM protocol", () => {
     for (const [mine, theirs] of pairs) expect(mine).toBe(theirs);
   });
 
+  it("strips the same head suffixes core compiles", () => {
+    expect([...devtools.HEAD_ANIMATION_SUFFIXES].sort()).toEqual(
+      [...core.HEAD_ANIMATION_SUFFIXES].sort()
+    );
+  });
+
   it("observes only attributes core actually declares", () => {
     const declared = new Set<string>(core.FLEMO_ATTRIBUTES);
     const observed = Object.entries(devtools).filter(

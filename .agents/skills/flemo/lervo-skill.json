@@ -1,8 +1,8 @@
 {
   "schemaVersion": 1,
   "skillId": "flemo",
-  "version": "1.0.3",
-  "contentHash": "sha256:f3ac9d7811826f23822c380c1897a1d57f36ccde0e14b39035e06372dbacf651",
+  "version": "1.0.4",
+  "contentHash": "sha256:72900df80b65ae74ea49a3317cea111c00abd2442c81f4bc85177b1f5751e41f",
   "source": {
     "kind": "project",
     "uri": ".agents/skills/flemo",
@@ -11,13 +11,19 @@
       "name": "Lervo repository migration"
     }
   },
-  "supportedRoles": ["*"],
+  "supportedRoles": [
+    "*"
+  ],
   "compatibility": {
     "providers": {
       "mode": "any"
     },
     "minimumRuntimeVersion": "0.1.0",
-    "platforms": ["darwin", "linux", "win32"],
+    "platforms": [
+      "darwin",
+      "linux",
+      "win32"
+    ],
     "requiredTools": [],
     "unknownIsCompatible": false
   },

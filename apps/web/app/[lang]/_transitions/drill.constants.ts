@@ -1,8 +1,7 @@
-// Tuning for going deeper from inside a page on a wide screen (a call to
-// action, a card's arrow, a search result): the whole region slides a full
-// width and shoves the page it leaves off the other side, both moving together
-// as one surface. On a phone the same move pushes with cupertino instead (see
-// useSiteNavigate), so a visitor can swipe back.
+// Tuning for going deeper from inside a page (a call to action, a card's
+// arrow, a search result), on every screen size: the whole region slides a
+// full width and shoves the page it leaves off the other side, both moving
+// together as one surface.
 //
 // An ease-in-out, not the ease-out a single arriving panel would use: the two
 // pages travel as one conveyor, so they accelerate from rest and land at rest

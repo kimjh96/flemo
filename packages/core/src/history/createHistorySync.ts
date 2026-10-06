@@ -6,7 +6,7 @@ import createBrowserHistoryDriver, {
   type HistoryDriver,
   type HistoryNavEvent
 } from "@history/historyDriver";
-import type { HistoryStoreApi } from "@history/store";
+import type { History, HistoryStoreApi } from "@history/store";
 
 import { consumeSelfInducedPop } from "@navigate/selfPopGuard";
 import type { NavigateStatus, NavigateStoreApi } from "@navigate/store";
@@ -165,9 +165,46 @@ export default function createHistorySync(deps: HistorySyncDeps): () => void {
           // "unclassifiable" and even duplicated entries). An entry we already
           // hold is found by id; only entries we've NEVER held fall back to a
           // browser-stamp direction test.
+          // A pop to an entry we hold: ONE screen per transition, chained. A coalesced browser
+          // traversal (two rapid Back presses can arrive as a single -2 event)
+          // must still show every intermediate screen — screens are never
+          // skipped, the sequence just runs one full transition at a time. Pop a
+          // single level now; if the event's target lies further down, the
+          // completion re-drives the same event, which classifies against the
+          // new top and pops the next level — sequential, in order, until the
+          // target is reached.
+          const popToward = (targetPosition: number) => {
+            const stepTarget = index - 1;
+
+            setTransitionTaskId(taskId);
+            setPendingIndex(stepTarget);
+            setStatus("POPPING");
+
+            return async () => {
+              popHistory(stepTarget + 1);
+              setStatus("COMPLETED");
+              if (stepTarget > targetPosition && !disposed) {
+                void processTraversal(event);
+              }
+            };
+          };
+
+          // A FRAGMENT ENTRY. An in-page link (`<a href="#usage">`) or a
+          // `location.hash` write adds an entry the browser creates by itself,
+          // with no state, on the pathname of the entry it was added from. It
+          // is a place inside that screen, not a destination of its own, so a
+          // traversal onto it lands on the screen this Router holds for that
+          // pathname, the nearest from the top. Read as a foreign entry instead,
+          // Back from a pushed screen onto `/docs/intro#usage` moved the URL
+          // and left the pushed screen up. Nothing is written to the entry, so
+          // a host's own state on the neighbouring entries is never touched.
           if (!frame?.id) {
-            abortController.abort();
-            return;
+            const heldPosition = lastHeldPosition(histories, index, event.pathname);
+            if (heldPosition === -1 || heldPosition === index) {
+              abortController.abort();
+              return;
+            }
+            return popToward(heldPosition);
           }
 
           const targetPosition = histories.findIndex((history) => history.id === frame.id);
@@ -216,27 +253,7 @@ export default function createHistorySync(deps: HistorySyncDeps): () => void {
             };
           }
 
-          // A pop to an entry we hold: ONE screen per transition, chained. A coalesced browser
-          // traversal (two rapid Back presses can arrive as a single -2 event)
-          // must still show every intermediate screen — screens are never
-          // skipped, the sequence just runs one full transition at a time. Pop a
-          // single level now; if the event's target lies further down, the
-          // completion re-drives the same event, which classifies against the
-          // new top and pops the next level — sequential, in order, until the
-          // target is reached.
-          const stepTarget = index - 1;
-
-          setTransitionTaskId(taskId);
-          setPendingIndex(stepTarget);
-          setStatus("POPPING");
-
-          return async () => {
-            popHistory(stepTarget + 1);
-            setStatus("COMPLETED");
-            if (stepTarget > targetPosition && !disposed) {
-              void processTraversal(event);
-            }
-          };
+          return popToward(targetPosition);
         },
         {
           scope,
@@ -389,6 +406,15 @@ export default function createHistorySync(deps: HistorySyncDeps): () => void {
     unsubscribe();
   };
 }
+
+// The position of the entry nearest the top of the held stack (at or below
+// `index`) whose pathname is `pathname`, or -1 when none is held.
+const lastHeldPosition = (histories: History[], index: number, pathname: string): number => {
+  for (let position = Math.min(index, histories.length - 1); position >= 0; position -= 1) {
+    if (histories[position].pathname === pathname) return position;
+  }
+  return -1;
+};
 
 // ── Traversal recorder ───────────────────────────────────────────────────────
 // The ordered stream of every back/forward traversal since the app booted, with

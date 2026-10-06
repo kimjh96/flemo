@@ -1,0 +1,29 @@
+byteOwnership:
+  owner: reviewer
+  rewritePolicy: reviewed_exact
+candidateId: knorm_c130b4a024c85c8cee5c18ed
+compiler:
+  compilerBuildId: sha256:65a4a161da52ab805e88c3c575a068b4138f016bd2e5b2a20161846b0c3140d0
+  compilerId: lervo.codex.document-normalizer
+  compilerVersion: 2+codex-cli 0.160.0
+  isolation: external_no_capabilities
+  provider: codex
+formatVersion: lervo.document.v1
+operationId: knormop_a1935251f308128ca7efd1c7
+outputLanguage: en
+outputs:
+  - byteCount: 1128
+    contentHash: sha256:d53d993631afdd0b8fb0a7e4ce81e2c131484d922877ed72a24beacb96462baf
+    path: .github/pull_request_template.md
+    userRegionHash: sha256:d53d993631afdd0b8fb0a7e4ce81e2c131484d922877ed72a24beacb96462baf
+profile: repository_document
+recordId: knormdoc_300436252e5766edd524b31b
+resourceBindings: []
+schemaVersion: 2
+sourceContentHash: sha256:996ae3f698ca17aaf4840ffe7a23484f960a5a2095a608a6e18ca2f33aea8246
+sourcePath: .github/pull_request_template.md
+sourceUnitVersionIds:
+  - uv_8e4be23d1208e0a79014129b
+  - uv_b95a8426d3760f3f7f09bc1a
+  - uv_c668df4d0f7bf608c76543fb
+  - uv_d65e2722265a631eab5c3111

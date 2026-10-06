@@ -2,6 +2,8 @@ import { DESKTOP_HEAD_MS, GOVERNED_HEAD_MS } from "@transition/compileTransition
 
 import type { Transition } from "@transition/typing";
 
+import { heldDesktopHead } from "@core/engine/headGate";
+
 import { learnedFrameIntervalMs } from "@platform/displayCadence";
 import { COMPILED_TIER_MAX_INTERVAL_MS } from "@platform/displayProbe";
 import {
@@ -235,7 +237,10 @@ export const resolveHeadKit = (
   // property of how it presents, which no amount of the app being fast removes.
   const learned = learnedReleaseLatencyMs(status);
   const blinkNeedsHead = learned === null || learned > learnedFrameIntervalMs();
-  const desktopHead = isDesktopMacWebKit() || (isDesktopBlink() && blinkNeedsHead);
+  // While another transition runs under the root gate, wear the gate as it is:
+  // flipping it would restart that transition's animation (see headGate).
+  const desktopHead =
+    heldDesktopHead() ?? (isDesktopMacWebKit() || (isDesktopBlink() && blinkNeedsHead));
   return {
     touchGoverned,
     forceCompiled,

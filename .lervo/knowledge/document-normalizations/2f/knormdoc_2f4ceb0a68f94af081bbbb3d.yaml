@@ -1,0 +1,46 @@
+byteOwnership:
+  owner: reviewer
+  rewritePolicy: reviewed_exact
+candidateId: knorm_c130b4a024c85c8cee5c18ed
+compiler:
+  compilerBuildId: sha256:65a4a161da52ab805e88c3c575a068b4138f016bd2e5b2a20161846b0c3140d0
+  compilerId: lervo.codex.document-normalizer
+  compilerVersion: 2+codex-cli 0.160.0
+  isolation: external_no_capabilities
+  provider: codex
+formatVersion: lervo.document.v1
+operationId: knormop_236a214eb5893c578bd449ce
+outputLanguage: en
+outputs:
+  - byteCount: 401
+    contentHash: sha256:161bbd4642f54e10c534a785bcb0e7d0a0dc4bab5fd598bbd76a7e60a8cfe616
+    path: docs/architecture/react-binding/rendering.md
+    userRegionHash: sha256:161bbd4642f54e10c534a785bcb0e7d0a0dc4bab5fd598bbd76a7e60a8cfe616
+  - byteCount: 483
+    contentHash: sha256:f6de18ce25df87aeb984cb2bf348642ed61373dce31f19276e7044413d01e756
+    path: docs/architecture/react-binding/rendering/hooks-and-scope.md
+    userRegionHash: sha256:f6de18ce25df87aeb984cb2bf348642ed61373dce31f19276e7044413d01e756
+  - byteCount: 1537
+    contentHash: sha256:4470fa7c1e8c5bf0894d39a754060a921bf5a9b8532381504212fd67a3dbb7f1
+    path: docs/architecture/react-binding/rendering/morph.md
+    userRegionHash: sha256:4470fa7c1e8c5bf0894d39a754060a921bf5a9b8532381504212fd67a3dbb7f1
+  - byteCount: 1266
+    contentHash: sha256:f87ba1634a7a7b7e2a4974ee0fd98cdd452b4799eec5422ae0b738951ac5ac36
+    path: docs/architecture/react-binding/rendering/parts-and-decorator.md
+    userRegionHash: sha256:f87ba1634a7a7b7e2a4974ee0fd98cdd452b4799eec5422ae0b738951ac5ac36
+  - byteCount: 197
+    contentHash: sha256:8b5b6f9bb406a2c5c17eeca9046dcec06bef69f338e8edc905863b2e76a43e59
+    path: docs/architecture/react-binding/rendering/renderer.md
+    userRegionHash: sha256:8b5b6f9bb406a2c5c17eeca9046dcec06bef69f338e8edc905863b2e76a43e59
+profile: architecture_document
+recordId: knormdoc_2f4ceb0a68f94af081bbbb3d
+resourceBindings: []
+schemaVersion: 2
+sourceContentHash: sha256:8439ed9c5327a5ded854c2c4883853b28c893eaedc2d85328bff15e956622075
+sourcePath: docs/architecture/react-binding/rendering.md
+sourceUnitVersionIds:
+  - uv_1d9ab1c2031b432c14974467
+  - uv_2424b3c9371fe4f373422ff8
+  - uv_596e71185ed6836a23bdb717
+  - uv_96137df079154134a7e2adf6
+  - uv_be0f113902979de7f35b6bb7

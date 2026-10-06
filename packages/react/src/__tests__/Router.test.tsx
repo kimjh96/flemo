@@ -162,6 +162,9 @@ describe("Router", () => {
     expect(region).not.toBeNull();
     expect(region!.style.position).toBe("relative");
     expect(region!.style.overflow).toBe("hidden");
+    // Its own stacking context, so the morph and part layers' z-index ranks
+    // only inside the region and never over the page laid above it.
+    expect(region!.style.isolation).toBe("isolate");
 
     const screenContainer = container.querySelector<HTMLElement>('div[style*="contain"]');
     expect(screenContainer!.style.position).toBe("absolute");

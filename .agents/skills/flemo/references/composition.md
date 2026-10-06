@@ -2,7 +2,7 @@
 
 ## Shared header plus nested navigation
 
-This pattern combines a root screen stack, a local memory stack, a continuous app header with independently animated contents, and explicit cross-Router navigation.
+Combine a root screen stack, a local memory stack, a continuous app header with independently animated contents, and explicit cross-Router navigation.
 
 ```tsx
 import { useState, type ReactNode } from "react";
@@ -176,35 +176,35 @@ function Message() {
 }
 ```
 
-Matching header IDs pair the bars. The shell appears stationary while `header-title` and `header-action` cross-fade and translate as Parts. Omitted durations inherit the root screen clock on both sides. Without swipe hooks, root swipe-back automatically scrubs the same keyframes in both directions.
+Matching header IDs pair the bars. The shell appears stationary while `header-title` and `header-action` Parts cross-fade and translate. Omitted durations inherit the root screen clock on both sides. Without swipe hooks, root swipe-back scrubs the same keyframes in both directions.
 
-Local navigation uses the nearest `pane` Router; full-screen navigation explicitly targets ancestor `app`. The source `Morph` is outside the nested Router, so the root Screen owns it and can pair it with the root Message screen. Inside `MessageList`, it would belong to `pane` and should not be expected to join the root transition.
+Local navigation uses the nearest `pane` Router; full-screen navigation explicitly targets ancestor `app`. The source `Morph` sits outside the nested Router, so the root Screen owns it and can pair it with the root Message screen. Inside `MessageList`, it would belong to `pane` and should not be expected to join the root transition.
 
-`MessageList` owns command-overlay state. `Layer` portals its paint into the outermost Screen's layer host, allowing it to cover the root shared header without changing either Router stack. Fixed or absolute edges resolve against that host, not the pane box. To contain the overlay in the pane, omit `Layer` and render ordinary pane content.
+`MessageList` owns command-overlay state. `Layer` portals its paint into the outermost Screen's layer host, covering the root shared header without changing either Router stack. Fixed or absolute edges resolve against that host, not the pane box. To contain the overlay in the pane, omit `Layer` and render ordinary pane content.
 
-The outer Morph owns the card's box and surface. The repeated title uses a nested `name="text"` Morph to re-typeset one glyph run between sizes. Give it a transformable block that owns its font size and line height; its holder preserves the line's layout box while the runtime carries it. An inline text Morph can receive a computed `translate` that the browser does not apply to its line box, making text appear at its destination before travelling. Ordinary title content on both sides would cross-fade source and destination glyphs, visibly doubling letters during handoff.
+The outer Morph owns the card's box and surface. A nested `name="text"` Morph re-typesets the repeated title as one glyph run between sizes. Give it a transformable block that owns font size and line height; its holder preserves the line's layout box while the runtime carries it. A browser does not apply an inline text Morph's computed `translate` to its line box, so text can appear at its destination before travelling. Ordinary title content on both sides would cross-fade source and destination glyphs, doubling letters during handoff.
 
-The eyebrow and description are different copy, not shared identity. Their `card-copy` Parts make departure leave early and arrival enter late on the root clock. Do not wrap the text Morph in that Part: fading its parent would fade the glyph run that must stay continuously visible.
+The eyebrow and description are different copy, not shared identity. Their `card-copy` Parts make departure leave early and arrival enter late on the root clock. Do not wrap the text Morph in that Part: fading its parent would fade the glyph run that must remain continuously visible.
 
 For typed registries, add the usual module augmentation for route, Router, and transition names.
 
 ## Participant matrix for the pattern
 
-| Participant        | Owner                            | Identity                                          | Push                                 | Pop                                       | Gesture                       | Layer                  |
-| ------------------ | -------------------------------- | ------------------------------------------------- | ------------------------------------ | ----------------------------------------- | ----------------------------- | ---------------------- |
-| root Screens       | app                              | route entries                                     | workspace behind, message arrives    | message dismisses, workspace returns      | screen transition             | app Slot               |
-| header shell       | app Screens                      | shared bar ID `app-header`                        | hands over in place                  | hands over in place                       | shared bar choreography       | shared bar             |
-| title and action   | app Screens                      | Part names                                        | old `enter`, new `initial` to `idle` | top `dismiss`, previous `enter` to `exit` | default Part rider            | part layer             |
-| featured message   | app Screens                      | Morph `featured-message`                          | arrival moves, departure cuts        | returning arrival moves, top cuts         | Morph swipe runtime           | morph layer            |
-| featured title     | outer message Morph              | Morph `featured-message-title` with `name="text"` | re-typesets inside card transition   | reverses inside card transition           | inherits carrying Morph clock | nested morph           |
-| changing card copy | root Screens, inside outer Morph | Part `card-copy`                                  | departure leaves, arrival enters     | reverse handoff                           | default Part rider            | carrying Morph subtree |
-| pane Screens       | pane                             | local routes                                      | only pane Slot changes               | only pane Slot changes                    | pane transition               | pane Slot              |
-| command overlay    | list Screen state                | Layer slot owned by nested Screen                 | no navigation                        | no navigation                             | rides its owner if it moves   | outer Screen host      |
+| Participant | Owner | Identity | Push | Pop | Gesture | Layer |
+| --- | --- | --- | --- | --- | --- | --- |
+| root Screens | app | route entries | workspace behind, message arrives | message dismisses, workspace returns | screen transition | app Slot |
+| header shell | app Screens | shared bar ID `app-header` | hands over in place | hands over in place | shared bar choreography | shared bar |
+| title and action | app Screens | Part names | old `enter`, new `initial` to `idle` | top `dismiss`, previous `enter` to `exit` | default Part rider | part layer |
+| featured message | app Screens | Morph `featured-message` | arrival moves, departure cuts | returning arrival moves, top cuts | Morph swipe runtime | morph layer |
+| featured title | outer message Morph | Morph `featured-message-title` with `name="text"` | re-typesets inside card transition | reverses inside card transition | inherits carrying Morph clock | nested morph |
+| changing card copy | root Screens, inside outer Morph | Part `card-copy` | departure leaves, arrival enters | reverse handoff | default Part rider | carrying Morph subtree |
+| pane Screens | pane | local routes | only pane Slot changes | only pane Slot changes | pane transition | pane Slot |
+| command overlay | list Screen state | Layer slot owned by nested Screen | no navigation | no navigation | rides its owner if it moves | outer Screen host |
 
 ## Composition rules
 
 - Give each element one clear motion owner. Avoid custom inline drag code around a screen-moving target unless transforms are intentionally composed.
-- Separate visual identity from semantic similarity: similar-looking headers need different shared bar IDs when they are different objects.
+- Separate visual identity from semantic similarity: similar-looking headers need different shared bar IDs when they represent different objects.
 - Make the paint layer explicit when overlays cross bar or Slot boundaries.
 - Keep route-local effects and state under their owning Router. Cross-Router navigation changes the target stack, not the source component's lexical ownership.
 - Give a text Morph its own transformable box and typography. Use a fixed or otherwise stable holder if removing the box during transition would collapse surrounding layout.

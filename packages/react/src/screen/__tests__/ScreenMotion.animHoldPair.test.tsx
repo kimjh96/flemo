@@ -62,8 +62,44 @@ function PopPair({ stores }: { stores: FlemoStores }) {
 describe("ScreenMotion pop pair release", () => {
   let stores: FlemoStores;
   let frames: FrameRequestCallback[];
+  // The engine's bounded waits run on setTimeout: the 150ms cap on a decode
+  // wait and the release backstop. Left on the wall clock, a busy machine let
+  // the decode cap elapse between two frames of a case and released a hold the
+  // case asserts is still waiting (the full parallel gate, 2 runs in 7). They
+  // are the cases' to fire: captured here, and run only by fireTimers().
+  let timers: Map<number, () => void>;
+
+  const fireTimers = async () => {
+    await act(async () => {
+      const due = [...timers.values()];
+      timers.clear();
+      due.forEach((timer) => timer());
+      for (let hop = 0; hop < 8; hop++) await Promise.resolve();
+    });
+  };
 
   beforeEach(() => {
+    timers = new Map();
+    let nextTimer = 1_000_000;
+    const realSetTimeout = globalThis.setTimeout;
+    const realClearTimeout = globalThis.clearTimeout;
+    vi.spyOn(globalThis, "setTimeout").mockImplementation(((
+      callback: (...args: unknown[]) => void,
+      delay?: number,
+      ...args: unknown[]
+    ) => {
+      // A zero delay is scheduling, not a wait: let it run.
+      if (!delay) return realSetTimeout(callback, delay, ...args);
+      const id = nextTimer++;
+      timers.set(id, () => callback(...args));
+      return id;
+    }) as never);
+    vi.spyOn(globalThis, "clearTimeout").mockImplementation(((
+      id?: ReturnType<typeof setTimeout>
+    ) => {
+      if (typeof id === "number" && timers.delete(id)) return;
+      realClearTimeout(id);
+    }) as never);
     stores = createTestStores();
     stores.navigate.setState({ status: "POPPING", transitionTaskId: "task-1" });
     stores.history.setState({
@@ -128,6 +164,29 @@ describe("ScreenMotion pop pair release", () => {
       resolveDecode();
       for (let hop = 0; hop < 8; hop++) await Promise.resolve();
     });
+    expect(top.getAttribute("data-flemo-anim-hold")).toBe("false");
+    expect(below.getAttribute("data-flemo-anim-hold")).toBe("false");
+  });
+
+  it("holds through a stalled thread, and releases the pair when its own decode cap fires", async () => {
+    const { getByTestId } = render(<PopPair stores={stores} />);
+    const below = getByTestId("below");
+    const top = getByTestId("top");
+    stallDecode(getByTestId("hero") as HTMLImageElement);
+
+    await flushFrames(0);
+    await flushFrames(16);
+    // A loaded machine: the thread is away for longer than the decode cap.
+    const until = Date.now() + 200;
+    while (Date.now() < until) {
+      // Busy, like a CPU shared with a parallel build.
+    }
+    await flushMicrotasks();
+    expect(top.getAttribute("data-flemo-anim-hold")).not.toBe("false");
+    expect(below.getAttribute("data-flemo-anim-hold")).not.toBe("false");
+
+    // The decode never settles; the cap is what releases, still as one pair.
+    await fireTimers();
     expect(top.getAttribute("data-flemo-anim-hold")).toBe("false");
     expect(below.getAttribute("data-flemo-anim-hold")).toBe("false");
   });

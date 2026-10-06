@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { attachTripwires, INPUT_WINDOW_MS, relativeHit } from "../tripwires";
+import { attachTripwires, INPUT_WINDOW_MS, relativeHit, transitionBaseName } from "../tripwires";
 
 import type { TripwireHandle, TripwireOptions } from "../tripwires";
 
@@ -168,5 +168,100 @@ describe("relativeHit", () => {
       atMs: 41.3,
       detail: "x"
     });
+  });
+});
+
+// THE ENGINE'S OWN CANCELS ARE NOT LOSSES.
+//
+// Measured on flemo.dev's production build, every screen transition cancelled
+// its animation twice: once when a head tier swapped the bare keyframe for
+// `<name>-deskhead` at the start, and once at the perceptual cut, about 93% in,
+// after the screen had already flipped to COMPLETED. Both are by design (see
+// cancelResume and perceptualSpan in core), and both turned every report red.
+
+// jsdom has no Web Animations, so an element's running animations are stubbed.
+const running = (element: Element, animations: { name?: string; activeMs?: number }[]) => {
+  Object.assign(element, {
+    getAnimations: () =>
+      animations.map(({ name, activeMs = 700 }) => ({
+        animationName: name,
+        effect: { getComputedTiming: () => ({ activeDuration: activeMs }) }
+      }))
+  });
+};
+
+const screenWith = (status: string) => {
+  const screen = document.createElement("div");
+  screen.setAttribute("data-flemo-screen", "");
+  screen.setAttribute("data-flemo-status", status);
+  document.body.appendChild(screen);
+  return screen;
+};
+
+describe("cancels the engine makes on purpose", () => {
+  it("strips a head tier and a part's clock tag from a keyframe name", () => {
+    expect(transitionBaseName("flemo-screen-cupertino-PUSHING-true-deskhead")).toBe(
+      "flemo-screen-cupertino-PUSHING-true"
+    );
+    expect(transitionBaseName("flemo-part-bar-PUSHING-true-govpark-717ms")).toBe(
+      "flemo-part-bar-PUSHING-true"
+    );
+    expect(transitionBaseName("flemo-screen-cupertino-PUSHING-true")).toBe(
+      "flemo-screen-cupertino-PUSHING-true"
+    );
+  });
+
+  it("says nothing about a head swap, whose successor is already running", () => {
+    const { hits } = attach();
+    const screen = screenWith("PUSHING");
+    running(screen, [{ name: "flemo-screen-cupertino-PUSHING-true-deskhead" }]);
+    screen.dispatchEvent(animation("animationcancel", "flemo-screen-cupertino-PUSHING-true", 0));
+    expect(hits).toEqual([]);
+  });
+
+  it("says nothing about the landing cut, late in a resolved transition", () => {
+    const { hits } = attach();
+    const screen = screenWith("PUSHING");
+    const name = "flemo-screen-cupertino-PUSHING-true-deskhead";
+    running(screen, [{ name, activeMs: 733 }]);
+    screen.dispatchEvent(animation("animationstart", name, 0));
+    running(screen, []);
+    screen.setAttribute("data-flemo-status", "COMPLETED");
+    screen.dispatchEvent(animation("animationcancel", name, 0.683));
+    expect(hits).toEqual([]);
+  });
+
+  it("still reports a transition resolved long before its animation ended", () => {
+    const { hits } = attach();
+    const screen = screenWith("POPPING");
+    const name = "flemo-screen-cupertino-POPPING-false";
+    running(screen, [{ name, activeMs: 700 }]);
+    screen.dispatchEvent(animation("animationstart", name, 0));
+    running(screen, []);
+    screen.setAttribute("data-flemo-status", "COMPLETED");
+    screen.dispatchEvent(animation("animationcancel", name, 0.08));
+    expect(hits.map((hit) => hit.kind)).toEqual(["animation-cancel"]);
+  });
+
+  it("still reports a late cancel while the transition is still moving", () => {
+    const { hits } = attach();
+    const screen = screenWith("PUSHING");
+    const name = "flemo-screen-cupertino-PUSHING-true";
+    running(screen, [{ name, activeMs: 700 }]);
+    screen.dispatchEvent(animation("animationstart", name, 0));
+    running(screen, []);
+    screen.dispatchEvent(animation("animationcancel", name, 0.65));
+    expect(hits.map((hit) => hit.kind)).toEqual(["animation-cancel"]);
+  });
+
+  it("still reports a cancel whose length it never saw start", () => {
+    const { hits } = attach();
+    const screen = screenWith("COMPLETED");
+    // Its start was seen, but the animation was already gone when looked up;
+    // what runs now is a script-driven animation with no keyframe name.
+    running(screen, [{}]);
+    screen.dispatchEvent(animation("animationstart", "flemo-screen-cupertino-PUSHING-true", 0));
+    screen.dispatchEvent(animation("animationcancel", "flemo-screen-cupertino-PUSHING-true", 0.65));
+    expect(hits.map((hit) => hit.kind)).toEqual(["animation-cancel"]);
   });
 });

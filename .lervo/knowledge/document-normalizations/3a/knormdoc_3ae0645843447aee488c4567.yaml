@@ -1,0 +1,26 @@
+byteOwnership:
+  owner: reviewer
+  rewritePolicy: reviewed_exact
+candidateId: knorm_c130b4a024c85c8cee5c18ed
+compiler:
+  compilerBuildId: sha256:65a4a161da52ab805e88c3c575a068b4138f016bd2e5b2a20161846b0c3140d0
+  compilerId: lervo.codex.document-normalizer
+  compilerVersion: 2+codex-cli 0.160.0
+  isolation: external_no_capabilities
+  provider: codex
+formatVersion: lervo.document.v1
+operationId: knormop_32dde1d8ebdec5ace51e3045
+outputLanguage: en
+outputs:
+  - byteCount: 1099
+    contentHash: sha256:f03b35b1c6fb0e1eb1c03fc77a337dae04c4cb3f420cd5587a638cc7271ffa0f
+    path: docs/instructions/transition-authoring/semantics/status-and-slots.md
+    userRegionHash: sha256:f03b35b1c6fb0e1eb1c03fc77a337dae04c4cb3f420cd5587a638cc7271ffa0f
+profile: instruction_document
+recordId: knormdoc_3ae0645843447aee488c4567
+resourceBindings: []
+schemaVersion: 2
+sourceContentHash: sha256:f03b35b1c6fb0e1eb1c03fc77a337dae04c4cb3f420cd5587a638cc7271ffa0f
+sourcePath: docs/instructions/transition-authoring/semantics/status-and-slots.md
+sourceUnitVersionIds:
+  - uv_141282ceed938f91d71d2103

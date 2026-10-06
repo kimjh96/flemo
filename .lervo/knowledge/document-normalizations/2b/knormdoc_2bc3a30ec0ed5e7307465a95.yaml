@@ -1,0 +1,29 @@
+byteOwnership:
+  owner: reviewer
+  rewritePolicy: reviewed_exact
+candidateId: knorm_c130b4a024c85c8cee5c18ed
+compiler:
+  compilerBuildId: sha256:65a4a161da52ab805e88c3c575a068b4138f016bd2e5b2a20161846b0c3140d0
+  compilerId: lervo.codex.document-normalizer
+  compilerVersion: 2+codex-cli 0.160.0
+  isolation: external_no_capabilities
+  provider: codex
+formatVersion: lervo.document.v1
+operationId: knormop_fb2c4e92a6c8f6d9e2552a86
+outputLanguage: en
+outputs:
+  - byteCount: 9319
+    contentHash: sha256:7a08f2011c08c5fbbc6b02c440a77d23fccaaad51fa225999c61020fdfaf8b7a
+    path: .agents/skills/flemo/references/composition.md
+    userRegionHash: sha256:7a08f2011c08c5fbbc6b02c440a77d23fccaaad51fa225999c61020fdfaf8b7a
+profile: skill_reference
+recordId: knormdoc_2bc3a30ec0ed5e7307465a95
+resourceBindings: []
+schemaVersion: 2
+sourceContentHash: sha256:8e9b63ade9b523375a4c395c778853759223750f2bca3b4e0ebaca2551b2fb4d
+sourcePath: .agents/skills/flemo/references/composition.md
+sourceUnitVersionIds:
+  - uv_112faa28d84880b9398d0e38
+  - uv_57d26a30cd3bb09eab45e8f8
+  - uv_f7ae52750c84ceecc603560d
+  - uv_f838904bb9a0dac78d43dab8
