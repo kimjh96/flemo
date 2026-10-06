@@ -1,5 +1,13 @@
 # @flemo/web
 
+## 0.12.5
+
+### Patch Changes
+
+- [`3fb2fb3`](https://github.com/kimjh96/flemo/commit/3fb2fb3203545c0007b18fd476afea16e315b245) Organize the motion guidance and Devtools reference into focused pages, and repair the postmortem links.
+- Updated dependencies ([`3fb2fb3`](https://github.com/kimjh96/flemo/commit/3fb2fb3203545c0007b18fd476afea16e315b245)):
+  - @flemo/devtools@0.10.2
+
 ## 0.12.4
 
 ### Patch Changes
