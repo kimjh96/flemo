@@ -1,0 +1,42 @@
+byteOwnership:
+  owner: reviewer
+  rewritePolicy: reviewed_exact
+candidateId: knorm_d879b72537093689d9d9199b
+compiler:
+  compilerBuildId: sha256:65a4a161da52ab805e88c3c575a068b4138f016bd2e5b2a20161846b0c3140d0
+  compilerId: lervo.codex.document-normalizer
+  compilerVersion: 2+codex-cli 0.160.0
+  isolation: external_no_capabilities
+  provider: codex
+formatVersion: lervo.document.v1
+operationId: knormop_d2a0a84cfd375d96a34582e6
+outputLanguage: en
+outputs:
+  - byteCount: 1349
+    contentHash: sha256:a07cabb594c172710a1952820097ad2549c31b5560622afc9aaa937ebe469e15
+    path: docs/instructions/motion-jank-postmortem.md
+    userRegionHash: sha256:a07cabb594c172710a1952820097ad2549c31b5560622afc9aaa937ebe469e15
+  - byteCount: 2534
+    contentHash: sha256:605965e00b2ea6020d48a102ea1438311eaeaf7333d4a96a43fec4329ab0aecb
+    path: docs/instructions/motion-jank-postmortem/debugging-checklist.md
+    userRegionHash: sha256:605965e00b2ea6020d48a102ea1438311eaeaf7333d4a96a43fec4329ab0aecb
+  - byteCount: 4857
+    contentHash: sha256:79f73dbd11c1ff9c41546d7a46d59f673251493e0b718d25be10dc12224c32e1
+    path: docs/instructions/motion-jank-postmortem/layered-attributions.md
+    userRegionHash: sha256:79f73dbd11c1ff9c41546d7a46d59f673251493e0b718d25be10dc12224c32e1
+  - byteCount: 2497
+    contentHash: sha256:e0720f3c93434359822455fd0066e6921107ec9c69b09e3742bcf55f16c96007
+    path: docs/instructions/motion-jank-postmortem/symptom-taxonomy.md
+    userRegionHash: sha256:e0720f3c93434359822455fd0066e6921107ec9c69b09e3742bcf55f16c96007
+profile: instruction_document
+recordId: knormdoc_8992077ab143499057980cec
+resourceBindings: []
+schemaVersion: 2
+sourceContentHash: sha256:ed1ad6f62989a13292de1992e5e8c394b2de7b51973d6bf1655837f306f72c10
+sourcePath: docs/instructions/motion-jank-postmortem.md
+sourceUnitVersionIds:
+  - uv_0ac9cd6ccc25dafe3f495082
+  - uv_11869a814e976595f86c430c
+  - uv_6cd3cc51aa8d247e644e763e
+  - uv_c9c6f802174ecef625b3be43
+  - uv_e317e5756e3e3bff497e897f

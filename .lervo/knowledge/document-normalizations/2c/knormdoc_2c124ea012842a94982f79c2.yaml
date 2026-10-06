@@ -1,0 +1,26 @@
+byteOwnership:
+  owner: reviewer
+  rewritePolicy: reviewed_exact
+candidateId: knorm_c130b4a024c85c8cee5c18ed
+compiler:
+  compilerBuildId: sha256:65a4a161da52ab805e88c3c575a068b4138f016bd2e5b2a20161846b0c3140d0
+  compilerId: lervo.codex.document-normalizer
+  compilerVersion: 2+codex-cli 0.160.0
+  isolation: external_no_capabilities
+  provider: codex
+formatVersion: lervo.document.v1
+operationId: knormop_54fdf6aa63ce09e0a57d727a
+outputLanguage: en
+outputs:
+  - byteCount: 2319
+    contentHash: sha256:bc0f6ce373e7ae8393f4f84aea025441436dc47601404394f698f71dc03718c0
+    path: docs/instructions/transition-authoring/semantics/factory-vocabulary.md
+    userRegionHash: sha256:bc0f6ce373e7ae8393f4f84aea025441436dc47601404394f698f71dc03718c0
+profile: instruction_document
+recordId: knormdoc_2c124ea012842a94982f79c2
+resourceBindings: []
+schemaVersion: 2
+sourceContentHash: sha256:5c709f858657daa38acc3543915529059e671b1285c02d051d79649ebcccf9e5
+sourcePath: docs/instructions/transition-authoring/semantics/factory-vocabulary.md
+sourceUnitVersionIds:
+  - uv_05bd2bb12901194283bbdaba

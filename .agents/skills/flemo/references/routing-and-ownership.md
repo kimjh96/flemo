@@ -2,14 +2,14 @@
 
 ## Router tree
 
-Each `Router` owns one screen stack, transition catalog, gesture lifecycle, and transition boundary. A nested Router owns a contained region and separate stack. Nesting controls rendering scope; `history="browser"` or `history="memory"` independently determines whether the stack uses the URL.
+Each `Router` owns a screen stack, transition catalog, gesture lifecycle, and transition boundary. A nested Router owns a contained region with a separate stack. Nesting sets rendering scope; `history="browser"` or `history="memory"` independently determines whether the stack uses the URL.
 
-Before implementation, write a small topology table:
+Before implementation, write a topology table:
 
-| Router | Parent | History | Paths               | Slot box      | Persistent chrome |
-| ------ | ------ | ------- | ------------------- | ------------- | ----------------- |
-| app    | none   | browser | `/`, `/detail/:id`  | viewport      | none              |
-| pane   | app    | memory  | `/list`, `/filters` | content panel | pane toolbar      |
+| Router | Parent | History | Paths | Slot box | Persistent chrome |
+| --- | --- | --- | --- | --- | --- |
+| app | none | browser | `/`, `/detail/:id` | viewport | none |
+| pane | app | memory | `/list`, `/filters` | content panel | pane toolbar |
 
 Give a Router a stable `name` when a descendant may navigate another stack. Names must be unique along an ancestor chain.
 
@@ -17,13 +17,13 @@ Give a Router a stable `name` when a descendant may navigate another stack. Name
 
 Targets resolve from where `useNavigate` was called:
 
-| Target               | Result                                                          |
-| -------------------- | --------------------------------------------------------------- |
-| omitted or `current` | nearest enclosing Router                                        |
-| `parent`             | one Router outward                                              |
-| `root`               | outermost Router in the current chain                           |
-| `nearest-owner`      | first current-or-ancestor Router declaring the destination path |
-| a Router name        | matching Router in the current-or-ancestor chain                |
+| Target | Result |
+| --- | --- |
+| omitted or `current` | nearest enclosing Router |
+| `parent` | one Router outward |
+| `root` | outermost Router in the current chain |
+| `nearest-owner` | first current-or-ancestor Router declaring the destination path |
+| a Router name | matching Router in the current-or-ancestor chain |
 
 Resolution never crosses into a sibling Router. `nearest-owner` requires a path and cannot infer ownership for `pop()`. For a cross-Router pop, create a navigator with an explicit target, such as `useNavigate({ router: "app" })`.
 
@@ -37,7 +37,7 @@ Resolution never crosses into a sibling Router. `nearest-owner` requires a path 
 - Use matching `sharedTopBarId` or `sharedBottomBarId` values when each Screen owns different bar content but the bar should hand over in place.
 - Use per-screen `topBar` or `bottomBar` when the entire bar should enter and leave with its Screen.
 
-For a stable-looking app header with a changing title and left action, render the same header shell from each Screen as `sharedTopBar`, give the bars the same ID, and wrap the changing title and action in Parts. The two screen-owned sides can then hand off and scrub on pop.
+For a stable-looking app header with changing title and left action, render the same header shell from each Screen as `sharedTopBar`, give the bars the same ID, and wrap the changing title and action in Parts. The two screen-owned sides can then hand off and scrub on pop.
 
 ## Ownership boundary checks
 

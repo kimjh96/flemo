@@ -15,9 +15,9 @@ Design navigation topology, visual ownership, and motion together. A locally pla
 
 ## Choose the working path
 
-- Isolated pose or timing edit with established Router owner, screen sides, and primitive: read [motion-authoring.md](references/motion-authoring.md), then edit directly.
-- New navigation, nested routing, shared chrome, or composition with three or more participants: read [routing-and-ownership.md](references/routing-and-ownership.md), then [composition.md](references/composition.md), then [motion-authoring.md](references/motion-authoring.md).
-- Defect: read the relevant model above and [verification.md](references/verification.md). Diagnose before changing motion.
+- For an isolated pose or timing edit with an established Router owner, screen sides, and primitive, read [motion-authoring.md](references/motion-authoring.md), then edit directly.
+- For new navigation, nested routing, shared chrome, or composition with three or more participants, read [routing-and-ownership.md](references/routing-and-ownership.md), then [composition.md](references/composition.md), then [motion-authoring.md](references/motion-authoring.md).
+- For a defect, read the relevant model above and [verification.md](references/verification.md). Diagnose before changing motion.
 
 ## Build from topology to poses
 
@@ -25,9 +25,9 @@ Design navigation topology, visual ownership, and motion together. A locally pla
 2. Resolve each navigation from its calling component. Record the target Router and operation: push, replace, or pop.
 3. Before coding, make a participant matrix:
 
-| Participant           | Router owner | Primitive              | Identity                  | Push role       | Pop role             | Swipe owner        | Clock owner | Paint layer |
-| --------------------- | ------------ | ---------------------- | ------------------------- | --------------- | -------------------- | ------------------ | ----------- | ----------- |
-| Example: header title | app          | Part in shared top bar | part name + shared bar ID | old out, new in | top out, previous in | default Part rider | app screen  | part layer  |
+| Participant | Router owner | Primitive | Identity | Push role | Pop role | Swipe owner | Clock owner | Paint layer |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Example: header title | app | Part in shared top bar | part name + shared bar ID | old out, new in | top out, previous in | default Part rider | app screen | part layer |
 
 4. Choose primitives by ownership and identity, not desired easing:
    - `Slot`: literally persistent layout around one Router's moving region.
@@ -37,7 +37,7 @@ Design navigation topology, visual ownership, and motion together. A locally pla
    - Decorator: a wash or dim tied to a transition.
    - `Layer`: content that must paint over screen chrome.
 5. Author named transitions and register them on the Router owning the transition. Add type registries when the project uses them.
-6. Verify push and pop, plus swipe completion and cancellation. Push alone is insufficient.
+6. Verify push, pop, swipe completion, and swipe cancellation. Push alone is insufficient.
 
 ## Preserve invariants
 

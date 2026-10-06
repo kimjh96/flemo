@@ -1,10 +1,8 @@
-# Transition routing: which opening a transition gets
+# Transition routing
 
-Based on `core/engine/transitionRouting.ts` and the platform predicates it reads.
+`resolveTransitionRouting` in `core/engine/transitionRouting.ts` determines a transition's opening treatment and whether the engine may touch its clock, using the browser, navigation status, and authored options. It runs once per drive run and reads probes live; a verdict formed mid-session applies on the next navigation.
 
-Every transition uses the compiled CSS animation; there is no driver selection. The rAF motion player, demotion strike machinery, `driver: "player"` pin, and entire `flemo:*` override surface were retired (`f32c2cc`, `28d0377`, `47332c9`, `2be1e05`). Descriptions of a choice between two driver tiers are obsolete.
-
-`resolveTransitionRouting` determines the opening treatment and whether the engine may touch the transition's clock, given the browser, navigation status, and authored transition options. It runs once per drive run and reads probes live, so a verdict formed mid-session applies on the next navigation.
+Every transition uses compiled CSS animation. There is no driver selection: the rAF motion player, demotion strike machinery, `driver: "player"` pin, and entire `flemo:*` override surface were retired (`f32c2cc`, `28d0377`, `47332c9`, `2be1e05`). Descriptions of two driver tiers are obsolete.
 
 ## Inputs
 
@@ -12,7 +10,7 @@ Every transition uses the compiled CSS animation; there is no driver selection. 
 | --- | --- |
 | `status` | `PUSHING` / `POPPING` / `REPLACING` / `COMPLETED` / `IDLE` |
 | `transition` | Authored transition; read only for `driver: "native"` |
-| `skipAnimation` | Scope carries the skip marker for this transition |
+| `skipAnimation` | Scope carries this transition's skip marker |
 | `hasActiveMotion` | Active variant resolves a motion |
 | `hasAnimation` | Active variant has any authored animation |
 
@@ -38,19 +36,19 @@ Head lengths in milliseconds:
 | Governed (`GOVERNED_HEAD_MS`) | 180 | 100 | 80 |
 | Desktop macOS Safari (`DESKTOP_HEAD_MS`) | 33 | 33 | 17 |
 
-Desktop lengths derive from a 60Hz pipeline: two frames for entry and one for pop, independently of the governed table. Arming the desktop head retires the birth anchor to avoid two interventions on one clock—the pairing the touch tier was built to avoid.
+Desktop lengths derive independently from a 60Hz pipeline: two frames for entry, one for pop. Arming the desktop head retires the birth anchor to avoid two interventions on one clock, the pairing the touch tier was built to avoid.
 
 ## Clock surgery is opt in
 
-`nativeSurgeryAllowed` is the only field an author can change and is off by default. First-frame holding, transition-start anchoring, and stall re-anchoring mutate a running animation's timing. The 2026-08 iPhone falsification series established that any such timing touch on WebKit costs the accelerated out-of-process path or desynchronizes its re-sync.
+`nativeSurgeryAllowed` is the only field an author can change and defaults to off. First-frame holding, transition-start anchoring, and stall re-anchoring mutate a running animation's timing. The 2026-08 iPhone falsification series established that any timing touch on WebKit costs the accelerated out-of-process path or desynchronizes its re-sync.
 
-By default, the compiled animation runs untouched, with release scheduling protecting its opening. `driver: "native"` knowingly accepts the main-thread-presentation tradeoff; it never permits clock surgery on Blink.
+By default, compiled animation runs untouched, with release scheduling protecting its opening. `driver: "native"` knowingly accepts the main-thread-presentation tradeoff; it never permits clock surgery on Blink.
 
 ## Shared head kit
 
 `resolveHeadKit(status)` is a pure function of platform and status, independent of the transition. The morph runtime needs this answer before it can reliably read it from the DOM.
 
-The engine writes the head's root attribute in the same commit that stages a morph, but React runs descendant layout effects first. A morph reading that attribute therefore sees the previous transition's answer: correct by luck from the second navigation onward, but wrong on the first. This caused an element on the first push to run 33ms ahead of its screen while later pushes aligned.
+The engine writes the head's root attribute in the commit that stages a morph, but React runs descendant layout effects first. A morph reading the attribute sees the previous transition's answer: correct by luck from the second navigation onward, wrong on the first. This caused an element on the first push to run 33ms ahead of its screen while later pushes aligned.
 
 ## Predicates
 
@@ -66,6 +64,6 @@ The engine writes the head's root attribute in the same commit that stages a mor
 
 ## Deliberately open gap
 
-Modern but weak touch Blink devices with UA-CH present are not legacy. They previously earned the governed head kit through the now-retired demotion machinery. The render-settle gate addresses the same mount weight from the other side and is enabled by default for touch Blink.
+Modern but weak touch Blink devices with UA-CH present are not legacy. They previously earned the governed head kit through the retired demotion machinery. The render-settle gate addresses the same mount weight from the other side and defaults to enabled for touch Blink.
 
-Extending the kit to all touch Blink remains a possible next lever, but must not be done blindly: the 2026-08-14 round reverted that blanket treatment after fast devices developed the compiled landing snap.
+Extending the kit to all touch Blink remains a possible next lever, but must not be done blindly: the 2026-08-14 round reverted blanket treatment after fast devices developed the compiled landing snap.

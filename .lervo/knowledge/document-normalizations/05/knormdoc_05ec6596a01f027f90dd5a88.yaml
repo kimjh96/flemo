@@ -1,0 +1,31 @@
+byteOwnership:
+  owner: reviewer
+  rewritePolicy: reviewed_exact
+candidateId: knorm_c130b4a024c85c8cee5c18ed
+compiler:
+  compilerBuildId: sha256:65a4a161da52ab805e88c3c575a068b4138f016bd2e5b2a20161846b0c3140d0
+  compilerId: lervo.codex.document-normalizer
+  compilerVersion: 2+codex-cli 0.160.0
+  isolation: external_no_capabilities
+  provider: codex
+formatVersion: lervo.document.v1
+operationId: knormop_f6e5a928bcdd480aa815ad88
+outputLanguage: en
+outputs:
+  - byteCount: 4517
+    contentHash: sha256:a5e714147ea65a6d55803d019ee7e97ee1292dafb72a02e2de7c8bc0dff2f65e
+    path: .agents/skills/flemo/references/motion-authoring.md
+    userRegionHash: sha256:a5e714147ea65a6d55803d019ee7e97ee1292dafb72a02e2de7c8bc0dff2f65e
+profile: skill_reference
+recordId: knormdoc_05ec6596a01f027f90dd5a88
+resourceBindings: []
+schemaVersion: 2
+sourceContentHash: sha256:b07afe8939f6523711c344938a08ca7267f6d0cc8093e763556ed69c727893dc
+sourcePath: .agents/skills/flemo/references/motion-authoring.md
+sourceUnitVersionIds:
+  - uv_29e355d496e9b5271263dfda
+  - uv_504f8410f849ea5b007e7967
+  - uv_652917a3be84294464dc77ef
+  - uv_c653fef6ab66af5fa03b71d6
+  - uv_cf481222614e3af2c0a7b82d
+  - uv_fef6f871e043e9067bff0d34

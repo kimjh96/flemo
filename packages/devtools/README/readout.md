@@ -6,22 +6,22 @@ const hud = attachDevtoolsHud({ position: "bottom-right" });
 // hud.detach();
 ```
 
-On a phone without a console, the readout shows one high-contrast monospaced line that stays readable in a photo of the device:
+On phones without a console, the readout displays a high-contrast monospaced line readable in a device photo:
 
 ```
 POP 412ms  gap 33.4  drop 1  !2
 ```
 
-That is the navigation kind and duration of the last transition, its longest frame gap in milliseconds after the hold was released, the number of frames longer than 30 ms, and the number of anomalies (`ok` when there are none).
+The line shows the last transition's navigation kind and duration, longest frame gap in milliseconds after hold release, count of frames longer than 30 ms, and anomaly count (`ok` when none).
 
-Tap for details: frames, motion, holds, shared elements, how the animation was driven, and the anomalies of the last transition. Long-press to switch the comparison bucket. The pill next to it collapses the readout to the pill and brings it back, so it stays off the screen without being unmounted. That choice lasts for the session, and polling stops while it is hidden.
+Tap for the last transition's frames, motion, holds, shared elements, animation driver, and anomalies. Long-press to switch comparison buckets. The adjacent pill collapses the readout to the pill and restores it without unmounting. This choice persists for the session; polling stops while hidden.
 
 Options:
 
 - `recorder`
-- `position`: any corner, `"bottom-right"` by default, or a centered `"top"` or `"bottom"` strip
+- `position`: any corner (default: `"bottom-right"`) or a centered `"top"` or `"bottom"` strip
 - `initialExpanded`: `false`
 - `initialHidden`: the session's last choice
 - `buckets`: `["A", "B"]`
 
-Like the panel, it redraws only between transitions. Its stylesheet has no transitions or keyframes, and its fixed, zero-sized host never takes part in a transition.
+Like the panel, the readout redraws only between transitions. Its stylesheet has no transitions or keyframes. Its fixed, zero-sized host never participates in a transition.

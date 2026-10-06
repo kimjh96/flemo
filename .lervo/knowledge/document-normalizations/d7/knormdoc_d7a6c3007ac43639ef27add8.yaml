@@ -1,0 +1,31 @@
+byteOwnership:
+  owner: reviewer
+  rewritePolicy: reviewed_exact
+candidateId: knorm_c130b4a024c85c8cee5c18ed
+compiler:
+  compilerBuildId: sha256:65a4a161da52ab805e88c3c575a068b4138f016bd2e5b2a20161846b0c3140d0
+  compilerId: lervo.codex.document-normalizer
+  compilerVersion: 2+codex-cli 0.160.0
+  isolation: external_no_capabilities
+  provider: codex
+formatVersion: lervo.document.v1
+operationId: knormop_461383c053d280b31932f317
+outputLanguage: en
+outputs:
+  - byteCount: 2579
+    contentHash: sha256:a1299b2eb7073aa0bbcfe54f2ae3232093f0a5b30f558c1df3937b39fb0945a5
+    path: docs/instructions/diagnostics/transition-recorder.md
+    userRegionHash: sha256:a1299b2eb7073aa0bbcfe54f2ae3232093f0a5b30f558c1df3937b39fb0945a5
+profile: instruction_document
+recordId: knormdoc_d7a6c3007ac43639ef27add8
+resourceBindings: []
+schemaVersion: 2
+sourceContentHash: sha256:cf4180c4c4de5c183bd870fc3e26d5ed4d795ba667a15dd1776f80ef6c4bb5be
+sourcePath: docs/instructions/diagnostics/transition-recorder.md
+sourceUnitVersionIds:
+  - uv_18c5ff694e9cb114fdb2285e
+  - uv_3e4e0646a240a7b71be2cb21
+  - uv_4497bd1c44f33379a942ba09
+  - uv_4781976c7f7b84ff13e69b0c
+  - uv_4b0dc56d26d34bb7400967bf
+  - uv_4ee734f1e5a0f032e91e5423

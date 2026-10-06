@@ -1,0 +1,26 @@
+byteOwnership:
+  owner: reviewer
+  rewritePolicy: reviewed_exact
+candidateId: knorm_c130b4a024c85c8cee5c18ed
+compiler:
+  compilerBuildId: sha256:65a4a161da52ab805e88c3c575a068b4138f016bd2e5b2a20161846b0c3140d0
+  compilerId: lervo.codex.document-normalizer
+  compilerVersion: 2+codex-cli 0.160.0
+  isolation: external_no_capabilities
+  provider: codex
+formatVersion: lervo.document.v1
+operationId: knormop_465197a1fbdade1633ff701b
+outputLanguage: en
+outputs:
+  - byteCount: 823
+    contentHash: sha256:e023b7269d39aa20b4a1ccfd03c934bbf7e3ce3b13d4cace26c091234dd5a653
+    path: docs/architecture/motion-engine/lifecycle/perceptual-landing.md
+    userRegionHash: sha256:e023b7269d39aa20b4a1ccfd03c934bbf7e3ce3b13d4cace26c091234dd5a653
+profile: architecture_document
+recordId: knormdoc_3f3373aa9295058c9447c451
+resourceBindings: []
+schemaVersion: 2
+sourceContentHash: sha256:007b39f17a5de3ff95192c275da8eff6801a7bf72b7be00b2a2b7e59491ab06a
+sourcePath: docs/architecture/motion-engine/lifecycle/perceptual-landing.md
+sourceUnitVersionIds:
+  - uv_7e3e14edb5fd42f73f59f718
