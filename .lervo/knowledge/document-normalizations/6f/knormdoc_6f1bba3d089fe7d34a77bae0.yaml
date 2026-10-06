@@ -1,0 +1,27 @@
+byteOwnership:
+  owner: reviewer
+  rewritePolicy: reviewed_exact
+candidateId: knorm_c130b4a024c85c8cee5c18ed
+compiler:
+  compilerBuildId: sha256:65a4a161da52ab805e88c3c575a068b4138f016bd2e5b2a20161846b0c3140d0
+  compilerId: lervo.codex.document-normalizer
+  compilerVersion: 2+codex-cli 0.160.0
+  isolation: external_no_capabilities
+  provider: codex
+formatVersion: lervo.document.v1
+operationId: knormop_dfa67da4ecfc36282b7ef324
+outputLanguage: en
+outputs:
+  - byteCount: 2484
+    contentHash: sha256:67e6849bf8694dcaf651ef86e2077f641b8e8bae7733471982a2a335bc5ab335
+    path: docs/instructions/motion-jank-postmortem/addendum-2026-08-17.md
+    userRegionHash: sha256:67e6849bf8694dcaf651ef86e2077f641b8e8bae7733471982a2a335bc5ab335
+profile: instruction_document
+recordId: knormdoc_6f1bba3d089fe7d34a77bae0
+resourceBindings: []
+schemaVersion: 2
+sourceContentHash: sha256:e18cdbe6fa73883b3433ec0ab2b823efdae3b14cda3437099ac88f527d1eb5a5
+sourcePath: docs/instructions/motion-jank-postmortem/addendum-2026-08-17.md
+sourceUnitVersionIds:
+  - uv_542810c1878ee5729dc92bf4
+  - uv_593469959644315e586b8072

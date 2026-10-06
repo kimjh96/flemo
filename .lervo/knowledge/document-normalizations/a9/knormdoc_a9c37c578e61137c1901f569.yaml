@@ -1,0 +1,51 @@
+byteOwnership:
+  owner: reviewer
+  rewritePolicy: reviewed_exact
+candidateId: knorm_c130b4a024c85c8cee5c18ed
+compiler:
+  compilerBuildId: sha256:65a4a161da52ab805e88c3c575a068b4138f016bd2e5b2a20161846b0c3140d0
+  compilerId: lervo.codex.document-normalizer
+  compilerVersion: 2+codex-cli 0.160.0
+  isolation: external_no_capabilities
+  provider: codex
+formatVersion: lervo.document.v1
+operationId: knormop_302bb35066eb78139f819d41
+outputLanguage: en
+outputs:
+  - byteCount: 517
+    contentHash: sha256:4846dbe04dc9a86def61eb445c832c5df3276641217e1a7851e2acab3b12705f
+    path: docs/instructions/motion-jank-postmortem/do-not-retry.md
+    userRegionHash: sha256:4846dbe04dc9a86def61eb445c832c5df3276641217e1a7851e2acab3b12705f
+  - byteCount: 882
+    contentHash: sha256:8e236cd116b1dcdb05ab4c386f055f0446bd7bdc31111b5004b23f5ba50f76ff
+    path: docs/instructions/motion-jank-postmortem/do-not-retry/chrome-presentation.md
+    userRegionHash: sha256:8e236cd116b1dcdb05ab4c386f055f0446bd7bdc31111b5004b23f5ba50f76ff
+  - byteCount: 1580
+    contentHash: sha256:b5b545979c96d431444fcb7c3bc308e86050bc441d8fb63e900c129426b7a0af
+    path: docs/instructions/motion-jank-postmortem/do-not-retry/glass-campaign.md
+    userRegionHash: sha256:b5b545979c96d431444fcb7c3bc308e86050bc441d8fb63e900c129426b7a0af
+  - byteCount: 646
+    contentHash: sha256:b0323b762d16f0a5456f410ce84dc2f54380fab373e3bfa5c73ca6d21b13bc38
+    path: docs/instructions/motion-jank-postmortem/do-not-retry/player.md
+    userRegionHash: sha256:b0323b762d16f0a5456f410ce84dc2f54380fab373e3bfa5c73ca6d21b13bc38
+  - byteCount: 1796
+    contentHash: sha256:34646de00e9c25c7ebacb4215c9ff60d78116c1e21201bbdb6feb3e9e941d6da
+    path: docs/instructions/motion-jank-postmortem/do-not-retry/routing.md
+    userRegionHash: sha256:34646de00e9c25c7ebacb4215c9ff60d78116c1e21201bbdb6feb3e9e941d6da
+  - byteCount: 2377
+    contentHash: sha256:c37c207f754436f8b9bfe90f698aed6d7998e04c666c00e3b6710950fd819e04
+    path: docs/instructions/motion-jank-postmortem/do-not-retry/webkit.md
+    userRegionHash: sha256:c37c207f754436f8b9bfe90f698aed6d7998e04c666c00e3b6710950fd819e04
+profile: instruction_document
+recordId: knormdoc_a9c37c578e61137c1901f569
+resourceBindings: []
+schemaVersion: 2
+sourceContentHash: sha256:d1bc186a44bfc57f0cb2798d53563213efbf625ca7929559bbf04d1016cc4572
+sourcePath: docs/instructions/motion-jank-postmortem/do-not-retry.md
+sourceUnitVersionIds:
+  - uv_27429d7159b3dd7f9319416d
+  - uv_5128dd861e8301b84daea649
+  - uv_616caa8325f2d76b0bfb5127
+  - uv_63847b02389b76af057584a6
+  - uv_6f9f4bbdda644e4a4a4e3408
+  - uv_9c9393ad8f1d496bb96bcede

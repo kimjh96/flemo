@@ -1,0 +1,26 @@
+byteOwnership:
+  owner: reviewer
+  rewritePolicy: reviewed_exact
+candidateId: knorm_c130b4a024c85c8cee5c18ed
+compiler:
+  compilerBuildId: sha256:65a4a161da52ab805e88c3c575a068b4138f016bd2e5b2a20161846b0c3140d0
+  compilerId: lervo.codex.document-normalizer
+  compilerVersion: 2+codex-cli 0.160.0
+  isolation: external_no_capabilities
+  provider: codex
+formatVersion: lervo.document.v1
+operationId: knormop_9ebf96b78115a732441250ee
+outputLanguage: en
+outputs:
+  - byteCount: 2027
+    contentHash: sha256:274ea441a621e5cd0b856f40d57865535cae6ffc5e6cbad507a7a733358737b7
+    path: packages/devtools/README/defects.md
+    userRegionHash: sha256:274ea441a621e5cd0b856f40d57865535cae6ffc5e6cbad507a7a733358737b7
+profile: repository_document
+recordId: knormdoc_996a0a51824298dc1a7aa169
+resourceBindings: []
+schemaVersion: 2
+sourceContentHash: sha256:877226386198ed37e89f528ceac14ef3470e4e7368213b8850f6ccdb07668f75
+sourcePath: packages/devtools/README/defects.md
+sourceUnitVersionIds:
+  - uv_b0967361ecb2a542e5b2a450

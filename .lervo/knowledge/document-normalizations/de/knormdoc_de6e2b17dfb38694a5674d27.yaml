@@ -1,0 +1,37 @@
+byteOwnership:
+  owner: reviewer
+  rewritePolicy: reviewed_exact
+candidateId: knorm_c130b4a024c85c8cee5c18ed
+compiler:
+  compilerBuildId: sha256:65a4a161da52ab805e88c3c575a068b4138f016bd2e5b2a20161846b0c3140d0
+  compilerId: lervo.codex.document-normalizer
+  compilerVersion: 2+codex-cli 0.160.0
+  isolation: external_no_capabilities
+  provider: codex
+formatVersion: lervo.document.v1
+operationId: knormop_c1b4af4c4208dd734128b739
+outputLanguage: en
+outputs:
+  - byteCount: 1118
+    contentHash: sha256:bd750f65114bb7befa561bf8631c40b0aa0431e417b2773099e5c6600d7051d2
+    path: docs/architecture/react-binding.md
+    userRegionHash: sha256:bd750f65114bb7befa561bf8631c40b0aa0431e417b2773099e5c6600d7051d2
+  - byteCount: 581
+    contentHash: sha256:9dc3e98a06c2af4a145373c5d039e0b9480c2e44d90bdb63415a21467b1927a3
+    path: docs/architecture/react-binding/implementation-and-validation.md
+    userRegionHash: sha256:9dc3e98a06c2af4a145373c5d039e0b9480c2e44d90bdb63415a21467b1927a3
+  - byteCount: 1626
+    contentHash: sha256:be27eefba93107fd14b27e657369df3a10d2cebe10e85c8957e6da82046711bf
+    path: docs/architecture/react-binding/ownership-and-protocol.md
+    userRegionHash: sha256:be27eefba93107fd14b27e657369df3a10d2cebe10e85c8957e6da82046711bf
+profile: architecture_document
+recordId: knormdoc_de6e2b17dfb38694a5674d27
+resourceBindings: []
+schemaVersion: 2
+sourceContentHash: sha256:cfa5019fdcc9e68cf962bc44b7971996e0ccec26a10d276092098e7e873e8a6a
+sourcePath: docs/architecture/react-binding.md
+sourceUnitVersionIds:
+  - uv_1130eb681f88d8f376b1ec78
+  - uv_65249045c7a3f850a1d9a695
+  - uv_92da6c0113786e27cc7df219
+  - uv_ceae1ad39c1739cf8087cd73

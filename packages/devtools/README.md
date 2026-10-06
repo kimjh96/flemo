@@ -1,12 +1,12 @@
 # @flemo/devtools
 
-A zero-dependency transition recorder, on-device readout and visual panel for [flemo](https://flemo.dev), with a one-element React binding. It records every screen transition, checks it for known defects, and writes one JSON report that people and coding agents can read.
+A zero-dependency transition recorder, on-device readout, and visual panel for [flemo](https://flemo.dev), with a one-element React binding. It records every screen transition, checks for known defects, and writes one JSON report for people and coding agents.
 
-It reads only what the page already exposes: the `data-flemo-*` attributes, leftover `flemo:*` storage keys, CSS animation events, pointer events, `MutationObserver`, `PerformanceObserver("longtask")` and `requestAnimationFrame`. It imports neither `@flemo/core` nor `@flemo/react`, so attaching it does not change the motion it measures.
+It reads only page-exposed `data-flemo-*` attributes, leftover `flemo:*` storage keys, CSS animation events, pointer events, `MutationObserver`, `PerformanceObserver("longtask")`, and `requestAnimationFrame`. It imports neither `@flemo/core` nor `@flemo/react`; attaching it does not change the motion measured.
 
-Start recording with `attachTransitionRecorder`. Each recorded transition is a `TransitionRecord` in `report().transitions`, and `maxTransitions` sets how many are kept. Its checks after the transition ends are in `endAudit`, and the shared elements that moved are in `morphs.moved`.
+Start with `attachTransitionRecorder`. Each transition is a `TransitionRecord` in `report().transitions`; `maxTransitions` limits retention. Post-transition checks are in `endAudit`, and moved shared elements are in `morphs.moved`.
 
-Each question has its own probe module: frame pacing, motion, images, shared elements, one-frame events, and what is left behind after a transition ends. Adding a measurement means adding a probe.
+Separate probe modules cover frame pacing, motion, images, shared elements, one-frame events, and leftovers after transitions. Add a probe to add a measurement.
 
 - [Quickstart: React and any framework](README/quickstart.md)
 - [Production safety](README/production-safety.md)

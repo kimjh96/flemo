@@ -1,0 +1,27 @@
+byteOwnership:
+  owner: reviewer
+  rewritePolicy: reviewed_exact
+candidateId: knorm_c130b4a024c85c8cee5c18ed
+compiler:
+  compilerBuildId: sha256:65a4a161da52ab805e88c3c575a068b4138f016bd2e5b2a20161846b0c3140d0
+  compilerId: lervo.codex.document-normalizer
+  compilerVersion: 2+codex-cli 0.160.0
+  isolation: external_no_capabilities
+  provider: codex
+formatVersion: lervo.document.v1
+operationId: knormop_88dc629a79cff8860439b960
+outputLanguage: en
+outputs:
+  - byteCount: 1507
+    contentHash: sha256:79b423c37c4b14f4d636584efe4cde54f879b81beba53e860f9693d7f91cfee0
+    path: docs/architecture/motion-engine.md
+    userRegionHash: sha256:79b423c37c4b14f4d636584efe4cde54f879b81beba53e860f9693d7f91cfee0
+profile: architecture_document
+recordId: knormdoc_4fdd73f35ca37fd2d2ae8f1e
+resourceBindings: []
+schemaVersion: 2
+sourceContentHash: sha256:23cadc216e15589608a329f3ea04a364701470f9ad539a1ba674562d30219ce0
+sourcePath: docs/architecture/motion-engine.md
+sourceUnitVersionIds:
+  - uv_02e2b9286ea9cbc02daecdf1
+  - uv_b7dbb5e3e4931cd052f69985

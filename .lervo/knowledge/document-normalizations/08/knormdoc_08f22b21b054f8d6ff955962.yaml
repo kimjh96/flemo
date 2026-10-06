@@ -1,0 +1,26 @@
+byteOwnership:
+  owner: reviewer
+  rewritePolicy: reviewed_exact
+candidateId: knorm_c130b4a024c85c8cee5c18ed
+compiler:
+  compilerBuildId: sha256:65a4a161da52ab805e88c3c575a068b4138f016bd2e5b2a20161846b0c3140d0
+  compilerId: lervo.codex.document-normalizer
+  compilerVersion: 2+codex-cli 0.160.0
+  isolation: external_no_capabilities
+  provider: codex
+formatVersion: lervo.document.v1
+operationId: knormop_ced193ce22d12ab243ace49a
+outputLanguage: en
+outputs:
+  - byteCount: 2821
+    contentHash: sha256:9aaaf7b365d636edb10fa8b79e68f765ed0d0e4bc69bbbb4505a85dc8b867d72
+    path: docs/instructions/transition-authoring/semantics/motion-behavior.md
+    userRegionHash: sha256:9aaaf7b365d636edb10fa8b79e68f765ed0d0e4bc69bbbb4505a85dc8b867d72
+profile: instruction_document
+recordId: knormdoc_08f22b21b054f8d6ff955962
+resourceBindings: []
+schemaVersion: 2
+sourceContentHash: sha256:6f34a43ddbb29764faf7bd9673c7d996d8fa7ad80ef87e26b8f40ee2f51a3d81
+sourcePath: docs/instructions/transition-authoring/semantics/motion-behavior.md
+sourceUnitVersionIds:
+  - uv_822aeca0a54591235b6448db

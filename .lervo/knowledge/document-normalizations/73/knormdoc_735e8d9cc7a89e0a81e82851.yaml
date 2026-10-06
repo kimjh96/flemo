@@ -1,0 +1,26 @@
+byteOwnership:
+  owner: reviewer
+  rewritePolicy: reviewed_exact
+candidateId: knorm_c130b4a024c85c8cee5c18ed
+compiler:
+  compilerBuildId: sha256:65a4a161da52ab805e88c3c575a068b4138f016bd2e5b2a20161846b0c3140d0
+  compilerId: lervo.codex.document-normalizer
+  compilerVersion: 2+codex-cli 0.160.0
+  isolation: external_no_capabilities
+  provider: codex
+formatVersion: lervo.document.v1
+operationId: knormop_dd10e7353046674dc77e6c03
+outputLanguage: en
+outputs:
+  - byteCount: 1122
+    contentHash: sha256:327fd3099af49e274ea499abca1a00e8409406c65ffb48efb4d2da42a4b322ec
+    path: docs/architecture/react-binding/screen-freeze.md
+    userRegionHash: sha256:327fd3099af49e274ea499abca1a00e8409406c65ffb48efb4d2da42a4b322ec
+profile: architecture_document
+recordId: knormdoc_735e8d9cc7a89e0a81e82851
+resourceBindings: []
+schemaVersion: 2
+sourceContentHash: sha256:4f6e40047252a05f70ef1c6dc4165bd70854deb317c13910add7861b8b4d0140
+sourcePath: docs/architecture/react-binding/screen-freeze.md
+sourceUnitVersionIds:
+  - uv_4f857070f331b5d9630bf640

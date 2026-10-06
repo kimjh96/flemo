@@ -1,0 +1,26 @@
+byteOwnership:
+  owner: reviewer
+  rewritePolicy: reviewed_exact
+candidateId: knorm_c130b4a024c85c8cee5c18ed
+compiler:
+  compilerBuildId: sha256:65a4a161da52ab805e88c3c575a068b4138f016bd2e5b2a20161846b0c3140d0
+  compilerId: lervo.codex.document-normalizer
+  compilerVersion: 2+codex-cli 0.160.0
+  isolation: external_no_capabilities
+  provider: codex
+formatVersion: lervo.document.v1
+operationId: knormop_49dbe4473b3c321eab4a36a8
+outputLanguage: en
+outputs:
+  - byteCount: 2315
+    contentHash: sha256:c7191db910fc6127e32779dfb16bc4d2d8588aab4a05f6341a27f7b921777e03
+    path: docs/architecture/motion-engine/lifecycle/hold-and-release.md
+    userRegionHash: sha256:c7191db910fc6127e32779dfb16bc4d2d8588aab4a05f6341a27f7b921777e03
+profile: architecture_document
+recordId: knormdoc_4b8dda1a7ddc6daf342fd879
+resourceBindings: []
+schemaVersion: 2
+sourceContentHash: sha256:6070a57375e356caeca9417c36bcb1eb7af118a87722f283de4f3261d098e273
+sourcePath: docs/architecture/motion-engine/lifecycle/hold-and-release.md
+sourceUnitVersionIds:
+  - uv_1686d5d334863e6b71cf5887

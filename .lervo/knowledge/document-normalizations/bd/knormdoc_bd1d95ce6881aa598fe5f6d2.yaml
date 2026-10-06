@@ -1,0 +1,36 @@
+byteOwnership:
+  owner: reviewer
+  rewritePolicy: reviewed_exact
+candidateId: knorm_c130b4a024c85c8cee5c18ed
+compiler:
+  compilerBuildId: sha256:65a4a161da52ab805e88c3c575a068b4138f016bd2e5b2a20161846b0c3140d0
+  compilerId: lervo.codex.document-normalizer
+  compilerVersion: 2+codex-cli 0.160.0
+  isolation: external_no_capabilities
+  provider: codex
+formatVersion: lervo.document.v1
+operationId: knormop_ddc7a0b8db35f5d729571397
+outputLanguage: en
+outputs:
+  - byteCount: 696
+    contentHash: sha256:0e5dada8e022eab67586338350daba8399c846ce87c79fa645a31c89c8d4140b
+    path: packages/devtools/README/quickstart.md
+    userRegionHash: sha256:0e5dada8e022eab67586338350daba8399c846ce87c79fa645a31c89c8d4140b
+  - byteCount: 983
+    contentHash: sha256:1024be45e9977e71f382c0e2f507fc3041dd2a76432996f0efa0f1473a14bada
+    path: packages/devtools/README/quickstart/any-framework.md
+    userRegionHash: sha256:1024be45e9977e71f382c0e2f507fc3041dd2a76432996f0efa0f1473a14bada
+  - byteCount: 858
+    contentHash: sha256:f44de837a0b3664d33d0d7262e3a13d09010c8e5856a808f4b3d2ca933ab3b76
+    path: packages/devtools/README/quickstart/react.md
+    userRegionHash: sha256:f44de837a0b3664d33d0d7262e3a13d09010c8e5856a808f4b3d2ca933ab3b76
+profile: repository_document
+recordId: knormdoc_bd1d95ce6881aa598fe5f6d2
+resourceBindings: []
+schemaVersion: 2
+sourceContentHash: sha256:c57c1b19918afc4413d8993e44aacc841366c9c562b72d02f6637ef2c2ec13d4
+sourcePath: packages/devtools/README/quickstart.md
+sourceUnitVersionIds:
+  - uv_36f13532734d5f82f150718b
+  - uv_c60b287465b06e6f652fa657
+  - uv_d4ee37bec412f46cbc03c4ae

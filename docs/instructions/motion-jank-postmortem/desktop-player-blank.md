@@ -1,19 +1,19 @@
-# (d) Worked example: the desktop player blank (#256 → #259) — instrument before you revert
+# Desktop player blank (#256 → #259): instrument before reverting
 
-Symptom: on `?driver=raf`-pinned desktop Chromium, push→pop→push re-entry left the detail screen completely blank.
+On `?driver=raf`-pinned desktop Chromium, push→pop→push re-entry left the detail screen completely blank.
 
-First response (PR #256) *reverted the pin pierce* — correct triage, since the production default was never affected, but it treated the player as the defect.
+PR #256 reverted the pin pierce. This was correct triage because the production default was unaffected, but it treated the player as the defect.
 
-PR #259 (merged 2026-08-17) instrumented instead of assuming: a frame-by-frame trace showed the transition drove perfectly (1280→0, landing inline `none`) and the screen blanked ONE COMMIT LATER. Root cause was a three-part cleanup interaction, not a player bug:
+PR #259, merged 2026-08-17, used instrumentation instead of assumption. A frame-by-frame trace showed a correct transition (1280→0, landing inline `none`), followed by blanking one commit later. The root cause was a three-part cleanup interaction:
 
-1. The player track's detach restored its `transform` lease "original" — which, for the actively-entered scope, is the **flemo-rendered entering-initial from-pose** (`translate3d(100%,0,0)`), not a consumer value.
-2. The COMPLETED force clear iterates only keys still in the lease map, and the restore had just dropped the transform entry.
-3. The empty-map fallback that strips transform/opacity never runs while any other lease survives the flip — and on desktop Blink the governed-easing `animation-timing-function` lease always does.
+1. Player-track detach restored the `transform` lease's "original" value. For the actively entered scope, that value is the flemo-rendered entering-initial from-pose, `translate3d(100%,0,0)`, rather than a consumer value.
+2. COMPLETED force clear iterates only keys remaining in the lease map; restoration had already removed the transform entry.
+3. The empty-map fallback strips transform/opacity only when no other lease survives the flip. On desktop Blink, the governed-easing `animation-timing-function` lease always survives.
 
-Touch sessions were saved by accident (empty map → fallback). The shipped fix strips the scope's pose channels explicitly at COMPLETED, and the pin pierce was restored on the strength of it, with a desktop-chromium e2e guard.
+Touch sessions worked accidentally because their empty maps triggered the fallback. The shipped fix explicitly strips the scope's pose channels at COMPLETED. With that fix and a desktop-chromium e2e guard, the pin pierce was restored.
 
-Lessons:
+## Lessons
 
-1. A clean transition plus a broken rest state means look at the CLEANUP path, not the driver.
-2. "Works on touch" can be an accident of map contents, not a design.
-3. Revert-first is fine for triage, but the root cause must be paid down before the capability returns.
+1. A clean transition followed by a broken rest state points to the cleanup path, not the driver.
+2. "Works on touch" may reflect accidental map contents rather than design.
+3. Revert-first is valid triage, but resolve the root cause before restoring the capability.

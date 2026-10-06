@@ -1,0 +1,41 @@
+byteOwnership:
+  owner: reviewer
+  rewritePolicy: reviewed_exact
+candidateId: knorm_c130b4a024c85c8cee5c18ed
+compiler:
+  compilerBuildId: sha256:65a4a161da52ab805e88c3c575a068b4138f016bd2e5b2a20161846b0c3140d0
+  compilerId: lervo.codex.document-normalizer
+  compilerVersion: 2+codex-cli 0.160.0
+  isolation: external_no_capabilities
+  provider: codex
+formatVersion: lervo.document.v1
+operationId: knormop_0cdbbad301047562338792f6
+outputLanguage: en
+outputs:
+  - byteCount: 294
+    contentHash: sha256:3d0f5ff14878254b67c04a3f22cab244dfb5fdb65e5e90ba9cadbf9f65dda33b
+    path: docs/architecture/react-binding/router.md
+    userRegionHash: sha256:3d0f5ff14878254b67c04a3f22cab244dfb5fdb65e5e90ba9cadbf9f65dda33b
+  - byteCount: 1072
+    contentHash: sha256:f2941a2e02779db98c31f21b0958a0ec6233bf266d4fa4f0f667a0a8a7a49476
+    path: docs/architecture/react-binding/router/hydration-lifetime-and-slots.md
+    userRegionHash: sha256:f2941a2e02779db98c31f21b0958a0ec6233bf266d4fa4f0f667a0a8a7a49476
+  - byteCount: 2344
+    contentHash: sha256:f0de82abab864bd63e5204473636ffdfd499bbb54264a57b7d43363f53ca7bb6
+    path: docs/architecture/react-binding/router/scope-targeting-and-publication.md
+    userRegionHash: sha256:f0de82abab864bd63e5204473636ffdfd499bbb54264a57b7d43363f53ca7bb6
+  - byteCount: 950
+    contentHash: sha256:9521a5c80218923ec31ce3f0f03c7e725c69573b78ea50c0bf3748936d55b45a
+    path: docs/architecture/react-binding/router/stores-and-history.md
+    userRegionHash: sha256:9521a5c80218923ec31ce3f0f03c7e725c69573b78ea50c0bf3748936d55b45a
+profile: architecture_document
+recordId: knormdoc_b8e26915a15b4ab0be795e41
+resourceBindings: []
+schemaVersion: 2
+sourceContentHash: sha256:151628d1356237d5ef1c52f546f53220367d50402f83a06d76f102e61be1185c
+sourcePath: docs/architecture/react-binding/router.md
+sourceUnitVersionIds:
+  - uv_2958c551b95daf8e89a076ce
+  - uv_2ae8d2233ef96cf0c7e50b87
+  - uv_300f9d4eb0c977f326b37ccb
+  - uv_8293a0db80b97e39e789dd8e

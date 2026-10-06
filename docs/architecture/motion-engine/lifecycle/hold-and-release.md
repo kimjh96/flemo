@@ -2,6 +2,8 @@
 
 During render, the binding computes `holdKey` through `screen/animStartAnchor.ts` and stamps `data-flemo-anim-hold` on the scope, shared bars, and decorator in the status-changing commit. `ANIM_HOLD_RULE` applies `animation-play-state: paused !important`; `fill: both` preserves the `from` pose. This prevents iOS WebKit from aging a CSS animation while a heavy first frame remains unpresented.
 
+## Hold modes
+
 `ScreenMotion.holdAttr` values:
 
 | Value | Behavior and requirements |
@@ -10,6 +12,8 @@ During render, the binding computes `holdKey` through `screen/animStartAnchor.ts
 | `"park"` | Places a COVERED passive pop destination at its destination pose for hold-time rasterization. Requires a verifiably opaque covering background from the `ScreenSurface` registry. |
 | `"park-under"` | Places an ACTIVE push or replace entrant at its destination beneath the previous screen, with `zIndex: -1` on the outer container. Requires opaque cover. Withhold the entering initial inline style while parked because it would override the park rule. |
 | `"park-over"` | Places the destination pose above the prior screen at `opacity: 0.02` to raster entering tiles before transition. Computed default for touch WebKit (`parkOver` in `platform/profile.ts`). |
+
+## Readiness and release
 
 `scheduleAnimHoldRelease` and `createAnimHoldCoordinator` provide double-rAF scheduling, image-decode readiness, and a pop-pair barrier that releases both screens on one clock.
 

@@ -1,0 +1,26 @@
+byteOwnership:
+  owner: reviewer
+  rewritePolicy: reviewed_exact
+candidateId: knorm_c130b4a024c85c8cee5c18ed
+compiler:
+  compilerBuildId: sha256:65a4a161da52ab805e88c3c575a068b4138f016bd2e5b2a20161846b0c3140d0
+  compilerId: lervo.codex.document-normalizer
+  compilerVersion: 2+codex-cli 0.160.0
+  isolation: external_no_capabilities
+  provider: codex
+formatVersion: lervo.document.v1
+operationId: knormop_9606597f168f49c091e34999
+outputLanguage: en
+outputs:
+  - byteCount: 3252
+    contentHash: sha256:0d2810ebdaaf24e4a3751d07c7bfefd8eb27bef70c5536a740d54bac4ba05728
+    path: docs/instructions/diagnostics/observation.md
+    userRegionHash: sha256:0d2810ebdaaf24e4a3751d07c7bfefd8eb27bef70c5536a740d54bac4ba05728
+profile: instruction_document
+recordId: knormdoc_887c2d4318d422122774ffc8
+resourceBindings: []
+schemaVersion: 2
+sourceContentHash: sha256:28b4b415a299ea52fc09356842de06ddb1a7a6f7c50b48276d4ddfeb9d2ea53e
+sourcePath: docs/instructions/diagnostics/observation.md
+sourceUnitVersionIds:
+  - uv_36be315d857a806181815cf5

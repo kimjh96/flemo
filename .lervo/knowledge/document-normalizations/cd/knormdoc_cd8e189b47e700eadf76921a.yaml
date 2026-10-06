@@ -1,0 +1,61 @@
+byteOwnership:
+  owner: reviewer
+  rewritePolicy: reviewed_exact
+candidateId: knorm_c130b4a024c85c8cee5c18ed
+compiler:
+  compilerBuildId: sha256:65a4a161da52ab805e88c3c575a068b4138f016bd2e5b2a20161846b0c3140d0
+  compilerId: lervo.codex.document-normalizer
+  compilerVersion: 2+codex-cli 0.160.0
+  isolation: external_no_capabilities
+  provider: codex
+formatVersion: lervo.document.v1
+operationId: knormop_4ecfded96eb89dbf7ebca7ad
+outputLanguage: en
+outputs:
+  - byteCount: 617
+    contentHash: sha256:9f3f3ef63d823acdf486d364c6fb37ad4e8ab241e23a5519ffad84d37eccaf7c
+    path: docs/architecture/react-binding/screen-motion.md
+    userRegionHash: sha256:9f3f3ef63d823acdf486d364c6fb37ad4e8ab241e23a5519ffad84d37eccaf7c
+  - byteCount: 691
+    contentHash: sha256:14b57557f2455d568adc83df3e6b2aa9e5bc18c7ffa806f18e629a73abe0dd1f
+    path: docs/architecture/react-binding/screen-motion/bar-identity.md
+    userRegionHash: sha256:14b57557f2455d568adc83df3e6b2aa9e5bc18c7ffa806f18e629a73abe0dd1f
+  - byteCount: 753
+    contentHash: sha256:827e5740562e32225c1abf50fe51e865e4c05d26c99cf1ad6a430ed3e3ddda53
+    path: docs/architecture/react-binding/screen-motion/chrome-and-measurement.md
+    userRegionHash: sha256:827e5740562e32225c1abf50fe51e865e4c05d26c99cf1ad6a430ed3e3ddda53
+  - byteCount: 581
+    contentHash: sha256:062f9016d3951095f084133e3bf83ab529e9f51f92ddfc165fb1e0dbc99f879d
+    path: docs/architecture/react-binding/screen-motion/engine-lifecycle.md
+    userRegionHash: sha256:062f9016d3951095f084133e3bf83ab529e9f51f92ddfc165fb1e0dbc99f879d
+  - byteCount: 490
+    contentHash: sha256:fb909b3997fe58f5382ef0188a33ee0f7a0369607c7aeb3234955b1d7fcae240
+    path: docs/architecture/react-binding/screen-motion/entering-styles.md
+    userRegionHash: sha256:fb909b3997fe58f5382ef0188a33ee0f7a0369607c7aeb3234955b1d7fcae240
+  - byteCount: 1265
+    contentHash: sha256:dbf1276f19511d1e04a4bdd3845f366284c6f488954991b08c2a9a817ee28469
+    path: docs/architecture/react-binding/screen-motion/holds-and-release.md
+    userRegionHash: sha256:dbf1276f19511d1e04a4bdd3845f366284c6f488954991b08c2a9a817ee28469
+  - byteCount: 811
+    contentHash: sha256:d43cb4e66eec3758c46465f6ca9c5bd4ad3ac3e963e340f9f9251612e24270bb
+    path: docs/architecture/react-binding/screen-motion/scope-promotion.md
+    userRegionHash: sha256:d43cb4e66eec3758c46465f6ca9c5bd4ad3ac3e963e340f9f9251612e24270bb
+  - byteCount: 1019
+    contentHash: sha256:876f0ab585fa922cc545a0c19f27624462fca032b4bce800d3da22bf84fcb5ff
+    path: docs/architecture/react-binding/screen-motion/swipe-events.md
+    userRegionHash: sha256:876f0ab585fa922cc545a0c19f27624462fca032b4bce800d3da22bf84fcb5ff
+profile: architecture_document
+recordId: knormdoc_cd8e189b47e700eadf76921a
+resourceBindings: []
+schemaVersion: 2
+sourceContentHash: sha256:b8839e5258a860d5483ebd18ab5a6cf816d031d518690f83b97fa1c4cdb4b553
+sourcePath: docs/architecture/react-binding/screen-motion.md
+sourceUnitVersionIds:
+  - uv_107d670682bfb77a151074e4
+  - uv_6174e82a8460a47490feed85
+  - uv_738b66b2682e32f037c5217e
+  - uv_86b1ee1aa370767a1bc9310e
+  - uv_8e56acd80c932c6374861bd6
+  - uv_9ceb0588372f83e10e7cb133
+  - uv_a8fc9c8c856eb0b895352954
+  - uv_f457d670104e05cd802aadb9

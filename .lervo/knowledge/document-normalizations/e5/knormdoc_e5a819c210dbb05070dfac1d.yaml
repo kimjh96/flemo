@@ -1,0 +1,46 @@
+byteOwnership:
+  owner: reviewer
+  rewritePolicy: reviewed_exact
+candidateId: knorm_c130b4a024c85c8cee5c18ed
+compiler:
+  compilerBuildId: sha256:65a4a161da52ab805e88c3c575a068b4138f016bd2e5b2a20161846b0c3140d0
+  compilerId: lervo.codex.document-normalizer
+  compilerVersion: 2+codex-cli 0.160.0
+  isolation: external_no_capabilities
+  provider: codex
+formatVersion: lervo.document.v1
+operationId: knormop_aa726c1be429ad6bf0e39fed
+outputLanguage: en
+outputs:
+  - byteCount: 633
+    contentHash: sha256:34da710f2793e2376cbd03f66767d27290f24d1f937bc55e3939bdab6975dfec
+    path: docs/instructions/motion-jank-postmortem/glass-campaign-2026-08-18.md
+    userRegionHash: sha256:34da710f2793e2376cbd03f66767d27290f24d1f937bc55e3939bdab6975dfec
+  - byteCount: 2506
+    contentHash: sha256:d1e7978c7926cf6cb4cfd651dfcbf6e0d28006efb5d7afcd1241b1364d28ac0e
+    path: docs/instructions/motion-jank-postmortem/glass-campaign-2026-08-18/engine-changes.md
+    userRegionHash: sha256:d1e7978c7926cf6cb4cfd651dfcbf6e0d28006efb5d7afcd1241b1364d28ac0e
+  - byteCount: 1447
+    contentHash: sha256:dc991748505f83f5b96b5b316e4681f1c78e312147bbdd1e9ff8a96e92e6d424
+    path: docs/instructions/motion-jank-postmortem/glass-campaign-2026-08-18/instrumentation.md
+    userRegionHash: sha256:dc991748505f83f5b96b5b316e4681f1c78e312147bbdd1e9ff8a96e92e6d424
+  - byteCount: 1848
+    contentHash: sha256:8fc41af9363646180f8ef656ce948adc83c279efe3396c64c9f8379c48d7a4fb
+    path: docs/instructions/motion-jank-postmortem/glass-campaign-2026-08-18/verdicts.md
+    userRegionHash: sha256:8fc41af9363646180f8ef656ce948adc83c279efe3396c64c9f8379c48d7a4fb
+profile: instruction_document
+recordId: knormdoc_e5a819c210dbb05070dfac1d
+resourceBindings: []
+schemaVersion: 2
+sourceContentHash: sha256:7180e6d27a217f1b55d733082ce5424879ec4968ebe0b004517dd6cf6c90751f
+sourcePath: docs/instructions/motion-jank-postmortem/glass-campaign-2026-08-18.md
+sourceUnitVersionIds:
+  - uv_1da3b7003afe0e7cd5ca48c3
+  - uv_3c4c413fcdaabe376b017eeb
+  - uv_436876ae467bea5b5c7b56fd
+  - uv_559b35fea7d79ed162d1390a
+  - uv_69a3a049261659dfdfda697b
+  - uv_7cd74889a3c40ddac3c8fb23
+  - uv_c6eac9ddb744fb523549b72a
+  - uv_cfcd4223548f7d21e9fa86b9
+  - uv_ebc000133cf7bd54d6d11b22
