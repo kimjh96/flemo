@@ -1,0 +1,37 @@
+byteOwnership:
+  owner: reviewer
+  rewritePolicy: reviewed_exact
+candidateId: knorm_2e257cf7dc87475323c0827a
+compiler:
+  compilerBuildId: sha256:574bcd6cc190db957222a9951c145c791541c2b33a44879f5714ed393df2afad
+  compilerId: lervo.codex.document-normalizer
+  compilerVersion: 3+codex-cli 0.156.1
+  isolation: external_no_capabilities
+  provider: codex
+formatVersion: lervo.document.v1
+operationId: knormop_4311195efa57580b662bdc17
+outputLanguage: en
+outputs:
+  - byteCount: 656
+    contentHash: sha256:02ad942128cda85cb0a4dbc82d4fd1cb71b8999b360553a81b4806985f1c1be1
+    path: docs/architecture/motion-engine/staging-primitives.md
+    userRegionHash: sha256:02ad942128cda85cb0a4dbc82d4fd1cb71b8999b360553a81b4806985f1c1be1
+  - byteCount: 2492
+    contentHash: sha256:9bd731000440807a872e6eae8a1d89f71d521857a5416e53b6eaaaefb4061ba6
+    path: docs/architecture/motion-engine/staging-primitives/animation-clocks.md
+    userRegionHash: sha256:9bd731000440807a872e6eae8a1d89f71d521857a5416e53b6eaaaefb4061ba6
+  - byteCount: 916
+    contentHash: sha256:783621d9c776145d956c6080cd5155da6436afa2729448d3bc64ba32380aa14b
+    path: docs/architecture/motion-engine/staging-primitives/layer-coordinates.md
+    userRegionHash: sha256:783621d9c776145d956c6080cd5155da6436afa2729448d3bc64ba32380aa14b
+profile: architecture_document
+recordId: knormdoc_6e9cb6567d1d9a4b626126b1
+resourceBindings: []
+schemaVersion: 2
+sourceContentHash: sha256:376895c00868325fc69ba3805061d3abb1b0d1a92a805ea591e44c5295d4ce4d
+sourcePath: docs/architecture/motion-engine/staging-primitives.md
+sourceUnitVersionIds:
+  - uv_07e7ebb5b25e634f2cd472d5
+  - uv_16a0d5d7823d16402f45e660
+  - uv_c78b9eb4dcebabe8e843ecde
+  - uv_ec9f3643b4a472b3702278e4
