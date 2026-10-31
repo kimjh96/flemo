@@ -1,6 +1,6 @@
 # ScreenMotion
 
-`src/screen/ScreenMotion.tsx` concentrates the binding's motion wiring. The following topics follow their order in the file:
+`src/screen/ScreenMotion.tsx` concentrates the binding's motion wiring. Topics below follow their order in the file:
 
 - [Engine lifecycle and subscriptions](screen-motion/engine-lifecycle.md)
 - [Holds and release](screen-motion/holds-and-release.md)

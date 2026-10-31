@@ -1,0 +1,38 @@
+byteOwnership:
+  owner: reviewer
+  rewritePolicy: reviewed_exact
+candidateId: knorm_878203bf1cc797152d5d4c76
+compiler:
+  compilerBuildId: sha256:574bcd6cc190db957222a9951c145c791541c2b33a44879f5714ed393df2afad
+  compilerId: lervo.codex.document-normalizer
+  compilerVersion: 3+codex-cli 0.156.1
+  isolation: external_no_capabilities
+  provider: codex
+formatVersion: lervo.document.v1
+operationId: knormop_7173eb6f0ff8e69e7c5a2d00
+outputLanguage: en
+outputs:
+  - byteCount: 877
+    contentHash: sha256:f3e05f146167b50a66ad82ebc99204efd6262823a195f463fd48fea9b5ed3990
+    path: docs/architecture/react-binding/router/initialization-and-staging-boundaries.md
+    userRegionHash: sha256:f3e05f146167b50a66ad82ebc99204efd6262823a195f463fd48fea9b5ed3990
+  - byteCount: 3442
+    contentHash: sha256:e0418487130a47e026fc6cc2d9960e0bdfe249d6b59e42ba5b272f463e52891f
+    path: docs/architecture/react-binding/router/initialization-and-staging-boundaries/initialization.md
+    userRegionHash: sha256:e0418487130a47e026fc6cc2d9960e0bdfe249d6b59e42ba5b272f463e52891f
+  - byteCount: 2775
+    contentHash: sha256:6a20b7b0857245f845b9c665eba264eff911bcfb562b88e721fa46889c67510a
+    path: docs/architecture/react-binding/router/initialization-and-staging-boundaries/layout-and-layers.md
+    userRegionHash: sha256:6a20b7b0857245f845b9c665eba264eff911bcfb562b88e721fa46889c67510a
+profile: architecture_document
+recordId: knormdoc_4790a704a3ee6121e0944e56
+resourceBindings: []
+schemaVersion: 2
+sourceContentHash: sha256:b4efa2cf56290315496156ca01c32178330aad8e0e31be284d251d756067ab92
+sourcePath: docs/architecture/react-binding/router/initialization-and-staging-boundaries.md
+sourceUnitVersionIds:
+  - uv_53c41afe5744adb43e305342
+  - uv_5c734a68e63b6ed039c3710e
+  - uv_7da9a10c55d0e8c6bf22e578
+  - uv_8b6ff6037c5c3fd1dbdbb917
+  - uv_b4f425f75e8aeea7cc927837
