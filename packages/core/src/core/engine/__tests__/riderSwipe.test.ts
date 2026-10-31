@@ -419,6 +419,106 @@ describe("beginRiderSwipe", () => {
     }
   });
 
+  it("starts a linear release from camelCase and custom properties", () => {
+    const swipe = beginRiderSwipe([
+      {
+        element,
+        motion: motion({
+          from: { backgroundColor: "red", "--PROGRESS": 0 },
+          to: { backgroundColor: "blue", "--PROGRESS": 1 },
+          ease: "linear"
+        })
+      }
+    ]);
+    swipe!.scrub(0.25);
+    showPose({ "background-color": "rgb(191, 0, 64)", "--PROGRESS": "0.25" });
+
+    swipe!.settle(true, 0.3);
+
+    const release = animations[1]!;
+    expect(release.keyframes).toEqual([
+      { backgroundColor: "rgb(191, 0, 64)", "--PROGRESS": "0.25", offset: 0 },
+      { backgroundColor: "blue", "--PROGRESS": "1", offset: 1 }
+    ]);
+    expect(release.options.easing).toBe("linear");
+    expect(release.options.duration).toBe(300);
+    expect(release.options.delay).toBe(0);
+  });
+
+  it("holds the drag when the curve has no travel left at the release", () => {
+    // This curve reaches its arrival halfway through its clock. The screen's
+    // linear phase can put the rider there before its clock has run out.
+    const swipe = beginRiderSwipe([
+      {
+        element,
+        motion: motion({ ease: [0, 4 / 3, 1, 1] }),
+        phase: { side: "current", ease: "linear", duration: 0.4 }
+      }
+    ]);
+    swipe!.scrub(0.5);
+    showPose({ opacity: "1" });
+
+    swipe!.settle(true, 0.2);
+
+    expect(animations).toHaveLength(1);
+    expect(animations[0]!.paused).toBe(true);
+    expect(animations[0]!.cancelled).toBe(false);
+  });
+
+  it("keeps the whole path when the release starts outside its value interval", () => {
+    const curves: [number, number, number, number][] = [
+      [0, -1, 1, -1],
+      [0, 2, 1, 2]
+    ];
+    for (const ease of curves) {
+      animations.length = 0;
+      const swipe = beginRiderSwipe([
+        {
+          element,
+          motion: motion({ ease }),
+          phase: { side: "current", ease: "linear", duration: 0.4 }
+        }
+      ]);
+      swipe!.scrub(0.5);
+      showPose({ opacity: "0.5" });
+
+      swipe!.settle(true, 0.2);
+
+      const release = animations[1]!;
+      expect(release.keyframes).toEqual([{ opacity: "0" }, { opacity: "1" }]);
+      expect(release.options.easing).toBe(`cubic-bezier(${ease.join(", ")})`);
+      expect(release.options.duration).toBeCloseTo(400, 6);
+      expect(release.options.delay).toBeCloseTo(-200, 6);
+    }
+  });
+
+  it("keeps a stepped release on its whole path even when its pose can be read", () => {
+    const swipe = beginRiderSwipe([{ element, motion: motion({ ease: "steps(2, end)" }) }]);
+    swipe!.scrub(0.25);
+    showPose({ opacity: "0.5" });
+
+    swipe!.settle(true, 0.3);
+
+    const release = animations[1]!;
+    expect(release.keyframes).toEqual([{ opacity: "0" }, { opacity: "1" }]);
+    expect(release.options.easing).toBe("steps(2, end)");
+    expect(release.options.duration).toBeCloseTo(400, 6);
+    expect(release.options.delay).toBeCloseTo(-100, 6);
+  });
+
+  it("keeps the whole path when the host has no computed style reader", () => {
+    const swipe = beginRiderSwipe([{ element, motion: motion({ ease: "linear" }) }]);
+    swipe!.scrub(0.25);
+    vi.stubGlobal("getComputedStyle", undefined);
+
+    swipe!.settle(true, 0.3);
+
+    const release = animations[1]!;
+    expect(release.keyframes).toEqual([{ opacity: "0" }, { opacity: "1" }]);
+    expect(release.options.duration).toBeCloseTo(400, 6);
+    expect(release.options.delay).toBeCloseTo(-100, 6);
+  });
+
   it("falls back to the whole path, born part of the way in, when no pose can be read", () => {
     // A host that reports no computed value has nothing to start a release
     // from, and a `steps()` curve has no handles to split. Both are handed the
@@ -721,6 +821,144 @@ describe("a slide under the finger sits on whole device pixels", () => {
       // And never more than half a device pixel from where the finger put it.
       expect(Math.abs(placed() - -120 * (1 - progress))).toBeLessThanOrEqual(0.25 + 1e-6);
     }
+  });
+
+  it("lines up a vertical slide using its height and top edge", () => {
+    vi.stubGlobal("devicePixelRatio", 2);
+    const placedY = () => -50 + 100 * ((animations[0]!.currentTime ?? 0) / 400);
+    element.getBoundingClientRect = () =>
+      ({ left: 99.125, top: 20.25 + placedY(), width: 400, height: 200 }) as DOMRect;
+    const swipe = beginRiderSwipe([
+      { element, motion: motion({ from: { y: "-25%" }, to: { y: "25%" }, ease: "linear" }) }
+    ]);
+
+    for (const progress of [0.13, 0.37, 0.52, 0.81]) {
+      swipe!.scrub(progress);
+      const onScreen = 20.25 + placedY();
+      expect(Math.abs(onScreen * 2 - Math.round(onScreen * 2))).toBeLessThan(1e-6);
+      expect(Math.abs(placedY() - (-50 + 100 * progress))).toBeLessThanOrEqual(0.25 + 1e-6);
+    }
+  });
+
+  it("treats an omitted endpoint or axis value as zero translation", () => {
+    vi.stubGlobal("devicePixelRatio", 2);
+    const paths = [
+      { from: undefined as never, to: { x: " 40px " }, start: 0, end: 40 },
+      { from: { x: "-40px" }, to: undefined as never, start: -40, end: 0 },
+      { from: { opacity: 0 }, to: { opacity: 1, x: "40" }, start: 0, end: 40 },
+      { from: { opacity: 0, x: "-40" }, to: { opacity: 1 }, start: -40, end: 0 }
+    ];
+    for (const { from, to, start, end } of paths) {
+      animations.length = 0;
+      const placedX = () => start + (end - start) * ((animations[0]!.currentTime ?? 0) / 400);
+      layOut(10.25, 400, placedX);
+      const swipe = beginRiderSwipe([{ element, motion: motion({ from, to, ease: "linear" }) }]);
+
+      swipe!.scrub(0.37);
+
+      const onScreen = 10.25 + placedX();
+      expect(Math.abs(onScreen * 2 - Math.round(onScreen * 2))).toBeLessThan(1e-6);
+      expect(Math.abs(placedX() - (start + (end - start) * 0.37))).toBeLessThanOrEqual(
+        0.25 + 1e-6
+      );
+    }
+  });
+
+  it("leaves unmeasurable lengths on their authored clock", () => {
+    vi.stubGlobal("devicePixelRatio", 2);
+    layOut(10.25, 400, () => 0);
+    // Invalid runtime values can arrive from JavaScript callers. Other CSS
+    // units are valid poses, but cannot be lined up as pixels or percentages.
+    for (const value of [Infinity, -Infinity, NaN, false, {}, "1rem", "calc(100% - 1px)"]) {
+      for (const invalidFrom of [true, false]) {
+        animations.length = 0;
+        const swipe = beginRiderSwipe([
+          {
+            element,
+            motion: motion({
+              from: { x: invalidFrom ? (value as never) : -40 },
+              to: { x: invalidFrom ? 0 : (value as never) },
+              ease: "linear"
+            })
+          }
+        ]);
+
+        swipe!.scrub(0.37);
+
+        expect(animations[0]!.currentTime).toBeCloseTo(0.37 * 400, 6);
+      }
+    }
+  });
+
+  it("leaves a single scale on its authored clock", () => {
+    vi.stubGlobal("devicePixelRatio", 2);
+    layOut(10.25, 400, () => 0);
+    const swipe = beginRiderSwipe([
+      { element, motion: motion({ from: { scale: 0.9 }, to: { scale: 1 }, ease: "linear" }) }
+    ]);
+
+    swipe!.scrub(0.37);
+
+    expect(animations[0]!.currentTime).toBeCloseTo(0.37 * 400, 6);
+  });
+
+  it("leaves a slide with no distance on its authored clock", () => {
+    vi.stubGlobal("devicePixelRatio", 2);
+    layOut(10.25, 400, () => -40);
+    const swipe = beginRiderSwipe([
+      { element, motion: motion({ from: { x: -40 }, to: { x: -40 }, ease: "linear" }) }
+    ]);
+
+    swipe!.scrub(0.37);
+
+    expect(animations[0]!.currentTime).toBeCloseTo(0.37 * 400, 6);
+  });
+
+  it("uses CSS pixels when the device ratio is missing or not positive", () => {
+    for (const ratio of [undefined, 0, -2]) {
+      animations.length = 0;
+      vi.stubGlobal("devicePixelRatio", ratio);
+      layOut(10.25, 400, () => placed());
+      const swipe = beginRiderSwipe([{ element, motion: SLIDE }]);
+
+      swipe!.scrub(0.37);
+
+      const onScreen = 10.25 + placed();
+      expect(Math.abs(onScreen - Math.round(onScreen))).toBeLessThan(1e-6);
+      expect(Math.abs(placed() - -120 * (1 - 0.37))).toBeLessThanOrEqual(0.5 + 1e-6);
+    }
+  });
+
+  it("keeps a rounded pose inside both ends of a subpixel slide", () => {
+    vi.stubGlobal("devicePixelRatio", 1);
+    const slide = motion({ from: { x: 0 }, to: { x: 0.2 }, ease: "linear" });
+
+    // Rounding 0.1 down would go before the start; rounding 0.6 up would go
+    // past the end. Neither is a pose on this slide.
+    layOut(0.1, 400, () => 0.2 * ((animations[0]!.currentTime ?? 0) / 400));
+    const start = beginRiderSwipe([{ element, motion: slide }]);
+    start!.scrub(0);
+    expect(animations[0]!.currentTime).toBe(0);
+    showPose({ transform: "none" });
+    start!.settle(true, 0.2);
+    expect(animations[1]!.keyframes).toEqual([
+      { transform: "none", offset: 0 },
+      { transform: "translate3d(0.2px, 0, 0)", offset: 1 }
+    ]);
+    expect(animations[1]!.options.delay).toBe(0);
+
+    animations.length = 0;
+    layOut(0.4, 400, () => 0.2 * ((animations[0]!.currentTime ?? 0) / 400));
+    const end = beginRiderSwipe([{ element, motion: slide }]);
+    end!.scrub(1);
+    expect(animations[0]!.currentTime).toBeCloseTo(399.9, 5);
+    showPose({ transform: "translate3d(0.2px, 0, 0)" });
+    end!.settle(false, 0.2);
+    expect(animations[1]!.keyframes).toEqual([
+      { transform: "translate3d(0.2px, 0, 0)", offset: 0 },
+      { transform: "none", offset: 1 }
+    ]);
+    expect(animations[1]!.options.delay).toBe(0);
   });
 
   it("leaves a rider alone until it can be measured", () => {

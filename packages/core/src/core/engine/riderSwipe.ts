@@ -109,10 +109,7 @@ const toKeyframe = (target: VariantMotion["from"]): Keyframe => {
   return frame;
 };
 
-interface Length {
-  readonly px?: number;
-  readonly percent?: number;
-}
+type Length = { readonly px: number } | { readonly percent: number };
 
 /** The one translate axis a rider travels, as its author wrote the two ends. */
 interface TravelAxis {
@@ -219,7 +216,7 @@ const measureGrid = (rider: StagedRider): AxisGrid | null => {
   const rect = rider.element.getBoundingClientRect();
   const size = travel.axis === "x" ? rect.width : rect.height;
   if (!(size > 0)) return null;
-  const px = (length: Length) => length.px ?? ((length.percent ?? 0) / 100) * size;
+  const px = (length: Length) => ("px" in length ? length.px : (length.percent / 100) * size);
   const from = px(travel.from);
   const to = px(travel.to);
   const shown = from + (to - from) * resolveEasing(rider.clock.ease)(rider.at);

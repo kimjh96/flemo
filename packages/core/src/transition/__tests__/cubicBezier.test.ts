@@ -122,6 +122,22 @@ describe("splitCubicBezier", () => {
     }
   });
 
+  it("has nothing left when the remaining time or travel is negligible", () => {
+    expect(splitCubicBezier([0, 0, 1, 1], 1 - 1e-10)).toBeNull();
+    // At half-time this overshooting curve already reaches its arrival.
+    expect(splitCubicBezier([0, 4 / 3, 1, 1], 0.5)).toBeNull();
+  });
+
+  it("clamps out-of-range handle times to the interval CSS takes", () => {
+    const split = splitCubicBezier([-0.25, 0, 1.25, 1], 0)!;
+
+    expect(split.progress).toBe(0);
+    expect(split.points).toEqual([0, 0, 1, 1]);
+    const rest = cubicBezier(...split.points);
+    expect(rest(0.25)).toBeCloseTo(0.25, 6);
+    expect(rest(0.75)).toBeCloseTo(0.75, 6);
+  });
+
   it("is the curve itself at its start and nothing at its end", () => {
     const split = splitCubicBezier([0.32, 0.72, 0, 1], 0)!;
     expect(split.progress).toBe(0);
