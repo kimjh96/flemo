@@ -858,9 +858,7 @@ describe("a slide under the finger sits on whole device pixels", () => {
 
       const onScreen = 10.25 + placedX();
       expect(Math.abs(onScreen * 2 - Math.round(onScreen * 2))).toBeLessThan(1e-6);
-      expect(Math.abs(placedX() - (start + (end - start) * 0.37))).toBeLessThanOrEqual(
-        0.25 + 1e-6
-      );
+      expect(Math.abs(placedX() - (start + (end - start) * 0.37))).toBeLessThanOrEqual(0.25 + 1e-6);
     }
   });
 
