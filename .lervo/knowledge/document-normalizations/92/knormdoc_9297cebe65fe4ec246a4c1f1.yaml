@@ -1,0 +1,29 @@
+byteOwnership:
+  owner: reviewer
+  rewritePolicy: reviewed_exact
+candidateId: knorm_ad30fc6dec2cc43f9a31c184
+compiler:
+  compilerBuildId: sha256:574bcd6cc190db957222a9951c145c791541c2b33a44879f5714ed393df2afad
+  compilerId: lervo.codex.document-normalizer
+  compilerVersion: 3+codex-cli 0.156.1
+  isolation: external_no_capabilities
+  provider: codex
+formatVersion: lervo.document.v1
+operationId: knormop_09633708bed517fe36fb9d7d
+outputLanguage: en
+outputs:
+  - byteCount: 2015
+    contentHash: sha256:84a6f577598520ab5210bacb3fe0118e347f493ab641e2e7066bca0140480774
+    path: docs/architecture/motion-engine/part-layer-registry.md
+    userRegionHash: sha256:84a6f577598520ab5210bacb3fe0118e347f493ab641e2e7066bca0140480774
+profile: architecture_document
+recordId: knormdoc_9297cebe65fe4ec246a4c1f1
+resourceBindings: []
+schemaVersion: 2
+sourceContentHash: sha256:afd29fe3760f3c339fbed86f8edc7367470d276537951f1394c713ffc27dc071
+sourcePath: docs/architecture/motion-engine/part-layer-registry.md
+sourceUnitVersionIds:
+  - uv_050cf9c751077c1e1df53166
+  - uv_44dfe67d4f52835b4e254f74
+  - uv_84ccdb4856177085fbd42206
+  - uv_c7d07e33fa54792fab633b80
