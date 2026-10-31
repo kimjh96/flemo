@@ -1,0 +1,26 @@
+byteOwnership:
+  owner: reviewer
+  rewritePolicy: reviewed_exact
+candidateId: knorm_878203bf1cc797152d5d4c76
+compiler:
+  compilerBuildId: sha256:574bcd6cc190db957222a9951c145c791541c2b33a44879f5714ed393df2afad
+  compilerId: lervo.codex.document-normalizer
+  compilerVersion: 3+codex-cli 0.156.1
+  isolation: external_no_capabilities
+  provider: codex
+formatVersion: lervo.document.v1
+operationId: knormop_7db1457c92511a2146ac2231
+outputLanguage: en
+outputs:
+  - byteCount: 609
+    contentHash: sha256:65b892ad606d05fccf0ff5ef727512a0ea09bba4e920376f39eb54b51a8d29f4
+    path: docs/architecture/react-binding/screen-motion.md
+    userRegionHash: sha256:65b892ad606d05fccf0ff5ef727512a0ea09bba4e920376f39eb54b51a8d29f4
+profile: architecture_document
+recordId: knormdoc_99d7a52ae083cccf93f2d6bc
+resourceBindings: []
+schemaVersion: 2
+sourceContentHash: sha256:9f3f3ef63d823acdf486d364c6fb37ad4e8ab241e23a5519ffad84d37eccaf7c
+sourcePath: docs/architecture/react-binding/screen-motion.md
+sourceUnitVersionIds:
+  - uv_ebdc35a30c0cbb081543093e
