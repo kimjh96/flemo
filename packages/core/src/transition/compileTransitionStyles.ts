@@ -143,7 +143,7 @@ export type CssDecl = { property: string; value: string };
 
 const camelToKebab = (prop: string) => prop.replace(/[A-Z]/g, (m) => `-${m.toLowerCase()}`);
 
-const TRANSFORM_PROPS = new Set([
+export const TRANSFORM_PROPS: ReadonlySet<string> = new Set([
   "x",
   "y",
   "z",

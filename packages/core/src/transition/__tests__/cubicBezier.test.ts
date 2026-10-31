@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { cubicBezier, invertEasing, resolveEasing } from "@transition/cubicBezier";
+import {
+  cubicBezier,
+  invertEasing,
+  resolveEasing,
+  splitCubicBezier
+} from "@transition/cubicBezier";
 
 describe("cubicBezier", () => {
   it("anchors the endpoints exactly", () => {
@@ -75,5 +80,70 @@ describe("invertEasing", () => {
     const inverse = invertEasing([0.4, 0, 0.2, 1]);
     expect(inverse(-1)).toBe(0);
     expect(inverse(2)).toBe(1);
+  });
+});
+
+// THE REST OF A CURVE IS A CURVE OF ITS OWN. A swipe's release is born from the
+// pose the finger left, and has to run exactly the motion the whole curve
+// would have run from there, or the landing a button pop has is not the one a
+// release has.
+describe("splitCubicBezier", () => {
+  const CURVES: [number, number, number, number][] = [
+    [0.32, 0.72, 0, 1],
+    [0.4, 0, 0.2, 1],
+    [0.25, 0.1, 0.25, 1],
+    [0.34, 1.56, 0.64, 1]
+  ];
+
+  it("runs the rest of the authored curve, sample for sample", () => {
+    for (const points of CURVES) {
+      const whole = cubicBezier(...points);
+      for (const time of [0.05, 0.2, 0.5, 0.8]) {
+        const split = splitCubicBezier(points, time)!;
+        expect(split.progress).toBeCloseTo(whole(time), 8);
+        const rest = cubicBezier(...split.points);
+        for (const v of [0.1, 0.25, 0.5, 0.75, 0.95]) {
+          const expected = whole(time + v * (1 - time));
+          expect(split.progress + (1 - split.progress) * rest(v)).toBeCloseTo(expected, 6);
+        }
+      }
+    }
+  });
+
+  it("keeps every handle's time inside the unit interval CSS takes", () => {
+    for (const points of CURVES) {
+      for (const time of [0, 0.01, 0.3, 0.99]) {
+        const [x1, , x2] = splitCubicBezier(points, time)!.points;
+        for (const x of [x1, x2]) {
+          expect(x).toBeGreaterThanOrEqual(0);
+          expect(x).toBeLessThanOrEqual(1);
+        }
+      }
+    }
+  });
+
+  it("has nothing left when the remaining time or travel is negligible", () => {
+    expect(splitCubicBezier([0, 0, 1, 1], 1 - 1e-10)).toBeNull();
+    // At half-time this overshooting curve already reaches its arrival.
+    expect(splitCubicBezier([0, 4 / 3, 1, 1], 0.5)).toBeNull();
+  });
+
+  it("clamps out-of-range handle times to the interval CSS takes", () => {
+    const split = splitCubicBezier([-0.25, 0, 1.25, 1], 0)!;
+
+    expect(split.progress).toBe(0);
+    expect(split.points).toEqual([0, 0, 1, 1]);
+    const rest = cubicBezier(...split.points);
+    expect(rest(0.25)).toBeCloseTo(0.25, 6);
+    expect(rest(0.75)).toBeCloseTo(0.75, 6);
+  });
+
+  it("is the curve itself at its start and nothing at its end", () => {
+    const split = splitCubicBezier([0.32, 0.72, 0, 1], 0)!;
+    expect(split.progress).toBe(0);
+    split.points.forEach((value, index) =>
+      expect(value).toBeCloseTo([0.32, 0.72, 0, 1][index]!, 8)
+    );
+    expect(splitCubicBezier([0.32, 0.72, 0, 1], 1)).toBeNull();
   });
 });

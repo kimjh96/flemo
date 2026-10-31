@@ -170,17 +170,23 @@ describe("a swipe declared with nothing but a direction", () => {
     expect(dom.prevScope.style.transform).toBe("");
   });
 
-  it("hands the same animation back on release rather than starting one", async () => {
+  it("births the release running and lets the drag go in the same task", async () => {
+    // A held animation woken with its clock rewritten is what WebKit keeps off
+    // the compositor (the motion-jank postmortem's do-not-retry list), and an
+    // iPad Pro showed it as a shimmer the same pop run by a button never had.
+    // So each staged rider gets one animation born at the release, and the one
+    // the finger held is cancelled before any frame can show both.
     const controller = createSwipeController(buildConfig(declared()));
     await drag(controller, [120, 200]);
-    const stagedByRelease = ANIMATED.length;
+    const staged = ANIMATED.map((entry) => entry.element);
+    CANCELLED.length = 0;
 
     controller.pointerUp(event({ clientX: 200, clientY: 100 }));
-    await flush();
 
-    // Nothing new is animated at the release: the settle is the staged
-    // animation played on, which is the whole point of staging it.
-    expect(ANIMATED.length).toBe(stagedByRelease);
+    const born = ANIMATED.slice(staged.length).map((entry) => entry.element);
+    expect(born).toEqual(staged);
+    expect(CANCELLED.slice(0, staged.length)).toEqual(staged);
+    await flush();
   });
 
   it("commits past the default distance and returns under it", async () => {
