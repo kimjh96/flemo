@@ -1,5 +1,13 @@
 # @flemo/react
 
+## 2.6.3
+
+### Patch Changes
+
+- [`9c3b031`](https://github.com/kimjh96/flemo/commit/9c3b0317d20553acadbc2143937692314eb9d85e) Require zustand ^5.0.16 for the navigation stores.
+- Updated dependencies ([`d3dcf69`](https://github.com/kimjh96/flemo/commit/d3dcf6996e1c2df3c2e41dce2ef5efbd0b1dd22c), [`9c3b031`](https://github.com/kimjh96/flemo/commit/9c3b0317d20553acadbc2143937692314eb9d85e)):
+  - @flemo/core@2.8.4
+
 ## 2.6.2
 
 ### Patch Changes
