@@ -1,0 +1,38 @@
+byteOwnership:
+  owner: reviewer
+  rewritePolicy: reviewed_exact
+candidateId: knorm_e94f22cac82f41ca77b41fa6
+compiler:
+  compilerBuildId: sha256:574bcd6cc190db957222a9951c145c791541c2b33a44879f5714ed393df2afad
+  compilerId: lervo.codex.document-normalizer
+  compilerVersion: 3+codex-cli 0.156.1
+  isolation: external_no_capabilities
+  provider: codex
+formatVersion: lervo.document.v1
+operationId: knormop_884ed7b8a3f51f109b03c5ac
+outputLanguage: en
+outputs:
+  - byteCount: 736
+    contentHash: sha256:5a0640a2d5da56426f73fa069a27aa02a213b58251f4c0331b4418e402eaa775
+    path: docs/architecture/motion-engine/binding-lifecycle-and-dom-protocol.md
+    userRegionHash: sha256:5a0640a2d5da56426f73fa069a27aa02a213b58251f4c0331b4418e402eaa775
+  - byteCount: 4148
+    contentHash: sha256:f04f43c5556b5eb6c9c12458c15189ebf7423d5a4ee909c84455adda36d2503e
+    path: docs/architecture/motion-engine/binding-lifecycle-and-dom-protocol/binding-lifecycle.md
+    userRegionHash: sha256:f04f43c5556b5eb6c9c12458c15189ebf7423d5a4ee909c84455adda36d2503e
+  - byteCount: 4257
+    contentHash: sha256:9a0610e139a0eab4dc9699c5f38c7f7d04cec0701122935fee8a88a9cc8ff29c
+    path: docs/architecture/motion-engine/binding-lifecycle-and-dom-protocol/dom-protocol.md
+    userRegionHash: sha256:9a0610e139a0eab4dc9699c5f38c7f7d04cec0701122935fee8a88a9cc8ff29c
+profile: architecture_document
+recordId: knormdoc_f22f8da8a2e18e985d01f9b2
+resourceBindings: []
+schemaVersion: 2
+sourceContentHash: sha256:15c27c057f949818d3985f189e32a9e89091a265b60e1bf8077b1ec4d1269c64
+sourcePath: docs/architecture/motion-engine/binding-lifecycle-and-dom-protocol.md
+sourceUnitVersionIds:
+  - uv_3e3d3e20951b23f62a018b91
+  - uv_7fa083ce9820cfee779c6722
+  - uv_9c24fa86a4d053bccdd8db2c
+  - uv_aff9969f11f56f9c9febc533
+  - uv_bbe0ea1a2034bf7a931a3356

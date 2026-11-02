@@ -1,0 +1,46 @@
+byteOwnership:
+  owner: reviewer
+  rewritePolicy: reviewed_exact
+candidateId: knorm_5083cff96853904ebaeac3ae
+compiler:
+  compilerBuildId: sha256:574bcd6cc190db957222a9951c145c791541c2b33a44879f5714ed393df2afad
+  compilerId: lervo.codex.document-normalizer
+  compilerVersion: 3+codex-cli 0.156.1
+  isolation: external_no_capabilities
+  provider: codex
+formatVersion: lervo.document.v1
+operationId: knormop_901b313d2913503258a78e1c
+outputLanguage: en
+outputs:
+  - byteCount: 687
+    contentHash: sha256:c12a23c4ce95459f8e09455bd8354cd1c89a31884cbef9f09493924c7d35e616
+    path: docs/architecture/react-binding/screen-motion/layout-overlays-and-gestures.md
+    userRegionHash: sha256:c12a23c4ce95459f8e09455bd8354cd1c89a31884cbef9f09493924c7d35e616
+  - byteCount: 1297
+    contentHash: sha256:2dd70fb611a5154d34287a44be15907184f31038572698a68aa0c2fcfe8d33f6
+    path: docs/architecture/react-binding/screen-motion/layout-overlays-and-gestures/gestures-and-morphs.md
+    userRegionHash: sha256:2dd70fb611a5154d34287a44be15907184f31038572698a68aa0c2fcfe8d33f6
+  - byteCount: 973
+    contentHash: sha256:bbf0140271c81bf42db78f1c617dc0dd79596a79188da60372391f74aa45db6c
+    path: docs/architecture/react-binding/screen-motion/layout-overlays-and-gestures/layout-and-painting.md
+    userRegionHash: sha256:bbf0140271c81bf42db78f1c617dc0dd79596a79188da60372391f74aa45db6c
+  - byteCount: 875
+    contentHash: sha256:7976d3f5412957adf905e4eda25f70d4db13ea8f8cc55cf9e88b8cc4796c708a
+    path: docs/architecture/react-binding/screen-motion/layout-overlays-and-gestures/measurement.md
+    userRegionHash: sha256:7976d3f5412957adf905e4eda25f70d4db13ea8f8cc55cf9e88b8cc4796c708a
+  - byteCount: 1519
+    contentHash: sha256:8d94c2f8add39ac78afcd582a62d3d189f7a879b887ff9a59bd681d3cc923545
+    path: docs/architecture/react-binding/screen-motion/layout-overlays-and-gestures/overlays.md
+    userRegionHash: sha256:8d94c2f8add39ac78afcd582a62d3d189f7a879b887ff9a59bd681d3cc923545
+profile: architecture_document
+recordId: knormdoc_c62d7cba384a23bc1c383350
+resourceBindings: []
+schemaVersion: 2
+sourceContentHash: sha256:c1a2b9e76607d8cb70a718ba355a3dce3093054cef4e8f9624c7468066d995e2
+sourcePath: docs/architecture/react-binding/screen-motion/layout-overlays-and-gestures.md
+sourceUnitVersionIds:
+  - uv_69743181519477335a9cdc39
+  - uv_a4115c378246ec3673860096
+  - uv_ad54984e902bef0cb70cf091
+  - uv_bc7ef91355dec8fe5a1b94b0
+  - uv_bf1bea103266039c67df54cb

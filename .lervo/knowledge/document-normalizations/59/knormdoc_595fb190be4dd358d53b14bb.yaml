@@ -1,0 +1,26 @@
+byteOwnership:
+  owner: reviewer
+  rewritePolicy: reviewed_exact
+candidateId: knorm_83b2787a28a0c8ce4d7f32e8
+compiler:
+  compilerBuildId: sha256:574bcd6cc190db957222a9951c145c791541c2b33a44879f5714ed393df2afad
+  compilerId: lervo.codex.document-normalizer
+  compilerVersion: 3+codex-cli 0.156.1
+  isolation: external_no_capabilities
+  provider: codex
+formatVersion: lervo.document.v1
+operationId: knormop_f74bfc10d3d1980e0f3726f5
+outputLanguage: en
+outputs:
+  - byteCount: 694
+    contentHash: sha256:cc67a48c9c079d6c0ae330bcf951ce1b334b26824ae70ec8ebe58451aeff6e22
+    path: docs/architecture/react-binding/screen-motion/bar-identity.md
+    userRegionHash: sha256:cc67a48c9c079d6c0ae330bcf951ce1b334b26824ae70ec8ebe58451aeff6e22
+profile: architecture_document
+recordId: knormdoc_595fb190be4dd358d53b14bb
+resourceBindings: []
+schemaVersion: 2
+sourceContentHash: sha256:14b57557f2455d568adc83df3e6b2aa9e5bc18c7ffa806f18e629a73abe0dd1f
+sourcePath: docs/architecture/react-binding/screen-motion/bar-identity.md
+sourceUnitVersionIds:
+  - uv_231c6714c9131485ad63b213

@@ -1,0 +1,50 @@
+byteOwnership:
+  owner: reviewer
+  rewritePolicy: reviewed_exact
+candidateId: knorm_ad30fc6dec2cc43f9a31c184
+compiler:
+  compilerBuildId: sha256:574bcd6cc190db957222a9951c145c791541c2b33a44879f5714ed393df2afad
+  compilerId: lervo.codex.document-normalizer
+  compilerVersion: 3+codex-cli 0.156.1
+  isolation: external_no_capabilities
+  provider: codex
+formatVersion: lervo.document.v1
+operationId: knormop_5edc9b10694129781dce5d51
+outputLanguage: en
+outputs:
+  - byteCount: 920
+    contentHash: sha256:8051fcd44af8d478acc9fb2a156d9714fd81fda2d62270a2916823a843b83fe1
+    path: docs/architecture/motion-engine/morph-runtime.md
+    userRegionHash: sha256:8051fcd44af8d478acc9fb2a156d9714fd81fda2d62270a2916823a843b83fe1
+  - byteCount: 2772
+    contentHash: sha256:8b735bdb1964b9ef583df3e775a739d41e7374bf5138b007e4f13ace02253cf9
+    path: docs/architecture/motion-engine/morph-runtime/geometry-and-composition.md
+    userRegionHash: sha256:8b735bdb1964b9ef583df3e775a739d41e7374bf5138b007e4f13ace02253cf9
+  - byteCount: 1194
+    contentHash: sha256:24926ea8a00cbf3a4c16dedd5c7d75bb50c410d02f2722ff1e0b1c807ce1fe93
+    path: docs/architecture/motion-engine/morph-runtime/gesture-apis.md
+    userRegionHash: sha256:24926ea8a00cbf3a4c16dedd5c7d75bb50c410d02f2722ff1e0b1c807ce1fe93
+  - byteCount: 3612
+    contentHash: sha256:a10c1c0e2c93b08c983b6eee338480d9b949fdf5f40f298a601023c02f034a76
+    path: docs/architecture/motion-engine/morph-runtime/registration-and-pairing.md
+    userRegionHash: sha256:a10c1c0e2c93b08c983b6eee338480d9b949fdf5f40f298a601023c02f034a76
+  - byteCount: 3894
+    contentHash: sha256:69c832694e21d34cfd37b8ae908f964211810978b6e7d9fdd5057d4fa6c3014b
+    path: docs/architecture/motion-engine/morph-runtime/staging-and-landing.md
+    userRegionHash: sha256:69c832694e21d34cfd37b8ae908f964211810978b6e7d9fdd5057d4fa6c3014b
+profile: architecture_document
+recordId: knormdoc_6d7c39f02f9dd72ead0ffc16
+resourceBindings: []
+schemaVersion: 2
+sourceContentHash: sha256:f3318abf78ae6507cf6a1b42b220ce96bf57213073bc299bec752fc42e440450
+sourcePath: docs/architecture/motion-engine/morph-runtime.md
+sourceUnitVersionIds:
+  - uv_08eff280426d88ddc24cdbba
+  - uv_306bb5769067df0ed207435a
+  - uv_4f32fb2c9e6898fe8e86ad00
+  - uv_50f1167bc678dd3458848742
+  - uv_5b1b2ebcbeead6237d9507d8
+  - uv_c890285e47c9df6b1aed76d3
+  - uv_d316bf2e86fb698322cd18bf
+  - uv_e04c931d732fc5d8299f77c5
+  - uv_e48a052556f535ac807b2d7f

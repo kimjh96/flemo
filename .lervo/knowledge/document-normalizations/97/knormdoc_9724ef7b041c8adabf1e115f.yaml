@@ -1,0 +1,26 @@
+byteOwnership:
+  owner: reviewer
+  rewritePolicy: reviewed_exact
+candidateId: knorm_83b2787a28a0c8ce4d7f32e8
+compiler:
+  compilerBuildId: sha256:574bcd6cc190db957222a9951c145c791541c2b33a44879f5714ed393df2afad
+  compilerId: lervo.codex.document-normalizer
+  compilerVersion: 3+codex-cli 0.156.1
+  isolation: external_no_capabilities
+  provider: codex
+formatVersion: lervo.document.v1
+operationId: knormop_becd42581d409786e7609c44
+outputLanguage: en
+outputs:
+  - byteCount: 760
+    contentHash: sha256:aec03016dabf9bd5c1d798ea9bbaa7c8353ed516df6787220cf9d85cb319cb7b
+    path: docs/architecture/react-binding/screen-motion/chrome-and-measurement.md
+    userRegionHash: sha256:aec03016dabf9bd5c1d798ea9bbaa7c8353ed516df6787220cf9d85cb319cb7b
+profile: architecture_document
+recordId: knormdoc_9724ef7b041c8adabf1e115f
+resourceBindings: []
+schemaVersion: 2
+sourceContentHash: sha256:827e5740562e32225c1abf50fe51e865e4c05d26c99cf1ad6a430ed3e3ddda53
+sourcePath: docs/architecture/react-binding/screen-motion/chrome-and-measurement.md
+sourceUnitVersionIds:
+  - uv_b0d2f15e34c14305d53afe50

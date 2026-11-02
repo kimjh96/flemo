@@ -1,6 +1,6 @@
 # Engine lifecycle and subscriptions
 
-Create one `createTransitionEngine` per screen, lazily through a ref. Its minimal dependencies are a task id getter and two store setters.
+Lazily create one `createTransitionEngine` per screen through a ref. Its minimal dependencies are a task id getter and two store setters.
 
 Call `driveScreenLifecycle` from `useLayoutEffect` with `[status, isActive, transitionName, prevTransitionName, animHold]`. Releasing anim-hold reruns the effect so the compiled animation can start.
 
