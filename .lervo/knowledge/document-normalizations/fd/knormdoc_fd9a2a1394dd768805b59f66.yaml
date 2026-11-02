@@ -1,0 +1,26 @@
+byteOwnership:
+  owner: reviewer
+  rewritePolicy: reviewed_exact
+candidateId: knorm_9b6f64863b55e3dcd4c7e45f
+compiler:
+  compilerBuildId: sha256:574bcd6cc190db957222a9951c145c791541c2b33a44879f5714ed393df2afad
+  compilerId: lervo.codex.document-normalizer
+  compilerVersion: 3+codex-cli 0.156.1
+  isolation: external_no_capabilities
+  provider: codex
+formatVersion: lervo.document.v1
+operationId: knormop_297f1f2b44f89052abcd1ff2
+outputLanguage: en
+outputs:
+  - byteCount: 2892
+    contentHash: sha256:36e8540cd40bac16b411995063a6680584accc2dad8edcf0e5ca3ef4d830d7e2
+    path: docs/architecture/react-binding/screen-motion/holds-and-release.md
+    userRegionHash: sha256:36e8540cd40bac16b411995063a6680584accc2dad8edcf0e5ca3ef4d830d7e2
+profile: architecture_document
+recordId: knormdoc_fd9a2a1394dd768805b59f66
+resourceBindings: []
+schemaVersion: 2
+sourceContentHash: sha256:6fdacd39391acd04d2b5b416d1b2c1f15f99ef37717c6cd78813b0c380c9d137
+sourcePath: docs/architecture/react-binding/screen-motion/holds-and-release.md
+sourceUnitVersionIds:
+  - uv_7057df9758e8621043cc2aac

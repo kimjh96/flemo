@@ -1,0 +1,26 @@
+byteOwnership:
+  owner: reviewer
+  rewritePolicy: reviewed_exact
+candidateId: knorm_9b6f64863b55e3dcd4c7e45f
+compiler:
+  compilerBuildId: sha256:574bcd6cc190db957222a9951c145c791541c2b33a44879f5714ed393df2afad
+  compilerId: lervo.codex.document-normalizer
+  compilerVersion: 3+codex-cli 0.156.1
+  isolation: external_no_capabilities
+  provider: codex
+formatVersion: lervo.document.v1
+operationId: knormop_4de277596581b53ab6442374
+outputLanguage: en
+outputs:
+  - byteCount: 580
+    contentHash: sha256:eb9138fa16a3c1df930b9cb7a8107958341bc7c03bddaeb8cd54a61a62a8df5d
+    path: docs/architecture/react-binding/screen-motion/engine-lifecycle.md
+    userRegionHash: sha256:eb9138fa16a3c1df930b9cb7a8107958341bc7c03bddaeb8cd54a61a62a8df5d
+profile: architecture_document
+recordId: knormdoc_034b0b597ced37498239f9c5
+resourceBindings: []
+schemaVersion: 2
+sourceContentHash: sha256:062f9016d3951095f084133e3bf83ab529e9f51f92ddfc165fb1e0dbc99f879d
+sourcePath: docs/architecture/react-binding/screen-motion/engine-lifecycle.md
+sourceUnitVersionIds:
+  - uv_19bf970669da8924cbc4a589
