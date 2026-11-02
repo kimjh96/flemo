@@ -539,7 +539,9 @@ describe("attachMorph", () => {
     meta.style.lineHeight = "20px";
     attachMorph(meta, { layoutId: "meta-2", name: "text", navigateStore: store });
 
-    expect(meta.style.whiteSpace).toBe("");
+    // The inherited stamp may copy the computed `white-space` (jsdom 30.1.3
+    // reports `normal`); what matters is that no one-line hold was written.
+    expect(meta.style.whiteSpace).not.toBe("nowrap");
   });
 
   it("reads a nested arrival's line count at rest, not inside a staged container", async () => {
