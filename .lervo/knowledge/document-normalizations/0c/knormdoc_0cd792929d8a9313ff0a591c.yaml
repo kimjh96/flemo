@@ -1,0 +1,26 @@
+byteOwnership:
+  owner: reviewer
+  rewritePolicy: reviewed_exact
+candidateId: knorm_9b6f64863b55e3dcd4c7e45f
+compiler:
+  compilerBuildId: sha256:574bcd6cc190db957222a9951c145c791541c2b33a44879f5714ed393df2afad
+  compilerId: lervo.codex.document-normalizer
+  compilerVersion: 3+codex-cli 0.156.1
+  isolation: external_no_capabilities
+  provider: codex
+formatVersion: lervo.document.v1
+operationId: knormop_270964d12ec2fe74252e774e
+outputLanguage: en
+outputs:
+  - byteCount: 478
+    contentHash: sha256:32221ff10d640d0ad0d1e55de665eb3d767628468a09b050194b269eac402cf6
+    path: docs/architecture/react-binding/screen-motion/entering-styles.md
+    userRegionHash: sha256:32221ff10d640d0ad0d1e55de665eb3d767628468a09b050194b269eac402cf6
+profile: architecture_document
+recordId: knormdoc_0cd792929d8a9313ff0a591c
+resourceBindings: []
+schemaVersion: 2
+sourceContentHash: sha256:fb909b3997fe58f5382ef0188a33ee0f7a0369607c7aeb3234955b1d7fcae240
+sourcePath: docs/architecture/react-binding/screen-motion/entering-styles.md
+sourceUnitVersionIds:
+  - uv_8fc2378bfb140b3745741d27
