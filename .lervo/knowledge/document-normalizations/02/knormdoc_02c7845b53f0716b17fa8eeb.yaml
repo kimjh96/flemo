@@ -1,0 +1,26 @@
+byteOwnership:
+  owner: reviewer
+  rewritePolicy: reviewed_exact
+candidateId: knorm_ff35d127455900a0b9a9e806
+compiler:
+  compilerBuildId: sha256:574bcd6cc190db957222a9951c145c791541c2b33a44879f5714ed393df2afad
+  compilerId: lervo.codex.document-normalizer
+  compilerVersion: 3+codex-cli 0.156.1
+  isolation: external_no_capabilities
+  provider: codex
+formatVersion: lervo.document.v1
+operationId: knormop_1be74356e055b91e0b00bc9a
+outputLanguage: en
+outputs:
+  - byteCount: 1014
+    contentHash: sha256:50c214969d1f81d6a6a8abcbce55e40bda713013161ed779e16f9700adabb17c
+    path: docs/architecture/react-binding/screen-motion/swipe-events.md
+    userRegionHash: sha256:50c214969d1f81d6a6a8abcbce55e40bda713013161ed779e16f9700adabb17c
+profile: architecture_document
+recordId: knormdoc_02c7845b53f0716b17fa8eeb
+resourceBindings: []
+schemaVersion: 2
+sourceContentHash: sha256:876f0ab585fa922cc545a0c19f27624462fca032b4bce800d3da22bf84fcb5ff
+sourcePath: docs/architecture/react-binding/screen-motion/swipe-events.md
+sourceUnitVersionIds:
+  - uv_9ff929117a8a94920349553b

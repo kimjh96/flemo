@@ -1,0 +1,26 @@
+byteOwnership:
+  owner: reviewer
+  rewritePolicy: reviewed_exact
+candidateId: knorm_ff35d127455900a0b9a9e806
+compiler:
+  compilerBuildId: sha256:574bcd6cc190db957222a9951c145c791541c2b33a44879f5714ed393df2afad
+  compilerId: lervo.codex.document-normalizer
+  compilerVersion: 3+codex-cli 0.156.1
+  isolation: external_no_capabilities
+  provider: codex
+formatVersion: lervo.document.v1
+operationId: knormop_3d3e17bf5dc53ae800caa5f9
+outputLanguage: en
+outputs:
+  - byteCount: 1419
+    contentHash: sha256:d04d521355dfd990d8979d874bff8e01f3f6386b4c8280d98f83bb5eff8b273f
+    path: docs/architecture/react-binding/screen-motion/scope-promotion.md
+    userRegionHash: sha256:d04d521355dfd990d8979d874bff8e01f3f6386b4c8280d98f83bb5eff8b273f
+profile: architecture_document
+recordId: knormdoc_e383a5aeb1aaf05fc02281f5
+resourceBindings: []
+schemaVersion: 2
+sourceContentHash: sha256:4108e80e692e71349240decb0e78411c1623dfbdd0e8fe2308dc85c7a5f197c6
+sourcePath: docs/architecture/react-binding/screen-motion/scope-promotion.md
+sourceUnitVersionIds:
+  - uv_d0909f8fb8ac32e7d0af5e45
