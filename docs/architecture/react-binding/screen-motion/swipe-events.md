@@ -6,6 +6,6 @@ Recognition requires 8px of movement and a 3:1 primary-axis lead, preventing ver
 
 PUSHING/REPLACING destinations remain hit-testable so a touch started during transition can scroll after landing.
 
-Until the transition completes, the outer capture handler stops `click` before it reaches the target, suppressing both React handlers and native listeners on descendants of the React root. Listeners above the root (`document`/`window`) still observe the click.
+Until the transition completes, the outer capture handler stops `click` before it reaches the target, suppressing React handlers and native listeners on descendants of the React root. Listeners above the root (`document`/`window`) still observe the click.
 
 Lower-level pointer/mouse events remain observable to preserve native scroll targeting. Consumers should commit navigation from `click`, not `pointerdown`/`pointerup`.

@@ -1,0 +1,43 @@
+byteOwnership:
+  owner: reviewer
+  rewritePolicy: reviewed_exact
+candidateId: knorm_2e257cf7dc87475323c0827a
+compiler:
+  compilerBuildId: sha256:574bcd6cc190db957222a9951c145c791541c2b33a44879f5714ed393df2afad
+  compilerId: lervo.codex.document-normalizer
+  compilerVersion: 3+codex-cli 0.156.1
+  isolation: external_no_capabilities
+  provider: codex
+formatVersion: lervo.document.v1
+operationId: knormop_d54918ee3eaaa0612fe1ca4d
+outputLanguage: en
+outputs:
+  - byteCount: 668
+    contentHash: sha256:f07d132677a7dc99a20d10f0057733cd9b0baed583791456f56c1c596bf2ba17
+    path: docs/architecture/motion-engine/staging-and-swipe.md
+    userRegionHash: sha256:f07d132677a7dc99a20d10f0057733cd9b0baed583791456f56c1c596bf2ba17
+  - byteCount: 1887
+    contentHash: sha256:0da09d9eb506a83c03cca23df6ad084b1ec287b65966243d30e71ad9cd11f7b3
+    path: docs/architecture/motion-engine/staging-and-swipe/cancel-recovery.md
+    userRegionHash: sha256:0da09d9eb506a83c03cca23df6ad084b1ec287b65966243d30e71ad9cd11f7b3
+  - byteCount: 2501
+    contentHash: sha256:1e747288cab2e95b5a84c9595e8ffdf9119da82f0ed3c8da2a82c8c0fc1813a3
+    path: docs/architecture/motion-engine/staging-and-swipe/shared-bar-staging.md
+    userRegionHash: sha256:1e747288cab2e95b5a84c9595e8ffdf9119da82f0ed3c8da2a82c8c0fc1813a3
+  - byteCount: 6310
+    contentHash: sha256:53c72eadcc67f8d268a046287365a2da11b410594ff83b2afee5119e2159bdb5
+    path: docs/architecture/motion-engine/staging-and-swipe/swipe-lifecycle.md
+    userRegionHash: sha256:53c72eadcc67f8d268a046287365a2da11b410594ff83b2afee5119e2159bdb5
+profile: architecture_document
+recordId: knormdoc_895d40c69ac44c2ac9d10f93
+resourceBindings: []
+schemaVersion: 2
+sourceContentHash: sha256:79f61434c99383281eaee4264bf50beea95363e3fb1a8fd41ae9aa89990eb6d5
+sourcePath: docs/architecture/motion-engine/staging-and-swipe.md
+sourceUnitVersionIds:
+  - uv_1462bd102d618dddac020d9e
+  - uv_3f42c65298ef13fd62f99e88
+  - uv_490f78fcacd3ee2e335d6727
+  - uv_56b993a5d8b3cd86dbc45b83
+  - uv_67b9050a0d165255e2e1cffb
+  - uv_aa9a7e29cba67dae1665bb30
