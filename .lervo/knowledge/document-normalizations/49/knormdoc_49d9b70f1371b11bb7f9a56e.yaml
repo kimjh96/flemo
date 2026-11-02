@@ -1,0 +1,45 @@
+byteOwnership:
+  owner: reviewer
+  rewritePolicy: reviewed_exact
+candidateId: knorm_db46bbf158c2d406a9d7d9b9
+compiler:
+  compilerBuildId: sha256:574bcd6cc190db957222a9951c145c791541c2b33a44879f5714ed393df2afad
+  compilerId: lervo.codex.document-normalizer
+  compilerVersion: 3+codex-cli 0.156.1
+  isolation: external_no_capabilities
+  provider: codex
+formatVersion: lervo.document.v1
+operationId: knormop_2116d73700d791edae331416
+outputLanguage: en
+outputs:
+  - byteCount: 449
+    contentHash: sha256:ce9cd3e91f5abaa911ffa27da6358621856fd6816c20bb9c789db4654c54288c
+    path: docs/instructions/workspace-commands.md
+    userRegionHash: sha256:ce9cd3e91f5abaa911ffa27da6358621856fd6816c20bb9c789db4654c54288c
+  - byteCount: 559
+    contentHash: sha256:613fa73b07948bdd73823cc1584144127e09d699593269ce2ebe050bbe2896c8
+    path: docs/instructions/workspace-commands/development.md
+    userRegionHash: sha256:613fa73b07948bdd73823cc1584144127e09d699593269ce2ebe050bbe2896c8
+  - byteCount: 390
+    contentHash: sha256:9cb8a9133f2058b8326ca59e0085c55510fd973383370a3e315a39858cb0e145
+    path: docs/instructions/workspace-commands/evaluation.md
+    userRegionHash: sha256:9cb8a9133f2058b8326ca59e0085c55510fd973383370a3e315a39858cb0e145
+  - byteCount: 490
+    contentHash: sha256:dd675569d661d32d3941f71fc461061e79da73487288681cfe776a47c7113699
+    path: docs/instructions/workspace-commands/formatting.md
+    userRegionHash: sha256:dd675569d661d32d3941f71fc461061e79da73487288681cfe776a47c7113699
+  - byteCount: 431
+    contentHash: sha256:8bcf6a41b7b8b02f0b02ff014faa6f55f02e00ec12f5966ae276096c6d4d2e3c
+    path: docs/instructions/workspace-commands/release.md
+    userRegionHash: sha256:8bcf6a41b7b8b02f0b02ff014faa6f55f02e00ec12f5966ae276096c6d4d2e3c
+profile: instruction_document
+recordId: knormdoc_49d9b70f1371b11bb7f9a56e
+resourceBindings: []
+schemaVersion: 2
+sourceContentHash: sha256:c5de42129be9e4c232a3a49e4cc137fa1c0b35408fb9cde481035fab2076622f
+sourcePath: docs/instructions/workspace-commands.md
+sourceUnitVersionIds:
+  - uv_11e57afa49440c9ecc9137bf
+  - uv_2ef658e20aad77e14cffba73
+  - uv_d8ad7a49b3772f8f69226e6d
+  - uv_ed7ac0d13d053b02047a8e08
