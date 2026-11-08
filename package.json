@@ -40,7 +40,7 @@
     "size-limit": "^14.3.0",
     "turbo": "^2.11.10"
   },
-  "packageManager": "pnpm@12.9.1",
+  "packageManager": "pnpm@12.18.0",
   "engines": {
     "node": ">=22.23.4"
   },
