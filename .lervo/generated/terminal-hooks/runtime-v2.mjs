@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
 import { constants } from "node:fs";
 import { lstat, mkdir, open, readdir, realpath, rename, rm, writeFile } from "node:fs/promises";
@@ -10,7 +11,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 // Raised whenever the launcher's behavior changes. A repository's copy hands the hook to the host's
 // launcher when that one is at least as new, so the copy itself rarely needs rewriting.
-const launcherVersion = 1;
+const launcherVersion = 2;
 const hash = (bytes) => `sha256:${createHash("sha256").update(bytes).digest("hex")}`;
 const assetNames = [
   "native/cas-io-darwin.node",
@@ -203,8 +204,8 @@ async function integrityFailure() {
   process.exitCode = 2;
 }
 // Resident context socket (resident-context-socket.md): the host's context server may answer a
-// prompt before this process loads the runtime. Before the server's `A`, any failure falls back
-// to this process; after the client's `G`, the server alone records the prompt.
+// prompt or Stop hook before this process loads the runtime. Before the server's `A`, any failure
+// falls back to this process; after the client's `G`, the server alone records the turn.
 const environmentNames = [
   "CLAUDE_CONFIG_DIR",
   "CODEX_HOME",
@@ -215,6 +216,43 @@ const environmentNames = [
   "XDG_CONFIG_HOME",
   "XDG_STATE_HOME",
 ];
+// The session's values the served hook runs with; every `GIT_` variable is carried too.
+const sessionNames = ["PATH", "XDG_RUNTIME_DIR", "DBUS_SESSION_BUS_ADDRESS"];
+const servedEvents = { UserPromptSubmit: "prompt", Stop: "stop" };
+function sessionEnvironment() {
+  const values = Object.fromEntries(sessionNames.map((name) => [name, process.env[name] ?? null]));
+  for (const [name, value] of Object.entries(process.env))
+    if (/^GIT_[A-Z0-9_]{1,60}$/u.test(name) && value !== undefined) values[name] = value;
+  return values;
+}
+// The served hook's detached workers start here, in the provider's session, as they would from an
+// in-process hook: with this Node, environment, and umask, and outside the service's process tree.
+// A launch that fails leaves its queued work for the next hook or resident cycle.
+async function startLaunches(launches) {
+  if (!Array.isArray(launches)) return;
+  await Promise.all(
+    launches.slice(0, 8).map(
+      (launch) =>
+        new Promise((done) => {
+          try {
+            const child = spawn(process.execPath, [launch.entry, ...launch.args], {
+              cwd: launch.cwd,
+              detached: true,
+              stdio: "ignore",
+              env: { ...process.env, ...launch.env },
+            });
+            child.once("error", done);
+            child.once("spawn", () => {
+              child.unref();
+              done();
+            });
+          } catch {
+            done();
+          }
+        }),
+    ),
+  );
+}
 const delegatedKey = Symbol.for("lervo.terminalHook.delegated");
 async function thisLauncher() {
   const self = await realpath(fileURLToPath(import.meta.url)).catch(() => null);
@@ -260,7 +298,7 @@ async function served() {
   } catch {
     return false;
   }
-  if (event !== "UserPromptSubmit") return false;
+  if (!Object.hasOwn(servedEvents, event)) return false;
   await trustedParents();
   await directory(store);
   // Prompt text goes only to a store no one else can enter.
@@ -269,7 +307,7 @@ async function served() {
   if (!/^sha256:[a-f0-9]{64}$/u.test(pointer.contentHash)) return false;
   const request = JSON.stringify({
     version: 1,
-    kind: "prompt",
+    kind: servedEvents[event],
     runtime: pointer.contentHash,
     cwd: await realpath(process.cwd()),
     args: process.argv.slice(2),
@@ -279,6 +317,8 @@ async function served() {
     elapsed: performance.now(),
     input: input.toString("utf8"),
     launcher: await thisLauncher(),
+    session: sessionEnvironment(),
+    umask: process.umask(),
   });
   return new Promise((done) => {
     const socket = connect(resolve(store, "context.s"));
@@ -290,7 +330,10 @@ async function served() {
       done(value);
     };
     let timer = setTimeout(() => finish(false), 150);
-    socket.on("error", () => (state === "committed" ? finish({}) : finish(false)));
+    // Once the answer arrived, the server closing the socket ends nothing: the launches finish it.
+    const lost = () =>
+      state === "answered" ? undefined : finish(state === "committed" ? {} : false);
+    socket.on("error", lost);
     socket.on("connect", () => {
       state = "sent";
       clearTimeout(timer);
@@ -317,9 +360,12 @@ async function served() {
       } catch {
         return finish({});
       }
-      finish(answer.ok === true ? answer : {});
+      if (answer.ok !== true) return finish({});
+      state = "answered";
+      clearTimeout(timer);
+      void startLaunches(answer.launches).finally(() => finish(answer));
     });
-    socket.on("close", () => (state === "committed" ? finish({}) : finish(false)));
+    socket.on("close", lost);
   });
 }
 if (
