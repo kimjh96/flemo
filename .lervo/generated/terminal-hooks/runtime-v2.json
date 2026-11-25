@@ -1,1 +1,1 @@
-{"byteCount":3708691,"contentHash":"sha256:0f9e1718a3ebeaf0ba0ff2892005240040df2e754eb710f54a439ce0becf17ab","contractId":"lervo_terminal_hooks_v2","kind":"lervo_terminal_hook_runtime","runtimePath":".lervo/generated/terminal-hooks/runtime-v2.mjs","schemaVersion":1}
+{"byteCount":11712,"contentHash":"sha256:837d0ceb61272e47d038260d5783d9bada3622fd8c5a5b972f79730021f56215","contractId":"lervo_terminal_hooks_v2","kind":"lervo_terminal_hook_launcher","runtimePath":".lervo/generated/terminal-hooks/runtime-v2.mjs","schemaVersion":4}
