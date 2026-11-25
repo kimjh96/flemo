@@ -6,8 +6,11 @@ import { connect } from "node:net";
 import { homedir } from "node:os";
 import { relative, resolve, sep } from "node:path";
 import { Readable } from "node:stream";
-import { pathToFileURL } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
+// Raised whenever the launcher's behavior changes. A repository's copy hands the hook to the host's
+// launcher when that one is at least as new, so the copy itself rarely needs rewriting.
+const launcherVersion = 1;
 const hash = (bytes) => `sha256:${createHash("sha256").update(bytes).digest("hex")}`;
 const assetNames = [
   "native/cas-io-darwin.node",
@@ -212,6 +215,28 @@ const environmentNames = [
   "XDG_CONFIG_HOME",
   "XDG_STATE_HOME",
 ];
+const delegatedKey = Symbol.for("lervo.terminalHook.delegated");
+async function thisLauncher() {
+  const self = await realpath(fileURLToPath(import.meta.url)).catch(() => null);
+  const host = await realpath(resolve(store, "launcher.mjs")).catch(() => null);
+  return self !== null && self === host ? "host" : "committed";
+}
+// A repository's committed copy runs the host's launcher in this process when that launcher is
+// this user's, owner-only, and at least as new; otherwise it runs itself, exactly as before.
+async function delegated() {
+  if (globalThis[delegatedKey] || (await thisLauncher()) === "host") return false;
+  await trustedParents();
+  await directory(store);
+  const host = resolve(store, "launcher.mjs");
+  if ((await lstat(store)).mode & 0o077 || (await lstat(host)).mode & 0o077) return false;
+  const version = /\nconst launcherVersion = (\d+);\n/u.exec(
+    (await bytes(host, 64 * 1024)).toString(),
+  );
+  if (version === null || Number(version[1]) < launcherVersion) return false;
+  globalThis[delegatedKey] = true;
+  await import(pathToFileURL(await realpath(host)).href);
+  return true;
+}
 async function served() {
   // Without a listening server, this process behaves exactly as before: it never touches stdin.
   try {
@@ -253,6 +278,7 @@ async function served() {
     ),
     elapsed: performance.now(),
     input: input.toString("utf8"),
+    launcher: await thisLauncher(),
   });
   return new Promise((done) => {
     const socket = connect(resolve(store, "context.s"));
@@ -296,44 +322,50 @@ async function served() {
     socket.on("close", () => (state === "committed" ? finish({}) : finish(false)));
   });
 }
-if (process.platform !== "win32" && process.env.LERVO_TERMINAL_CONTEXT_SOCKET !== "0") {
-  const answer = await served().catch(() => false);
-  if (answer !== false) {
-    // A committed request whose answer never came prints no context, as a failed hook does.
-    process.stderr.write(answer.stderr ?? "");
-    process.stdout.write(answer.stdout ?? "{}\n", () => process.exit(answer.exitCode ?? 0));
-    await new Promise(() => undefined);
+if (
+  process.env.LERVO_TERMINAL_HOOK_DELEGATION === "0" ||
+  process.platform === "win32" ||
+  !(await delegated().catch(() => false))
+) {
+  if (process.platform !== "win32" && process.env.LERVO_TERMINAL_CONTEXT_SOCKET !== "0") {
+    const answer = await served().catch(() => false);
+    if (answer !== false) {
+      // A committed request whose answer never came prints no context, as a failed hook does.
+      process.stderr.write(answer.stderr ?? "");
+      process.stdout.write(answer.stdout ?? "{}\n", () => process.exit(answer.exitCode ?? 0));
+      await new Promise(() => undefined);
+    }
   }
-}
-for (let attempt = 0; attempt < 2; attempt++) {
-  let entry;
-  try {
-    entry = await locate();
-  } catch (error) {
-    if (missing(error)) {
+  for (let attempt = 0; attempt < 2; attempt++) {
+    let entry;
+    try {
+      entry = await locate();
+    } catch (error) {
+      if (missing(error)) {
+        if (attempt === 0) continue;
+        await marker();
+      } else {
+        await integrityFailure();
+      }
+      break;
+    }
+    if (entry === null) {
+      await marker();
+      break;
+    }
+    try {
+      // Same process; the verified runtime reads the original argv, stdin, and cwd.
+      // Node resolves symlinks for `import.meta.url`; the receipt must name that same real path.
+      const real = await realpath(entry);
+      process.env.LERVO_TERMINAL_HOOK_RUNTIME = real;
+      globalThis[Symbol.for("lervo.terminalHook.verifiedEntry")] = real;
+      await import(pathToFileURL(real).href);
+      break;
+    } catch (error) {
+      delete globalThis[Symbol.for("lervo.terminalHook.verifiedEntry")];
+      if (!missing(error, entry)) throw error;
       if (attempt === 0) continue;
       await marker();
-    } else {
-      await integrityFailure();
     }
-    break;
-  }
-  if (entry === null) {
-    await marker();
-    break;
-  }
-  try {
-    // Same process; the verified runtime reads the original argv, stdin, and cwd.
-    // Node resolves symlinks for `import.meta.url`; the receipt must name that same real path.
-    const real = await realpath(entry);
-    process.env.LERVO_TERMINAL_HOOK_RUNTIME = real;
-    globalThis[Symbol.for("lervo.terminalHook.verifiedEntry")] = real;
-    await import(pathToFileURL(real).href);
-    break;
-  } catch (error) {
-    delete globalThis[Symbol.for("lervo.terminalHook.verifiedEntry")];
-    if (!missing(error, entry)) throw error;
-    if (attempt === 0) continue;
-    await marker();
   }
 }
