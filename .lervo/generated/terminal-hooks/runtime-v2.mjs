@@ -11,7 +11,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 // Raised whenever the launcher's behavior changes. A repository's copy hands the hook to the host's
 // launcher when that one is at least as new, so the copy rarely needs rewriting.
-const launcherVersion = 4;
+const launcherVersion = 5;
 const hash = (bytes) => `sha256:${createHash("sha256").update(bytes).digest("hex")}`;
 const assetNames = [
   "native/cas-io-darwin.node",
@@ -361,7 +361,7 @@ async function served() {
     socket.on("connect", () => {
       state = "sent";
       clearTimeout(timer);
-      timer = setTimeout(() => finish(false), 100);
+      timer = setTimeout(() => finish(false), 500);
       socket.write(`${request}\n`);
     });
     socket.on("data", (chunk) => {
