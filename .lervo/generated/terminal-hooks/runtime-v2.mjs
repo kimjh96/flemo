@@ -9,9 +9,8 @@ import { relative, resolve, sep } from "node:path";
 import { Readable } from "node:stream";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
-// Raised whenever the launcher's behavior changes. A repository's copy hands the hook to the host's
-// launcher when that one is at least as new, so the copy rarely needs rewriting.
-const launcherVersion = 5;
+// ADR-0539 and resident-context-socket.md specify this file. Raise the version on any behavior change.
+const launcherVersion = 6;
 const hash = (bytes) => `sha256:${createHash("sha256").update(bytes).digest("hex")}`;
 const assetNames = [
   "native/cas-io-darwin.node",
@@ -74,11 +73,9 @@ async function directory(path, requirePrivate = true) {
   if (requirePrivate) privateOwner(stat);
 }
 async function marker(repair = false) {
-  // Closed codes only: never include a repository path, error detail, or hook input.
   const name = repair ? "repair" : "unavailable";
   const temporary = resolve(store, `.${name}-${process.pid}.tmp`);
   try {
-    // Validate existing parents before recursive mkdir can traverse a link outside home.
     await trustedParents();
     await mkdir(store, { mode: 0o700 });
   } catch (error) {
@@ -87,14 +84,11 @@ async function marker(repair = false) {
         await mkdir(resolve(store, ".."), { mode: 0o700 });
         await trustedParents();
         await mkdir(store, { mode: 0o700 });
-      } catch {
-        /* Best effort only. */
-      }
+      } catch {}
     }
   }
   try {
     await trustedParents();
-    // Closed repair codes can be written even when mode bits caused verification to fail.
     await directory(store, false);
     await writeFile(
       temporary,
@@ -106,7 +100,6 @@ async function marker(repair = false) {
     );
     await rename(temporary, resolve(store, `${name}.json`));
   } catch {
-    /* A marker cannot override an unsafe or unwritable store. */
   } finally {
     await rm(temporary, { force: true }).catch(() => undefined);
   }
@@ -150,7 +143,6 @@ async function locate() {
   )
     throw new Error("integrity");
   const entry = resolve(root, "runtime-v2.mjs");
-  // The launcher outlives CLI releases, so its bound leaves room for the runtime to grow.
   const runtime = await bytes(entry, 64 * 1024 * 1024);
   if (
     runtime.length !== manifest.byteCount ||
@@ -203,8 +195,6 @@ async function integrityFailure() {
   process.stderr.write("Lervo terminal hook runtime integrity verification failed.\n");
   process.exitCode = 2;
 }
-// Resident context socket (resident-context-socket.md): before the server's `A`, any failure falls
-// back to this process; after the client's `G`, the server alone records the turn.
 const environmentNames = [
   "CLAUDE_CONFIG_DIR",
   "CODEX_HOME",
@@ -215,7 +205,6 @@ const environmentNames = [
   "XDG_CONFIG_HOME",
   "XDG_STATE_HOME",
 ];
-// The session's values the served hook runs with; every `GIT_` variable is carried too.
 const sessionNames = ["PATH", "XDG_RUNTIME_DIR", "DBUS_SESSION_BUS_ADDRESS"];
 const servedEvents = { UserPromptSubmit: "prompt", Stop: "stop" };
 function sessionEnvironment() {
@@ -224,7 +213,6 @@ function sessionEnvironment() {
     if (/^GIT_[A-Z0-9_]{1,60}$/u.test(name) && value !== undefined) values[name] = value;
   return values;
 }
-// The served hook's detached workers start here, in the session, as an in-process hook's would.
 async function startLaunches(launches) {
   if (!Array.isArray(launches)) return;
   await Promise.all(
@@ -275,8 +263,6 @@ async function thisLauncher() {
   const host = await realpath(resolve(store, "launcher.mjs")).catch(() => null);
   return self !== null && self === host ? "host" : "committed";
 }
-// A repository's committed copy runs the host's launcher in this process when that launcher is
-// this user's, owner-only, and at least as new; otherwise it runs itself, exactly as before.
 async function delegated() {
   if (globalThis[delegatedKey] || (await thisLauncher()) === "host") return false;
   await trustedParents();
@@ -293,32 +279,31 @@ async function delegated() {
 }
 // Why a hook was not served, for the runtime's schema-13 `delivery`.
 const offer = Symbol.for("lervo.terminalHook.offer");
+let input, hookInput;
+async function readInput() {
+  const chunks = [];
+  for await (const chunk of process.stdin) chunks.push(Buffer.from(chunk));
+  input = Buffer.concat(chunks);
+  Object.defineProperty(process, "stdin", {
+    value: Readable.from([input]),
+    configurable: true,
+    writable: true,
+  });
+  try {
+    hookInput = JSON.parse(input.toString("utf8"));
+  } catch {}
+}
 async function served() {
   globalThis[offer] = "none";
-  // Without a listening server, this process never touches stdin.
   try {
     if (!(await lstat(resolve(store, "context.s"))).isSocket()) return false;
   } catch {
     return false;
   }
   globalThis[offer] = "";
-  const chunks = [];
-  for await (const chunk of process.stdin) chunks.push(Buffer.from(chunk));
-  const input = Buffer.concat(chunks);
-  // Whatever happens next, the runtime can read the same input again.
-  Object.defineProperty(process, "stdin", {
-    value: Readable.from([input]),
-    configurable: true,
-    writable: true,
-  });
-  if (input.length > 200 * 1024) return false;
-  let event;
-  try {
-    event = JSON.parse(input.toString("utf8")).hook_event_name;
-  } catch {
-    return false;
-  }
-  if (!Object.hasOwn(servedEvents, event)) return false;
+  await readInput();
+  const event = hookInput?.hook_event_name;
+  if (input.length > 200 * 1024 || !Object.hasOwn(servedEvents, event)) return false;
   await trustedParents();
   await directory(store);
   // Prompt text goes only to a store no one else can enter.
@@ -354,7 +339,6 @@ async function served() {
       done(value);
     };
     let timer = setTimeout(() => finish(false), 150);
-    // Once answered, the server closing the socket ends nothing: the launches finish it.
     const lost = () =>
       state === "answered" ? undefined : finish(state === "committed" ? {} : false);
     socket.on("error", lost);
@@ -369,7 +353,6 @@ async function served() {
         if (chunk[0] !== 0x41 /* A */) return finish(false, chunk);
         state = "committed";
         clearTimeout(timer);
-        // Committed: wait to the provider's hook limit, never falling back.
         timer = setTimeout(() => finish({}), 25000);
         socket.write("G");
         chunk = chunk.subarray(1);
@@ -389,8 +372,7 @@ async function served() {
       clearTimeout(timer);
       const later = received.subarray(end + 1).toString();
       if (answer.pending === true && !later.includes("\n")) {
-        // A detached relay keeps the connection and bytes read so far, and starts the records'
-        // launches; closing this copy stops this process reading them.
+        // A detached relay keeps the connection and starts the records' launches.
         try {
           spawn(process.execPath, [fileURLToPath(import.meta.url), relayFlag, later], {
             detached: true,
@@ -406,6 +388,40 @@ async function served() {
     socket.on("close", lost);
   });
 }
+// ADR-0645: a prompt the server could not take gets the server's cached base.
+async function cached() {
+  const why = `${globalThis[offer]}`;
+  const reason =
+    why === "none"
+      ? "no_server"
+      : why === "connecting" || why === "sent"
+        ? "unreachable"
+        : why.startsWith('{"declined":"busy"}')
+          ? "declined_busy"
+          : null;
+  if (reason === null) return null;
+  const base = resolve(store, "base");
+  await trustedParents();
+  await directory(base);
+  const at = (name) => resolve(base, hash(name).slice(7, 23));
+  const named = JSON.stringify(environmentNames.map((name) => process.env[name] ?? null));
+  const file = at([await realpath(process.cwd()), ...process.argv.slice(2), named].join("\0"));
+  const found = await lstat(`${file}.json`);
+  const age = Math.round(Date.now() - found.mtimeMs);
+  if (found.mode & 0o077 || !(age > -1e3 && age < 18e5)) return null;
+  if (input === undefined) await readInput();
+  if (hookInput?.hook_event_name !== "UserPromptSubmit") return null;
+  const answer = await bytes(`${file}.json`, 65536);
+  // The marker the server records; the session's tells its Stop this turn prepared nothing.
+  const leave = (path, text) => writeFile(path, text, { mode: 0o600 }).catch(() => undefined);
+  await leave(
+    `${file}.${Date.now()}.${process.pid}.unserved`,
+    JSON.stringify({ reason, age: Math.max(age, 0) }),
+  );
+  const session = hookInput.session_id;
+  if (typeof session === "string") await leave(`${at(session)}.turn`, "");
+  return answer;
+}
 if (
   process.env.LERVO_TERMINAL_HOOK_DELEGATION === "0" ||
   process.platform === "win32" ||
@@ -413,10 +429,12 @@ if (
 ) {
   if (process.platform !== "win32" && process.env.LERVO_TERMINAL_CONTEXT_SOCKET !== "0") {
     const answer = await served().catch(() => false);
-    if (answer !== false) {
-      // A committed request whose answer never came prints no context, as a failed hook does.
+    const base = answer === false && (await cached().catch(() => null));
+    if (answer !== false || base) {
       process.stderr.write(answer.stderr ?? "");
-      process.stdout.write(answer.stdout ?? "{}\n", () => process.exit(answer.exitCode ?? 0));
+      process.stdout.write(base || (answer.stdout ?? "{}\n"), () =>
+        process.exit(answer.exitCode ?? 0),
+      );
       await new Promise(() => undefined);
     }
   }
@@ -438,8 +456,7 @@ if (
       break;
     }
     try {
-      // Same process; the verified runtime reads the original argv, stdin, and cwd.
-      // Node resolves symlinks for `import.meta.url`; the receipt names that real path.
+      // Same process and argv; Node resolves symlinks for `import.meta.url`, so name the real path.
       const real = await realpath(entry);
       process.env.LERVO_TERMINAL_HOOK_RUNTIME = real;
       globalThis[Symbol.for("lervo.terminalHook.verifiedEntry")] = real;
