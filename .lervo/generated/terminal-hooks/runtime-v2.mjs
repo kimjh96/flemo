@@ -3,7 +3,7 @@ import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
 import { constants } from "node:fs";
 import { lstat, mkdir, open, readdir, realpath, rename, rm, writeFile } from "node:fs/promises";
-import { connect } from "node:net";
+import { connect, Socket } from "node:net";
 import { homedir } from "node:os";
 import { relative, resolve, sep } from "node:path";
 import { Readable } from "node:stream";
@@ -11,7 +11,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 // Raised whenever the launcher's behavior changes. A repository's copy hands the hook to the host's
 // launcher when that one is at least as new, so the copy itself rarely needs rewriting.
-const launcherVersion = 2;
+const launcherVersion = 3;
 const hash = (bytes) => `sha256:${createHash("sha256").update(bytes).digest("hex")}`;
 const assetNames = [
   "native/cas-io-darwin.node",
@@ -225,9 +225,8 @@ function sessionEnvironment() {
     if (/^GIT_[A-Z0-9_]{1,60}$/u.test(name) && value !== undefined) values[name] = value;
   return values;
 }
-// The served hook's detached workers start here, in the provider's session, as they would from an
-// in-process hook: with this Node, environment, and umask, and outside the service's process tree.
-// A launch that fails leaves its queued work for the next hook or resident cycle.
+// The served hook's detached workers start here, in the session, as an in-process hook's would;
+// a failed launch leaves its queued work for the next hook or resident cycle.
 async function startLaunches(launches) {
   if (!Array.isArray(launches)) return;
   await Promise.all(
@@ -252,6 +251,25 @@ async function startLaunches(launches) {
         }),
     ),
   );
+}
+const relayFlag = "--lervo-launch-relay";
+const relayed = (text) => {
+  try {
+    return JSON.parse(text.split("\n")[0]).launches ?? [];
+  } catch {
+    return [];
+  }
+};
+if (process.argv[2] === relayFlag) {
+  const socket = new Socket({ fd: 3 });
+  let text = process.argv[3] ?? "";
+  socket.on("data", (chunk) => (text += chunk));
+  await new Promise((done) => {
+    socket.on("close", done).on("error", done);
+    setTimeout(done, 30000).unref();
+  });
+  await startLaunches(relayed(text));
+  process.exit(0);
 }
 const delegatedKey = Symbol.for("lervo.terminalHook.delegated");
 async function thisLauncher() {
@@ -319,6 +337,7 @@ async function served() {
     launcher: await thisLauncher(),
     session: sessionEnvironment(),
     umask: process.umask(),
+    relay: true,
   });
   return new Promise((done) => {
     const socket = connect(resolve(store, "context.s"));
@@ -363,6 +382,20 @@ async function served() {
       if (answer.ok !== true) return finish({});
       state = "answered";
       clearTimeout(timer);
+      const later = received.subarray(end + 1).toString();
+      if (answer.pending === true && !later.includes("\n")) {
+        // A detached relay keeps the connection and bytes read so far, and starts the records'
+        // launches; closing this copy stops this process reading them.
+        try {
+          spawn(process.execPath, [fileURLToPath(import.meta.url), relayFlag, later], {
+            detached: true,
+            stdio: ["ignore", "ignore", "ignore", socket],
+          })
+            .on("error", () => undefined)
+            .unref();
+        } catch {}
+        socket.destroy();
+      } else if (answer.pending === true) answer.launches.push(...relayed(later));
       void startLaunches(answer.launches).finally(() => finish(answer));
     });
     socket.on("close", lost);
