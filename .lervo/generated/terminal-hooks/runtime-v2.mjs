@@ -10,8 +10,8 @@ import { Readable } from "node:stream";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 // Raised whenever the launcher's behavior changes. A repository's copy hands the hook to the host's
-// launcher when that one is at least as new, so the copy itself rarely needs rewriting.
-const launcherVersion = 3;
+// launcher when that one is at least as new, so the copy rarely needs rewriting.
+const launcherVersion = 4;
 const hash = (bytes) => `sha256:${createHash("sha256").update(bytes).digest("hex")}`;
 const assetNames = [
   "native/cas-io-darwin.node",
@@ -203,9 +203,8 @@ async function integrityFailure() {
   process.stderr.write("Lervo terminal hook runtime integrity verification failed.\n");
   process.exitCode = 2;
 }
-// Resident context socket (resident-context-socket.md): the host's context server may answer a
-// prompt or Stop hook before this process loads the runtime. Before the server's `A`, any failure
-// falls back to this process; after the client's `G`, the server alone records the turn.
+// Resident context socket (resident-context-socket.md): before the server's `A`, any failure falls
+// back to this process; after the client's `G`, the server alone records the turn.
 const environmentNames = [
   "CLAUDE_CONFIG_DIR",
   "CODEX_HOME",
@@ -225,8 +224,7 @@ function sessionEnvironment() {
     if (/^GIT_[A-Z0-9_]{1,60}$/u.test(name) && value !== undefined) values[name] = value;
   return values;
 }
-// The served hook's detached workers start here, in the session, as an in-process hook's would;
-// a failed launch leaves its queued work for the next hook or resident cycle.
+// The served hook's detached workers start here, in the session, as an in-process hook's would.
 async function startLaunches(launches) {
   if (!Array.isArray(launches)) return;
   await Promise.all(
@@ -293,13 +291,17 @@ async function delegated() {
   await import(pathToFileURL(await realpath(host)).href);
   return true;
 }
+// Why a hook was not served, for the runtime's schema-13 `delivery`.
+const offer = Symbol.for("lervo.terminalHook.offer");
 async function served() {
-  // Without a listening server, this process behaves exactly as before: it never touches stdin.
+  globalThis[offer] = "none";
+  // Without a listening server, this process never touches stdin.
   try {
     if (!(await lstat(resolve(store, "context.s"))).isSocket()) return false;
   } catch {
     return false;
   }
+  globalThis[offer] = "";
   const chunks = [];
   for await (const chunk of process.stdin) chunks.push(Buffer.from(chunk));
   const input = Buffer.concat(chunks);
@@ -343,13 +345,16 @@ async function served() {
     const socket = connect(resolve(store, "context.s"));
     let state = "connecting";
     let received = Buffer.alloc(0);
-    const finish = (value) => {
+    const finish = (value, why = state) => {
       clearTimeout(timer);
-      if (value === false) socket.destroy();
+      if (value === false) {
+        socket.destroy();
+        globalThis[offer] ||= `${why}`;
+      }
       done(value);
     };
     let timer = setTimeout(() => finish(false), 150);
-    // Once the answer arrived, the server closing the socket ends nothing: the launches finish it.
+    // Once answered, the server closing the socket ends nothing: the launches finish it.
     const lost = () =>
       state === "answered" ? undefined : finish(state === "committed" ? {} : false);
     socket.on("error", lost);
@@ -361,7 +366,7 @@ async function served() {
     });
     socket.on("data", (chunk) => {
       if (state === "sent") {
-        if (chunk[0] !== 0x41 /* A */) return finish(false);
+        if (chunk[0] !== 0x41 /* A */) return finish(false, chunk);
         state = "committed";
         clearTimeout(timer);
         // Committed: wait to the provider's hook limit, never falling back.
@@ -434,7 +439,7 @@ if (
     }
     try {
       // Same process; the verified runtime reads the original argv, stdin, and cwd.
-      // Node resolves symlinks for `import.meta.url`; the receipt must name that same real path.
+      // Node resolves symlinks for `import.meta.url`; the receipt names that real path.
       const real = await realpath(entry);
       process.env.LERVO_TERMINAL_HOOK_RUNTIME = real;
       globalThis[Symbol.for("lervo.terminalHook.verifiedEntry")] = real;
