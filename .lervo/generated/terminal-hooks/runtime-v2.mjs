@@ -10,7 +10,10 @@ import { Readable } from "node:stream";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 // ADR-0539 and resident-context-socket.md specify this file. Raise the version on any behavior change.
-const launcherVersion = 6;
+const launcherVersion = 7;
+const fail = () => {
+  throw new Error("integrity");
+};
 const hash = (bytes) => `sha256:${createHash("sha256").update(bytes).digest("hex")}`;
 const assetNames = [
   "native/cas-io-darwin.node",
@@ -27,26 +30,24 @@ const store =
     : resolve(homedir(), ".lervo/terminal-hooks");
 
 function privateOwner(stat) {
-  if (process.platform !== "win32" && (stat.uid !== process.getuid() || stat.mode & 0o022))
-    throw new Error("integrity");
+  if (process.platform !== "win32" && (stat.uid !== process.getuid() || stat.mode & 0o022)) fail();
 }
 async function trustedParents() {
   if (process.platform === "win32") return;
   const home = await realpath(homedir());
   const parent = await realpath(resolve(store, ".."));
   const within = relative(home, parent);
-  if (within === ".." || within.startsWith(`..${sep}`) || within.startsWith(sep))
-    throw new Error("integrity");
+  if (within === ".." || within.startsWith(`..${sep}`) || within.startsWith(sep)) fail();
 }
 async function bytes(path, maximum) {
   const stat = await lstat(path);
-  if (!stat.isFile() || stat.isSymbolicLink() || stat.size > maximum) throw new Error("integrity");
+  if (!stat.isFile() || stat.isSymbolicLink() || stat.size > maximum) fail();
   privateOwner(stat);
   const file = await open(path, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0));
   try {
     const before = await file.stat();
     privateOwner(before);
-    if (!before.isFile() || before.size > maximum) throw new Error("integrity");
+    if (!before.isFile() || before.size > maximum) fail();
     const buffer = Buffer.alloc(before.size + 1);
     let length = 0;
     while (length < buffer.length) {
@@ -61,7 +62,7 @@ async function bytes(path, maximum) {
       before.size !== after.size ||
       before.mtimeMs !== after.mtimeMs
     )
-      throw new Error("integrity");
+      fail();
     return value;
   } finally {
     await file.close();
@@ -69,7 +70,7 @@ async function bytes(path, maximum) {
 }
 async function directory(path, requirePrivate = true) {
   const stat = await lstat(path);
-  if (!stat.isDirectory() || stat.isSymbolicLink()) throw new Error("integrity");
+  if (!stat.isDirectory() || stat.isSymbolicLink()) fail();
   if (requirePrivate) privateOwner(stat);
 }
 async function marker(repair = false) {
@@ -126,7 +127,7 @@ async function locate() {
       pointer.directory,
     )
   )
-    throw new Error("integrity");
+    fail();
   const root = resolve(store, pointer.directory);
   await directory(root);
   const manifest = JSON.parse(await bytes(resolve(root, "runtime-v2.json"), 16384));
@@ -141,7 +142,7 @@ async function locate() {
     !Array.isArray(manifest.assets) ||
     (manifest.assets.length !== 0 && manifest.assets.length !== 4)
   )
-    throw new Error("integrity");
+    fail();
   const entry = resolve(root, "runtime-v2.mjs");
   const runtime = await bytes(entry, 64 * 1024 * 1024);
   if (
@@ -149,7 +150,7 @@ async function locate() {
     hash(runtime) !== manifest.contentHash ||
     !runtime.toString("utf8").startsWith("#!/usr/bin/env node\n")
   )
-    throw new Error("integrity");
+    fail();
   if (manifest.assets.length) {
     await directory(resolve(root, "native"));
     if (
@@ -157,11 +158,11 @@ async function locate() {
         (name) => !assetNames.includes(`native/${name}`),
       )
     )
-      throw new Error("integrity");
+      fail();
   } else {
     try {
       await lstat(resolve(root, "native"));
-      throw new Error("integrity");
+      fail();
     } catch (error) {
       if (error.code !== "ENOENT") throw error;
     }
@@ -171,13 +172,12 @@ async function locate() {
       Object.keys(asset).sort().join(",") !== "byteCount,contentHash,path" ||
       asset.path !== assetNames[index]
     )
-      throw new Error("integrity");
+      fail();
     const value = await bytes(
       resolve(root, asset.path),
       asset.path.endsWith(".node") ? 1048576 : 4096,
     );
-    if (value.length !== asset.byteCount || hash(value) !== asset.contentHash)
-      throw new Error("integrity");
+    if (value.length !== asset.byteCount || hash(value) !== asset.contentHash) fail();
   }
   return entry;
 }
@@ -206,7 +206,7 @@ const environmentNames = [
   "XDG_STATE_HOME",
 ];
 const sessionNames = ["PATH", "XDG_RUNTIME_DIR", "DBUS_SESSION_BUS_ADDRESS"];
-const servedEvents = { UserPromptSubmit: "prompt", Stop: "stop" };
+const servedEvents = { UserPromptSubmit: "prompt", Stop: "stop", PreToolUse: "tool" };
 function sessionEnvironment() {
   const values = Object.fromEntries(sessionNames.map((name) => [name, process.env[name] ?? null]));
   for (const [name, value] of Object.entries(process.env))
@@ -438,6 +438,8 @@ if (
       await new Promise(() => undefined);
     }
   }
+  // An unserved claim never loads the runtime: the turn's end claims instead.
+  if (process.argv.includes("--claim")) process.exit(0);
   for (let attempt = 0; attempt < 2; attempt++) {
     let entry;
     try {
