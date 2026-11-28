@@ -44,7 +44,7 @@
   },
   "dependencies": {
     "path-to-regexp": "^8.4.2",
-    "zustand": "^5.0.16"
+    "zustand": "^5.1.0"
   },
   "devDependencies": {
     "@flemo/eslint-config": "workspace:*",
