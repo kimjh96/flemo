@@ -1,5 +1,13 @@
 # @flemo/core
 
+## 2.8.4
+
+### Patch Changes
+
+- [`d3dcf69`](https://github.com/kimjh96/flemo/commit/d3dcf6996e1c2df3c2e41dce2ef5efbd0b1dd22c) Stop the screen a swipe-back reveals from shimmering on high-density displays such as iPad Pro. Hold each dragged slide on whole device pixels, and start the release as a fresh animation from the pose on screen instead of waking a held one.
+
+- [`9c3b031`](https://github.com/kimjh96/flemo/commit/9c3b0317d20553acadbc2143937692314eb9d85e) Require zustand ^5.0.16 for the navigation stores.
+
 ## 2.8.3
 
 ### Patch Changes
